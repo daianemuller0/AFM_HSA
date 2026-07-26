@@ -1,0 +1,95 @@
+@implements IDisposable
+@inject NavigationManager Nav
+
+<aside class="sidebar no-print">
+    <div class="brand">
+        <div class="brand-mark">H</div>
+        <div>
+            <div class="brand-name">Howden</div>
+            <div class="brand-sub">Aftermarket · AFM HSA</div>
+        </div>
+    </div>
+
+    <nav class="nav">
+        @foreach (var sec in Sections)
+        {
+            <div class="nav-section">@sec.Name</div>
+            @foreach (var it in sec.Items)
+            {
+                <NavLink class="nav-item" href="@it.Href" Match="NavLinkMatch.All">
+                    @((MarkupString)Icons.Svg(it.Icon, "nav-ico"))
+                    <span>@it.Label</span>
+                </NavLink>
+            }
+        }
+    </nav>
+
+    <div class="sidebar-footer">
+        <div class="version">Aftermarket Intelligence · migração AFM HSA · beta</div>
+    </div>
+</aside>
+
+@code {
+    private record Item(string Href, string Label, string Icon);
+    private record Section(string Name, Item[] Items);
+
+    // Espelha os módulos do app original (Leonardo). Cada item leva a uma tela
+    // de estrutura pronta para receber os dados da base em Parquet.
+    private static readonly Section[] Sections =
+    {
+        new("Gestão de Vendas", new[]
+        {
+            new Item("/dashboard", "Central de Inteligência", "dashboard"),
+            new Item("/diretoria", "Painel Executivo", "gauge"),
+            new Item("/carteira", "Plano de Ação Comercial", "briefcase"),
+            new Item("/oportunidades", "Oportunidades", "target"),
+            new Item("/previsao", "Previsão", "trending"),
+            new Item("/planejamento", "Planejamento", "calendar"),
+            new Item("/historico", "Histórico Aftermarket", "receipt"),
+            new Item("/visitas", "Ações em Campo", "map-pin"),
+            new Item("/alertas", "Alertas Preditivos", "bell"),
+        }),
+        new("Clientes & Base", new[]
+        {
+            new Item("/clientes", "Clientes e Unidades", "building"),
+            new Item("/base-instalada", "Base Instalada", "boxes"),
+            new Item("/equipamentos", "Equipamentos", "box"),
+            new Item("/pecas", "Regras Técnicas de Troca", "wrench"),
+        }),
+        new("Comercial", new[]
+        {
+            new Item("/ofertas", "Ofertas", "file-text"),
+            new Item("/vendedores", "Vendedores", "users"),
+        }),
+        new("Despesas", new[]
+        {
+            new Item("/despesas", "Visão Geral", "wallet"),
+            new Item("/despesas/minhas", "Minhas Despesas", "receipt"),
+            new Item("/despesas/relatorios", "Relatórios", "file-text"),
+            new Item("/despesas/aprovacoes", "Aprovações", "check"),
+            new Item("/despesas/reembolsos", "Reembolsos", "refund"),
+            new Item("/despesas/projetos", "Projetos", "folder"),
+            new Item("/despesas/categorias", "Categorias", "tags"),
+            new Item("/despesas/analise", "Análise", "pie"),
+        }),
+        new("Integrações", new[]
+        {
+            new Item("/integracoes", "Integrações", "plug"),
+            new Item("/integracoes/salesforce", "Salesforce", "cloud"),
+            new Item("/integracoes/salesforce/oportunidades", "Oportunidades (SF)", "target"),
+            new Item("/integracoes/salesforce/importar", "Importar (SF)", "upload"),
+            new Item("/integracoes/salesforce/mapeamento", "Mapeamento", "refresh"),
+            new Item("/integracoes/salesforce/logs", "Logs", "file-text"),
+        }),
+        new("Dados & Marca", new[]
+        {
+            new Item("/dados-marca", "Dados e Importação", "upload"),
+            new Item("/importar", "Importar", "database"),
+            new Item("/marca", "Identidade Visual", "image"),
+        }),
+    };
+
+    protected override void OnInitialized() => Nav.LocationChanged += OnChanged;
+    private void OnChanged(object? s, LocationChangedEventArgs e) => StateHasChanged();
+    public void Dispose() => Nav.LocationChanged -= OnChanged;
+}

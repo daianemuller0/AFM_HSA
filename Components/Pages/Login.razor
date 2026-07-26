@@ -1,0 +1,46 @@
+@page "/login"
+@layout EmptyLayout
+@attribute [AllowAnonymous]
+
+<div class="login-wrap">
+    <div class="login-card">
+        <div class="brand center">
+            <div class="brand-mark big">H</div>
+            <div>
+                <div class="brand-name">Howden</div>
+                <div class="brand-sub">Aftermarket · AFM HSA</div>
+            </div>
+        </div>
+
+        <h1 class="login-title">Entrar</h1>
+
+        @if (Error)
+        {
+            <div class="alert-error">Usuário ou senha inválidos.</div>
+        }
+
+        <form method="post" action="/auth/login" class="login-form">
+            <label>
+                Usuário
+                <input type="text" name="usuario" autocomplete="username" required />
+            </label>
+            <label>
+                Senha
+                <input type="password" name="senha" autocomplete="current-password" required />
+            </label>
+            <button type="submit" class="btn-primary">Entrar</button>
+        </form>
+
+        <div class="login-hint">
+            Login geral da equipe — padrão: howden / howden2026<br />
+            (altere em appsettings.json, chaves Auth:Usuario e Auth:Senha)
+        </div>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "error")]
+    public string? ErrorFlag { get; set; }
+
+    private bool Error => ErrorFlag == "1";
+}

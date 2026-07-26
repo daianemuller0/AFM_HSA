@@ -1,0 +1,11 @@
+@page "/equipamentos/{Id}"
+@attribute [Authorize]
+<PageTitle>Equipamento · AFM HSA</PageTitle>
+
+<ModuleScaffold Title="Equipamento @Id"
+                Subtitle="Ficha técnica e histórico do equipamento."
+                Icon="box" />
+
+@code {
+    [Parameter] public string? Id { get; set; }
+}

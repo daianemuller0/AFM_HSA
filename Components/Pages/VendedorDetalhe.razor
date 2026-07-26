@@ -1,0 +1,11 @@
+@page "/vendedores/{Id}"
+@attribute [Authorize]
+<PageTitle>Vendedor · AFM HSA</PageTitle>
+
+<ModuleScaffold Title="Vendedor @Id"
+                Subtitle="Perfil e carteira do vendedor."
+                Icon="users" />
+
+@code {
+    [Parameter] public string? Id { get; set; }
+}

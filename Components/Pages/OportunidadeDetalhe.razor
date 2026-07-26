@@ -1,0 +1,11 @@
+@page "/oportunidades/{Id}"
+@attribute [Authorize]
+<PageTitle>Oportunidade · AFM HSA</PageTitle>
+
+<ModuleScaffold Title="Oportunidade @Id"
+                Subtitle="Detalhe e acompanhamento da oportunidade."
+                Icon="target" />
+
+@code {
+    [Parameter] public string? Id { get; set; }
+}

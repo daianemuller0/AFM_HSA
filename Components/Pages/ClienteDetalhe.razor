@@ -1,0 +1,11 @@
+@page "/clientes/{Id}"
+@attribute [Authorize]
+<PageTitle>Cliente · AFM HSA</PageTitle>
+
+<ModuleScaffold Title="Cliente @Id"
+                Subtitle="Detalhe do cliente e suas unidades."
+                Icon="building" />
+
+@code {
+    [Parameter] public string? Id { get; set; }
+}
