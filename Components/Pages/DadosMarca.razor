@@ -1,7 +1,49 @@
 @page "/dados-marca"
 @attribute [Authorize]
+@rendermode InteractiveServer
+@inject CompanyRepository Companies
+@inject ClientUnitRepository Units
+@inject SalespersonRepository Salespeople
+@inject EquipmentRepository Equipamentos
+@inject InstalledBaseRepository Base
+@inject PartRepository Pecas
+@inject SalesRecordRepository Vendas
+@inject VisitRepository Visitas
+
 <PageTitle>Dados e Importação · AFM HSA</PageTitle>
 
-<ModuleScaffold Title="Dados e Importação"
-                Subtitle="Importação de bases e gestão de dados mestres."
-                Icon="upload" />
+<h1>Dados e Importação</h1>
+<p class="subtitle">Situação das bases carregadas (Parquet/DuckDB na pasta de rede).</p>
+
+<div style="overflow-x:auto">
+<table class="grid">
+    <thead><tr><th>Base</th><th class="right">Registros</th></tr></thead>
+    <tbody>
+        @foreach (var l in _linhas)
+        {
+            <tr><td>@l.Key</td><td class="right">@l.Value</td></tr>
+        }
+    </tbody>
+</table>
+</div>
+
+<div class="summary-bar" style="margin-top:16px">
+    Os dados são gravados como arquivos <strong>Parquet</strong> e consolidados pelo <strong>DuckDB</strong>
+    na pasta configurada em <code>Data:Folder</code>. A importação em lote (Excel) será adicionada aqui.
+</div>
+
+@code {
+    private List<KeyValuePair<string, int>> _linhas = new();
+
+    protected override void OnInitialized() => _linhas = new()
+    {
+        new("Clientes", Companies.All().Count),
+        new("Unidades", Units.All().Count),
+        new("Vendedores", Salespeople.All().Count),
+        new("Equipamentos", Equipamentos.All().Count),
+        new("Base instalada", Base.All().Count),
+        new("Peças", Pecas.All().Count),
+        new("Histórico de vendas", Vendas.All().Count),
+        new("Visitas", Visitas.All().Count),
+    };
+}

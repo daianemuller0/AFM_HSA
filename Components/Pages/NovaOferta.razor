@@ -1,7 +1,50 @@
 @page "/ofertas/nova"
 @attribute [Authorize]
+@rendermode InteractiveServer
+@inject OfferRepository Ofertas
+@inject NavigationManager Nav
+
 <PageTitle>Nova Oferta · AFM HSA</PageTitle>
 
-<ModuleScaffold Title="Nova Oferta"
-                Subtitle="Criação de uma nova oferta comercial."
-                Icon="file-plus" />
+<div class="page-head">
+    <div><h1>Nova Oferta</h1><p class="subtitle">Registrar uma oferta comercial.</p></div>
+    <div class="page-actions"><a class="btn-ghost" href="/ofertas">← Ofertas</a></div>
+</div>
+
+<div class="panel" style="max-width:640px">
+    <div class="form-grid">
+        <label>Cliente <input @bind="_o.ClientName" /></label>
+        <label>A/C (contato) <input @bind="_o.AttentionTo" /></label>
+        <label>Título <input @bind="_o.Title" /></label>
+        <label>Valor total (R$) <input type="number" step="0.01" @bind="_o.TotalAmount" /></label>
+        <label>Data <input type="date" @bind="_o.OfferDate" /></label>
+        <label>Status
+            <select @bind="_o.Status">
+                <option>Rascunho</option><option>Gerada</option><option>Enviada</option>
+                <option>Aprovada</option><option>Perdida</option><option>Cancelada</option>
+            </select>
+        </label>
+    </div>
+    @if (_erro is not null) { <div class="alert-error" style="margin-top:12px">@_erro</div> }
+    <div class="modal-actions">
+        <a class="btn-ghost" href="/ofertas">Cancelar</a>
+        <button class="btn-primary" @onclick="Salvar">Salvar oferta</button>
+    </div>
+</div>
+
+@code {
+    private CommercialOffer _o = new() { Status = "Rascunho" };
+    private string? _erro;
+
+    private void Salvar()
+    {
+        if (string.IsNullOrWhiteSpace(_o.ClientName)) { _erro = "Informe o cliente."; return; }
+        var now = DateTime.Now;
+        _o.Id = Guid.NewGuid().ToString("N");
+        _o.OfferCode = "OF-" + now.ToString("yyyyMMdd-HHmmss");
+        if (string.IsNullOrWhiteSpace(_o.OfferDate)) _o.OfferDate = now.ToString("yyyy-MM-dd");
+        _o.CreatedAt = now.ToString("yyyy-MM-dd");
+        Ofertas.Save(_o);
+        Nav.NavigateTo("/ofertas");
+    }
+}

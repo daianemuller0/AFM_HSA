@@ -1,7 +1,77 @@
 @page "/carteira"
 @attribute [Authorize]
+@rendermode InteractiveServer
+@inject IntelligenceService Intel
+@inject SalespersonRepository Salespeople
+
 <PageTitle>Plano de Ação Comercial · AFM HSA</PageTitle>
 
-<ModuleScaffold Title="Plano de Ação Comercial"
-                Subtitle="Carteira de clientes e ações priorizadas por vendedor."
-                Icon="briefcase" />
+<h1>Plano de Ação Comercial</h1>
+<p class="subtitle">@Filtradas.Count ação(ões) priorizada(s) · Potencial @Fmt.Brl0(Total)</p>
+
+<div class="toolbar">
+    <select class="cell" style="max-width:240px" @bind="_vend">
+        <option value="">Todos os vendedores</option>
+        @foreach (var s in _sps)
+        {
+            <option value="@s.Id">@s.Nome</option>
+        }
+    </select>
+</div>
+
+<div style="overflow-x:auto">
+<table class="grid">
+    <thead>
+        <tr>
+            <th>Prioridade</th><th>Cliente / Unidade</th><th>Item</th><th>Janela</th>
+            <th>Próxima ação</th><th>Vendedor</th><th class="right">Potencial</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var o in Filtradas)
+        {
+            <tr>
+                <td><span class="badge @IntelligenceService.UrgClass(o.Urgencia)">@o.Urgencia</span></td>
+                <td>@Intel.UnitLabel(o.ClientUnitId)</td>
+                <td>@o.Item</td>
+                <td class="nowrap">@Fmt.Date(o.DataPrevista)</td>
+                <td>@o.ProximaAcao</td>
+                <td>@Intel.SalespersonName(o.VendedorId)</td>
+                <td class="right nowrap">@Fmt.Brl0(o.ValorEstimado)</td>
+            </tr>
+        }
+        @if (Filtradas.Count == 0)
+        {
+            <tr><td colspan="7" class="empty">Nenhuma ação para este filtro.</td></tr>
+        }
+    </tbody>
+</table>
+</div>
+
+@code {
+    private List<Opportunity> _all = new();
+    private List<Salesperson> _sps = new();
+    private string _vend = "";
+
+    protected override void OnInitialized()
+    {
+        _all = Intel.Opportunities();
+        _sps = Salespeople.All();
+    }
+
+    private static int Rank(string urg) => urg switch { "Crítica" => 4, "Alta" => 3, "Média" => 2, _ => 1 };
+
+    private List<Opportunity> Filtradas
+    {
+        get
+        {
+            IEnumerable<Opportunity> q = _all;
+            if (!string.IsNullOrWhiteSpace(_vend))
+                q = q.Where(o => o.VendedorId == _vend);
+            return q.OrderByDescending(o => Rank(o.Urgencia))
+                    .ThenBy(o => o.DataPrevista, StringComparer.Ordinal).ToList();
+        }
+    }
+
+    private decimal Total => Filtradas.Sum(o => o.ValorEstimado);
+}

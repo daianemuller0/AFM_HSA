@@ -1,11 +1,84 @@
 @page "/clientes/{Id}"
 @attribute [Authorize]
+@rendermode InteractiveServer
+@inject CompanyRepository Companies
+@inject ClientUnitRepository Units
+@inject InstalledBaseRepository Base
+@inject EquipmentRepository Equipamentos
+@inject SalespersonRepository Salespeople
+
 <PageTitle>Cliente · AFM HSA</PageTitle>
 
-<ModuleScaffold Title="@($"Cliente {Id}")"
-                Subtitle="Detalhe do cliente e suas unidades."
-                Icon="building" />
+@if (_c is null)
+{
+    <h1>Cliente</h1>
+    <div class="panel empty-state"><div class="empty-title">Cliente não encontrado</div>
+        <a class="btn-ghost" href="/clientes">Voltar</a></div>
+}
+else
+{
+    <div class="page-head">
+        <div><h1>@_c.Nome</h1><p class="subtitle">@_c.Segmento · @_c.Cidade / @_c.Estado · @_c.Regiao</p></div>
+        <div class="page-actions"><a class="btn-ghost" href="/clientes">← Clientes</a></div>
+    </div>
+
+    <div class="dash-title">Unidades (@_units.Count)</div>
+    <table class="grid" style="margin-bottom:20px">
+        <thead><tr><th>Unidade</th><th>Cidade/UF</th><th>Segmento</th><th>Vendedor</th><th class="right">Equip. instalados</th></tr></thead>
+        <tbody>
+            @foreach (var u in _units)
+            {
+                <tr>
+                    <td>@u.NomeUnidade</td>
+                    <td class="nowrap">@u.Cidade / @u.Estado</td>
+                    <td>@u.Segmento</td>
+                    <td>@Sp(u.VendedorId)</td>
+                    <td class="right">@_base.Count(b => b.ClientUnitId == u.Id)</td>
+                </tr>
+            }
+            @if (_units.Count == 0) { <tr><td colspan="5" class="empty">Sem unidades.</td></tr> }
+        </tbody>
+    </table>
+
+    <div class="dash-title">Base instalada</div>
+    <table class="grid">
+        <thead><tr><th>Unidade</th><th>Equipamento</th><th class="right">Qtd</th><th>Ano</th><th>Criticidade</th></tr></thead>
+        <tbody>
+            @foreach (var b in _base)
+            {
+                <tr>
+                    <td>@Unidade(b.ClientUnitId)</td>
+                    <td>@Equip(b.EquipmentId)</td>
+                    <td class="right">@b.Quantidade</td>
+                    <td>@(b.AnoInstalacao > 0 ? b.AnoInstalacao.ToString() : "—")</td>
+                    <td>@b.Criticidade</td>
+                </tr>
+            }
+            @if (_base.Count == 0) { <tr><td colspan="5" class="empty">Sem base instalada.</td></tr> }
+        </tbody>
+    </table>
+}
 
 @code {
     [Parameter] public string? Id { get; set; }
+    private Company? _c;
+    private List<ClientUnit> _units = new();
+    private List<InstalledBase> _base = new();
+    private Dictionary<string, string> _equip = new(), _unit = new(), _sp = new();
+
+    protected override void OnInitialized()
+    {
+        _c = Companies.All().FirstOrDefault(c => c.Id == Id);
+        if (_c is null) return;
+        _units = Units.All().Where(u => u.CompanyId == _c.Id).ToList();
+        var unitIds = _units.Select(u => u.Id).ToHashSet();
+        _base = Base.All().Where(b => unitIds.Contains(b.ClientUnitId)).ToList();
+        _equip = Equipamentos.All().ToDictionary(e => e.Id, e => e.Nome);
+        _unit = _units.ToDictionary(u => u.Id, u => u.NomeUnidade);
+        _sp = Salespeople.All().ToDictionary(s => s.Id, s => s.Nome);
+    }
+
+    private string Sp(string id) => _sp.TryGetValue(id, out var n) ? n : id;
+    private string Unidade(string id) => _unit.TryGetValue(id, out var n) ? n : id;
+    private string Equip(string id) => _equip.TryGetValue(id, out var n) ? n : id;
 }

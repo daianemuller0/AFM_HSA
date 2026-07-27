@@ -42,6 +42,39 @@ public static class DbInitializer
             }
             store.WriteBatch(entity, rows);
         }
+
+        SeedVisits(store);
+    }
+
+    // Visitas de exemplo (seedVisits() de src/lib/store.ts do app original).
+    private static void SeedVisits(ParquetStore store)
+    {
+        if (!store.IsEmpty("visits")) return;
+
+        var visitas = new[]
+        {
+            new[] { "v-1", "votorantim-laranjeiras", "", "eq-1", "sp-3", "2026-04-20", "presencial", "realizada",
+                "Cliente confirmou parada programada para o 2º semestre. Interesse em rotor + eixo.",
+                "Enviar proposta de Rotor + Eixo", "2026-06-10", "Oportunidade confirmada" },
+            new[] { "v-2", "vale-sao-luis", "", "eq-2", "sp-3", "2026-05-12", "online", "realizada",
+                "Reunião técnica sobre janela de troca de paletas do VARIAX.",
+                "Agendar visita presencial", "2026-06-02", "Em andamento" },
+            new[] { "v-3", "vale-sao-luis", "", "eq-3", "sp-3", "2026-06-15", "presencial", "agendada",
+                "Visita técnica para avaliar janela de troca do VARIAX COF.",
+                "Levantar escopo de paletas", "2026-06-15", "" },
+            new[] { "v-4", "gerdau-ouro-branco", "", "eq-7", "sp-1", "2026-06-05", "online", "agendada",
+                "Apresentar proposta de rotor + eixo do ventilador centrífugo.",
+                "Enviar proposta formal", "2026-06-05", "" },
+        };
+
+        var cols = new[] { "id", "client_unit_id", "opportunity_id", "equipment_id", "vendedor_id",
+            "data_visita", "tipo_visita", "status", "notas", "proximo_passo", "data_proximo_contato", "resultado" };
+
+        var rows = visitas.Select(v =>
+            (IReadOnlyList<KeyValuePair<string, object?>>)cols
+                .Select((c, i) => new KeyValuePair<string, object?>(c, v[i])).ToList()).ToList();
+
+        store.WriteBatch("visits", rows);
     }
 
     // Converte um valor JSON para texto (padrão do ParquetStore: tudo VARCHAR).

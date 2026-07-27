@@ -1,11 +1,78 @@
 @page "/equipamentos/{Id}"
 @attribute [Authorize]
+@rendermode InteractiveServer
+@inject EquipmentRepository Equipamentos
+@inject PartRepository Pecas
+@inject InstalledBaseRepository Base
+@inject ClientUnitRepository Units
+@inject CompanyRepository Companies
+
 <PageTitle>Equipamento · AFM HSA</PageTitle>
 
-<ModuleScaffold Title="@($"Equipamento {Id}")"
-                Subtitle="Ficha técnica e histórico do equipamento."
-                Icon="box" />
+@if (_e is null)
+{
+    <h1>Equipamento</h1>
+    <div class="panel empty-state"><div class="empty-title">Equipamento não encontrado</div>
+        <a class="btn-ghost" href="/equipamentos">Voltar</a></div>
+}
+else
+{
+    <div class="page-head">
+        <div><h1>@_e.Nome</h1><p class="subtitle">@_e.Tipo · @_e.Modelo · @_e.Segmento</p></div>
+        <div class="page-actions"><a class="btn-ghost" href="/equipamentos">← Equipamentos</a></div>
+    </div>
+
+    <div class="kpis">
+        <div class="kpi"><div class="kpi-label">Fabricante</div><div class="kpi-value" style="font-size:15px">@_e.Fabricante</div></div>
+        <div class="kpi"><div class="kpi-label">Aplicação</div><div class="kpi-value" style="font-size:13px">@_e.Aplicacao</div></div>
+        <div class="kpi k-ren"><div class="kpi-label">Valor completo</div><div class="kpi-value" style="font-size:16px">@Fmt.Brl0(_e.ValorCompleto)</div></div>
+        <div class="kpi"><div class="kpi-label">Instalações</div><div class="kpi-value">@_base.Count</div></div>
+    </div>
+
+    <div class="dash-title">Peças e ciclos de troca (@_parts.Count)</div>
+    <table class="grid" style="margin-bottom:20px">
+        <thead><tr><th>Peça</th><th class="right">Ciclo (meses)</th><th>Crítica</th></tr></thead>
+        <tbody>
+            @foreach (var p in _parts)
+            {
+                <tr><td>@p.Nome</td><td class="right">@p.CicloMeses</td><td>@(p.Critica ? "Sim" : "—")</td></tr>
+            }
+            @if (_parts.Count == 0) { <tr><td colspan="3" class="empty">Sem peças cadastradas.</td></tr> }
+        </tbody>
+    </table>
+
+    <div class="dash-title">Onde está instalado</div>
+    <table class="grid">
+        <thead><tr><th>Cliente / Unidade</th><th class="right">Qtd</th><th>Ano</th><th>Criticidade</th></tr></thead>
+        <tbody>
+            @foreach (var b in _base)
+            {
+                <tr><td>@Unidade(b.ClientUnitId)</td><td class="right">@b.Quantidade</td>
+                    <td>@(b.AnoInstalacao > 0 ? b.AnoInstalacao.ToString() : "—")</td><td>@b.Criticidade</td></tr>
+            }
+            @if (_base.Count == 0) { <tr><td colspan="4" class="empty">Não instalado.</td></tr> }
+        </tbody>
+    </table>
+}
 
 @code {
     [Parameter] public string? Id { get; set; }
+    private Equipment? _e;
+    private List<Part> _parts = new();
+    private List<InstalledBase> _base = new();
+    private Dictionary<string, string> _unitLabel = new();
+
+    protected override void OnInitialized()
+    {
+        _e = Equipamentos.All().FirstOrDefault(e => e.Id == Id);
+        if (_e is null) return;
+        _parts = Pecas.All().Where(p => p.EquipmentId == _e.Id).OrderBy(p => p.Nome).ToList();
+        _base = Base.All().Where(b => b.EquipmentId == _e.Id).ToList();
+        var units = Units.All();
+        var comp = Companies.All().ToDictionary(c => c.Id, c => c.Nome);
+        _unitLabel = units.ToDictionary(u => u.Id,
+            u => (comp.TryGetValue(u.CompanyId, out var cn) ? cn : "") + " — " + u.NomeUnidade);
+    }
+
+    private string Unidade(string id) => _unitLabel.TryGetValue(id, out var n) ? n : id;
 }

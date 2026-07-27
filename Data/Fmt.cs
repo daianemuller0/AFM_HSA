@@ -37,4 +37,15 @@ public static class Fmt
         var nfi = new NumberFormatInfo { NumberGroupSeparator = "." };
         return v.ToString("#,##0", nfi);
     }
+
+    // Moeda sem centavos (R$ 350.000) — padrão do app original em KPIs/alertas.
+    public static string Brl0(decimal v) => "R$ " + N0(Math.Round(v));
+
+    // Data ISO (yyyy-MM-dd) -> dd/MM/yyyy. Vazio/ inválido -> "—".
+    public static string Date(string? iso)
+    {
+        if (string.IsNullOrWhiteSpace(iso)) return "—";
+        var p = iso.Split('-');
+        return p.Length == 3 ? $"{p[2]}/{p[1]}/{p[0]}" : iso;
+    }
 }

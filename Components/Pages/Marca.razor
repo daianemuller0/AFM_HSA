@@ -1,7 +1,45 @@
 @page "/marca"
 @attribute [Authorize]
+@rendermode InteractiveServer
+
 <PageTitle>Identidade Visual · AFM HSA</PageTitle>
 
-<ModuleScaffold Title="Identidade Visual"
-                Subtitle="Logo, cores e identidade visual usada nos documentos."
-                Icon="image" />
+<h1>Identidade Visual</h1>
+<p class="subtitle">Logo, cores e identidade visual usada nos documentos e no app.</p>
+
+<div class="dash-grid">
+    <div class="panel">
+        <div class="dash-title">Marca</div>
+        <div class="brand" style="gap:14px">
+            <div class="brand-mark big" style="background:linear-gradient(135deg,var(--accent),#00b3a6)">H</div>
+            <div>
+                <div class="brand-name" style="color:var(--primary);font-size:20px">Howden</div>
+                <div class="brand-sub" style="color:var(--muted)">Aftermarket Intelligence · AFM HSA</div>
+            </div>
+        </div>
+    </div>
+    <div class="panel">
+        <div class="dash-title">Paleta de cores</div>
+        <div style="display:flex;flex-wrap:wrap;gap:10px">
+            @foreach (var c in _cores)
+            {
+                <div style="text-align:center">
+                    <div style="width:64px;height:48px;border-radius:10px;border:1px solid var(--border);background:@c.Hex"></div>
+                    <div style="font-size:11px;color:var(--muted);margin-top:4px">@c.Nome</div>
+                    <div style="font-size:11px;color:var(--text)">@c.Hex</div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private record Cor(string Nome, string Hex);
+    private readonly Cor[] _cores =
+    {
+        new("Primária", "#004785"),
+        new("Escura", "#06345d"),
+        new("Secundária", "#007A9E"),
+        new("Destaque", "#009496"),
+    };
+}

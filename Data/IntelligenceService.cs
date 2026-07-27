@@ -1,0 +1,297 @@
+using System.Globalization;
+using System.Text.RegularExpressions;
+using AfmHsa.Models;
+
+namespace AfmHsa.Data;
+
+/// <summary>
+/// Motor de inteligência comercial — porta src/lib/engine.ts do app original.
+/// Gera oportunidades de reposição a partir do histórico de vendas + ciclos
+/// técnicos das peças, e os alertas preditivos derivados. Também centraliza os
+/// "lookups" (nome de cliente/unidade/vendedor). Scoped: carrega as listas uma
+/// vez por requisição.
+/// </summary>
+public class IntelligenceService
+{
+    // Data-base fixa (igual ao app original — mantém as janelas estáveis na demo).
+    private static readonly DateTime Today = new(2026, 5, 28);
+
+    private readonly SalesRecordRepository _salesRepo;
+    private readonly PartRepository _partsRepo;
+    private readonly InstalledBaseRepository _baseRepo;
+    private readonly CompanyRepository _companiesRepo;
+    private readonly ClientUnitRepository _unitsRepo;
+    private readonly EquipmentRepository _equipRepo;
+    private readonly SalespersonRepository _spRepo;
+
+    public IntelligenceService(
+        SalesRecordRepository sales, PartRepository parts, InstalledBaseRepository baseInst,
+        CompanyRepository companies, ClientUnitRepository units, EquipmentRepository equip,
+        SalespersonRepository sp)
+    {
+        _salesRepo = sales; _partsRepo = parts; _baseRepo = baseInst;
+        _companiesRepo = companies; _unitsRepo = units; _equipRepo = equip; _spRepo = sp;
+    }
+
+    private List<SalesRecord>? _sales;
+    private List<Part>? _parts;
+    private List<InstalledBase>? _base;
+    private Dictionary<string, string>? _companyName;
+    private Dictionary<string, ClientUnit>? _unit;
+    private Dictionary<string, Equipment>? _equip;
+    private Dictionary<string, string>? _spName;
+
+    public List<SalesRecord> Sales => _sales ??= _salesRepo.All();
+    private List<Part> Parts => _parts ??= _partsRepo.All();
+    private List<InstalledBase> Base => _base ??= _baseRepo.All();
+    private Dictionary<string, string> CompanyNames =>
+        _companyName ??= _companiesRepo.All().ToDictionary(c => c.Id, c => c.Nome);
+    private Dictionary<string, ClientUnit> Units =>
+        _unit ??= _unitsRepo.All().ToDictionary(u => u.Id, u => u);
+    private Dictionary<string, Equipment> Equipments =>
+        _equip ??= _equipRepo.All().ToDictionary(e => e.Id, e => e);
+    private Dictionary<string, string> SpNames =>
+        _spName ??= _spRepo.All().ToDictionary(s => s.Id, s => s.Nome);
+
+    // ---- lookups ---------------------------------------------------------
+    public string CompanyName(string id) => CompanyNames.TryGetValue(id, out var n) ? n : id;
+    public string SalespersonName(string id) => SpNames.TryGetValue(id, out var n) ? n : "—";
+    public string EquipmentModel(string id) => Equipments.TryGetValue(id, out var e) ? e.Modelo : "";
+    public string EquipmentNome(string id) => Equipments.TryGetValue(id, out var e) ? e.Nome : id;
+
+    public string UnitLabel(string unitId)
+    {
+        if (!Units.TryGetValue(unitId, out var u)) return unitId;
+        return $"{CompanyName(u.CompanyId)} — {u.NomeUnidade}";
+    }
+
+    // ---- regras de ciclo de troca (meses) --------------------------------
+    private record Rule(string[] Kw, int Meses, bool Critica);
+
+    private static readonly Rule[] Rules =
+    {
+        new(new[] { "rotor", "palheta", "paleta", "eixo da paleta" }, 30, true),
+        new(new[] { "eixo" }, 30, true),
+        new(new[] { "cesto" }, 34, true),
+        new(new[] { "mancal", "mancais", "mancai" }, 60, false),
+        new(new[] { "carcaça", "carcaca" }, 60, true),
+        new(new[] { "cone aspirante" }, 36, false),
+        new(new[] { "difusor" }, 48, false),
+        new(new[] { "acoplamento" }, 36, false),
+        new(new[] { "cilindro" }, 48, false),
+        new(new[] { "registro", "veneziana" }, 60, false),
+        new(new[] { "silenciador" }, 72, false),
+        new(new[] { "cardan" }, 48, false),
+        new(new[] { "base met" }, 120, false),
+        new(new[] { "completo" }, 120, true),
+    };
+
+    private static (int meses, bool critica) CycleFor(string item)
+    {
+        var s = item.ToLowerInvariant();
+        foreach (var r in Rules)
+            if (r.Kw.Any(k => s.Contains(k))) return (r.Meses, r.Critica);
+        return (48, false);
+    }
+
+    private (int meses, bool critica) PartCycleFor(string equipmentId, string item)
+    {
+        var s = NormItem(item);
+        var parts = Parts.Where(p => p.EquipmentId == equipmentId && p.Ativo).ToList();
+        foreach (var p in parts)
+        {
+            var pn = NormItem(p.Nome);
+            if (!string.IsNullOrEmpty(pn) && (s.Contains(pn) || pn.Contains(s)))
+                return (p.CicloMeses, p.Critica);
+        }
+        foreach (var p in parts)
+        {
+            var tok = NormItem(p.Nome).Split(new[] { ' ', '+', '/' }, StringSplitOptions.RemoveEmptyEntries)
+                .Where(t => t.Length > 2);
+            if (tok.Any(t => s.Contains(t))) return (p.CicloMeses, p.Critica);
+        }
+        return CycleFor(item);
+    }
+
+    // ---- geração de oportunidades ----------------------------------------
+    public List<Opportunity> Opportunities()
+    {
+        var groups = new Dictionary<string, List<SalesRecord>>();
+        foreach (var s in Sales)
+        {
+            var key = $"{s.EquipmentId}::{NormItem(s.ItemVendido)}";
+            if (!groups.TryGetValue(key, out var arr)) { arr = new(); groups[key] = arr; }
+            arr.Add(s);
+        }
+
+        var opps = new List<Opportunity>();
+        foreach (var (key, recs) in groups)
+        {
+            var id = "op-" + Regex.Replace(key, "[^a-z0-9]+", "-", RegexOptions.IgnoreCase).ToLowerInvariant();
+
+            recs.Sort((a, b) => string.CompareOrdinal(a.DataVenda, b.DataVenda));
+            var last = recs[^1];
+            var item = last.ItemVendido;
+            var (meses, partCritica) = PartCycleFor(last.EquipmentId, item);
+
+            var prevista = AddMonths(last.DataVenda, meses);
+            var dias = DaysBetween(prevista);
+
+            var ib = Base.FirstOrDefault(b => b.EquipmentId == last.EquipmentId);
+            var equipCritico = (ib != null && (ib.Criticidade == "crítica" || ib.Criticidade == "alta")) || partCritica;
+            var sub = Regex.IsMatch(item, "carca|completo", RegexOptions.IgnoreCase) && dias <= 365 && dias > -365;
+
+            var recent = recs.Skip(Math.Max(0, recs.Count - 2)).ToList();
+            var valor = recent.Count > 0 ? recent.Sum(r => r.Valor) / recent.Count : last.Valor;
+
+            var temporal = TemporalFor(dias);
+            var urg = UrgencyFor(dias, equipCritico);
+            var status = DefaultStatus(dias, urg);
+
+            opps.Add(new Opportunity
+            {
+                Id = id,
+                ClientUnitId = last.ClientUnitId,
+                EquipmentId = last.EquipmentId,
+                Item = item,
+                DataUltimaVenda = last.DataVenda,
+                DataPrevista = prevista,
+                CicloMeses = meses,
+                DiasAteJanela = dias,
+                DiasAtraso = dias < 0 ? -dias : 0,
+                ValorEstimado = Math.Round(valor),
+                Urgencia = urg,
+                StatusTemporal = temporal,
+                Status = status,
+                VendedorId = last.VendedorId,
+                Justificativa = $"Última reposição/venda de \"{item}\" em {Fmt.Date(last.DataVenda)}. " +
+                                $"Ciclo técnico de troca: {meses} meses (~{(meses / 12.0).ToString("0.0", CultureInfo.InvariantCulture)} anos). " +
+                                $"Janela técnica prevista para {Fmt.Date(prevista)}.",
+                ProximaAcao = RecommendedAction(dias, item, sub),
+                CriticaEquip = equipCritico,
+                SugereSubstituicao = sub,
+                Reprogramada = false,
+            });
+        }
+
+        return opps.OrderBy(o => o.DataPrevista, StringComparer.Ordinal).ToList();
+    }
+
+    private static string DefaultStatus(int dias, string urg)
+    {
+        if (urg == "Crítica") return "Crítica";
+        if (dias <= 90) return "Próxima";
+        return "Prevista";
+    }
+
+    private static string UrgencyFor(int dias, bool equipCritico)
+    {
+        if (dias < 0) return "Crítica";
+        if (equipCritico && dias <= 180) return "Crítica";
+        if (dias <= 90) return "Alta";
+        if (dias <= 180) return "Média";
+        return "Baixa";
+    }
+
+    private static string TemporalFor(int dias)
+    {
+        if (dias < -730) return "histórica";
+        if (dias < -365) return "expirada";
+        if (dias < 0) return "vencida";
+        if (dias <= 90) return "próxima";
+        return "futura";
+    }
+
+    private static string RecommendedAction(int dias, string item, bool sub)
+    {
+        if (sub) return "Avaliar substituição do equipamento completo em vez de peça avulsa.";
+        if (dias < -730)
+            return "Janela histórica — validar necessidade atual. Verificar se houve compra fora do histórico, troca do equipamento ou se a reposição ainda se aplica antes de qualquer abordagem.";
+        if (dias < -365)
+            return "A janela técnica prevista já foi ultrapassada. Recomenda-se validar se houve compra fora do histórico, substituição do equipamento ou necessidade de nova abordagem comercial.";
+        if (dias < 0)
+            return $"Janela técnica vencida — priorizar contato comercial imediato e confirmar a reposição de {item}.";
+        if (dias <= 90) return $"Agendar ação em campo e enviar proposta técnica de {item}.";
+        if (dias <= 180) return "Programar abordagem comercial para a próxima janela de reposição.";
+        return "Monitorar — manter no radar de reposição.";
+    }
+
+    // ---- alertas ---------------------------------------------------------
+    public List<Alert> Alerts(List<Opportunity> opps)
+    {
+        var done = new HashSet<string> { "Ganha", "Perdida", "Sem interesse" };
+        var alerts = new List<Alert>();
+        foreach (var o in opps)
+        {
+            if (done.Contains(o.Status)) continue;
+            var cliente = UnitLabel(o.ClientUnitId);
+            var modelo = EquipmentModel(o.EquipmentId);
+
+            if (o.Urgencia == "Crítica")
+            {
+                alerts.Add(new Alert
+                {
+                    Id = "al-" + o.Id,
+                    OpportunityId = o.Id,
+                    VendedorId = o.VendedorId,
+                    TipoAlerta = o.DiasAteJanela < 0 ? "Janela de reposição vencida" : "Equipamento crítico",
+                    Mensagem = $"Alerta preditivo Howden Aftermarket Intelligence: {cliente} possui uma janela crítica " +
+                               $"de reposição para {o.Item} no equipamento {modelo}. Última reposição/venda em " +
+                               $"{Fmt.Date(o.DataUltimaVenda)}. Janela técnica prevista: {Fmt.Date(o.DataPrevista)}. " +
+                               $"Valor potencial técnico: {Fmt.Brl0(o.ValorEstimado)}.",
+                    Canal = "painel",
+                    StatusEnvio = "pendente",
+                    Nivel = "Crítica",
+                });
+            }
+            if (o.SugereSubstituicao)
+            {
+                alerts.Add(new Alert
+                {
+                    Id = "al-sub-" + o.Id,
+                    OpportunityId = o.Id,
+                    VendedorId = o.VendedorId,
+                    TipoAlerta = "Substituição de equipamento",
+                    Mensagem = $"{cliente}: a janela da carcaça do {modelo} sugere avaliar a venda do equipamento " +
+                               "completo em vez de peça avulsa.",
+                    Canal = "painel",
+                    StatusEnvio = "pendente",
+                    Nivel = "Alta",
+                });
+            }
+        }
+        return alerts.OrderByDescending(a => Rank(a.Nivel)).ToList();
+    }
+
+    private static int Rank(string nivel) => nivel switch
+    {
+        "Crítica" => 4, "Alta" => 3, "Média" => 2, _ => 1,
+    };
+
+    // ---- helpers de data e texto -----------------------------------------
+    private static string NormItem(string s) =>
+        Regex.Replace(s.Trim().ToLowerInvariant(), @"\s+", " ");
+
+    private static string AddMonths(string iso, int months)
+    {
+        if (!DateTime.TryParse(iso, CultureInfo.InvariantCulture, DateTimeStyles.None, out var d))
+            return iso;
+        return d.AddMonths(months).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+    }
+
+    private static int DaysBetween(string iso)
+    {
+        if (!DateTime.TryParse(iso, CultureInfo.InvariantCulture, DateTimeStyles.None, out var d))
+            return 0;
+        return (int)Math.Round((d - Today).TotalDays);
+    }
+
+    // Classe CSS de badge por urgência (reaproveita o app.css).
+    public static string UrgClass(string urg) => urg switch
+    {
+        "Crítica" => "st-vencida",
+        "Alta" => "st-critica",
+        "Média" => "st-urgente",
+        _ => "st-ok",
+    };
+}

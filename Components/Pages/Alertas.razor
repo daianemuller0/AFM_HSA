@@ -1,7 +1,39 @@
 @page "/alertas"
 @attribute [Authorize]
+@rendermode InteractiveServer
+@inject IntelligenceService Intel
+
 <PageTitle>Alertas Preditivos · AFM HSA</PageTitle>
 
-<ModuleScaffold Title="Alertas Preditivos"
-                Subtitle="Alertas preditivos de manutenção e oportunidade de venda."
-                Icon="bell" />
+<h1>Alertas Preditivos</h1>
+<p class="subtitle">@_alerts.Count alerta(s) ativo(s) · @_alerts.Count(a => a.Nivel == "Crítica") crítico(s)</p>
+
+@if (_alerts.Count == 0)
+{
+    <div class="panel empty-state"><div class="empty-title">Nenhum alerta ativo</div>
+        <p class="empty-text">Não há janelas críticas de reposição no momento.</p></div>
+}
+else
+{
+    @foreach (var a in _alerts)
+    {
+        <div class="panel" style="margin-bottom:12px">
+            <div class="task-badges">
+                <span class="badge @IntelligenceService.UrgClass(a.Nivel)">@a.Nivel</span>
+                <span class="badge score-badge">@a.TipoAlerta</span>
+                <span class="badge score-badge">@Intel.SalespersonName(a.VendedorId)</span>
+            </div>
+            <p style="margin:6px 0 0">@a.Mensagem</p>
+        </div>
+    }
+}
+
+@code {
+    private List<Alert> _alerts = new();
+
+    protected override void OnInitialized()
+    {
+        var opps = Intel.Opportunities();
+        _alerts = Intel.Alerts(opps);
+    }
+}

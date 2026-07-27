@@ -1,7 +1,65 @@
 @page "/previsao"
 @attribute [Authorize]
+@rendermode InteractiveServer
+@inject IntelligenceService Intel
+
 <PageTitle>Previsão · AFM HSA</PageTitle>
 
-<ModuleScaffold Title="Previsão"
-                Subtitle="Previsão de receita e demanda de aftermarket."
-                Icon="trending" />
+<h1>Previsão de Reposição</h1>
+<p class="subtitle">Projeção de janelas técnicas e potencial de receita a partir do histórico.</p>
+
+<div class="kpis">
+    <div class="kpi k-venc"><div class="kpi-label">Vencidas</div><div class="kpi-value">@_vencidas</div><div class="kpi-sub">janela ultrapassada</div></div>
+    <div class="kpi k-urg"><div class="kpi-label">Próximas (90d)</div><div class="kpi-value">@_prox90</div></div>
+    <div class="kpi"><div class="kpi-label">Total oportunidades</div><div class="kpi-value">@_all.Count</div></div>
+    <div class="kpi k-ren"><div class="kpi-label">Potencial total</div><div class="kpi-value" style="font-size:16px">@Fmt.Brl0(_total)</div></div>
+</div>
+
+<div class="panel">
+    <div class="dash-title">Potencial por mês da janela prevista</div>
+    @if (_porMes.Count == 0)
+    {
+        <p class="empty">Sem oportunidades futuras.</p>
+    }
+    else
+    {
+        var max = _porMes.Max(x => x.Value);
+        @foreach (var m in _porMes)
+        {
+            <div class="bar-row">
+                <div class="bar-label">@m.Key</div>
+                <div class="bar-track"><div class="bar" style="width:@Pct(m.Value, max)%"></div></div>
+                <div class="bar-value">@Fmt.Brl0(m.Value)</div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private List<Opportunity> _all = new();
+    private int _vencidas, _prox90;
+    private decimal _total;
+    private List<KeyValuePair<string, decimal>> _porMes = new();
+
+    protected override void OnInitialized()
+    {
+        _all = Intel.Opportunities();
+        _vencidas = _all.Count(o => o.DiasAteJanela < 0);
+        _prox90 = _all.Count(o => o.DiasAteJanela >= 0 && o.DiasAteJanela <= 90);
+        _total = _all.Sum(o => o.ValorEstimado);
+        _porMes = _all
+            .Where(o => o.DataPrevista.Length >= 7)
+            .GroupBy(o => o.DataPrevista.Substring(0, 7))
+            .OrderBy(g => g.Key)
+            .Select(g => new KeyValuePair<string, decimal>(Mes(g.Key), g.Sum(o => o.ValorEstimado)))
+            .ToList();
+    }
+
+    private static string Mes(string ym)
+    {
+        var p = ym.Split('-');
+        return p.Length == 2 ? $"{p[1]}/{p[0]}" : ym;
+    }
+
+    private static int Pct(decimal v, decimal max) => max <= 0 ? 0 : (int)Math.Round(100m * v / max);
+}

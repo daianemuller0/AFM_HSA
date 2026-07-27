@@ -1,7 +1,44 @@
 @page "/ofertas"
 @attribute [Authorize]
+@rendermode InteractiveServer
+@inject OfferRepository Ofertas
+
 <PageTitle>Ofertas · AFM HSA</PageTitle>
 
-<ModuleScaffold Title="Ofertas"
-                Subtitle="Ofertas comerciais geradas para clientes."
-                Icon="file-text" />
+<div class="page-head">
+    <div><h1>Ofertas</h1><p class="subtitle">@_all.Count oferta(s) · Total @Fmt.Brl0(_all.Sum(o => o.TotalAmount))</p></div>
+    <div class="page-actions"><a class="btn-primary" href="/ofertas/nova">+ Nova Oferta</a></div>
+</div>
+
+@if (_all.Count == 0)
+{
+    <div class="panel empty-state"><div class="empty-title">Nenhuma oferta ainda</div>
+        <p class="empty-text">Crie a primeira oferta comercial para começar.</p>
+        <a class="btn-primary" href="/ofertas/nova" style="margin-top:12px">+ Nova Oferta</a></div>
+}
+else
+{
+    <div style="overflow-x:auto">
+    <table class="grid">
+        <thead><tr><th>Código</th><th>Cliente</th><th>Título</th><th>Data</th><th>Status</th><th class="right">Valor</th></tr></thead>
+        <tbody>
+            @foreach (var o in _all)
+            {
+                <tr>
+                    <td>@o.OfferCode</td>
+                    <td>@o.ClientName</td>
+                    <td>@o.Title</td>
+                    <td class="nowrap">@Fmt.Date(o.OfferDate)</td>
+                    <td><span class="badge score-badge">@o.Status</span></td>
+                    <td class="right nowrap">@Fmt.Brl0(o.TotalAmount)</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    </div>
+}
+
+@code {
+    private List<CommercialOffer> _all = new();
+    protected override void OnInitialized() => _all = Ofertas.All();
+}

@@ -1,7 +1,75 @@
 @page "/visitas"
 @attribute [Authorize]
+@rendermode InteractiveServer
+@inject VisitRepository Visitas
+@inject IntelligenceService Intel
+
 <PageTitle>Ações em Campo · AFM HSA</PageTitle>
 
-<ModuleScaffold Title="Ações em Campo"
-                Subtitle="Registro e acompanhamento de visitas e ações em campo."
-                Icon="map-pin" />
+<h1>Ações em Campo</h1>
+<p class="subtitle">@Filtradas.Count visita(s) · @Filtradas.Count(v => v.Status == "agendada") agendada(s)</p>
+
+<div class="toolbar">
+    <input class="cell" style="max-width:300px" placeholder="Buscar cliente, notas…"
+           @bind="_busca" @bind:event="oninput" />
+    <select class="cell" style="max-width:170px" @bind="_status">
+        <option value="">Todos os status</option>
+        <option value="agendada">Agendada</option>
+        <option value="realizada">Realizada</option>
+    </select>
+</div>
+
+<div style="overflow-x:auto">
+<table class="grid">
+    <thead>
+        <tr>
+            <th>Data</th><th>Cliente / Unidade</th><th>Equipamento</th><th>Tipo</th>
+            <th>Status</th><th>Próximo passo</th><th>Próx. contato</th><th>Vendedor</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var v in Filtradas)
+        {
+            <tr>
+                <td class="nowrap">@Fmt.Date(v.DataVisita)</td>
+                <td>@Intel.UnitLabel(v.ClientUnitId)</td>
+                <td>@(string.IsNullOrEmpty(v.EquipmentId) ? "—" : Intel.EquipmentModel(v.EquipmentId))</td>
+                <td>@Cap(v.TipoVisita)</td>
+                <td><span class="badge @(v.Status == "realizada" ? "st-ok" : "st-atencao")">@Cap(v.Status)</span></td>
+                <td>@v.ProximoPasso</td>
+                <td class="nowrap">@Fmt.Date(v.DataProximoContato)</td>
+                <td>@Intel.SalespersonName(v.VendedorId)</td>
+            </tr>
+        }
+        @if (Filtradas.Count == 0)
+        {
+            <tr><td colspan="8" class="empty">Nenhuma visita encontrada.</td></tr>
+        }
+    </tbody>
+</table>
+</div>
+
+@code {
+    private List<Visit> _all = new();
+    private string _busca = "", _status = "";
+
+    protected override void OnInitialized() => _all = Visitas.All();
+
+    private static string Cap(string s) =>
+        string.IsNullOrEmpty(s) ? "—" : char.ToUpperInvariant(s[0]) + s[1..];
+
+    private List<Visit> Filtradas
+    {
+        get
+        {
+            IEnumerable<Visit> q = _all;
+            if (!string.IsNullOrWhiteSpace(_status)) q = q.Where(v => v.Status == _status);
+            if (!string.IsNullOrWhiteSpace(_busca))
+            {
+                var b = _busca.Trim().ToLowerInvariant();
+                q = q.Where(v => (Intel.UnitLabel(v.ClientUnitId) + v.Notas + v.ProximoPasso).ToLowerInvariant().Contains(b));
+            }
+            return q.OrderByDescending(v => v.DataVisita, StringComparer.Ordinal).ToList();
+        }
+    }
+}

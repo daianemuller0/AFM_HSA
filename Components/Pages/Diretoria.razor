@@ -1,7 +1,95 @@
 @page "/diretoria"
 @attribute [Authorize]
+@rendermode InteractiveServer
+@inject SalesRecordRepository Vendas
+@inject ClientUnitRepository Units
+@inject CompanyRepository Companies
+@inject EquipmentRepository Equipamentos
+@inject InstalledBaseRepository Base
+@inject SalespersonRepository Salespeople
+@inject IntelligenceService Intel
+
 <PageTitle>Painel Executivo · AFM HSA</PageTitle>
 
-<ModuleScaffold Title="Painel Executivo"
-                Subtitle="Indicadores estratégicos consolidados para a diretoria."
-                Icon="gauge" />
+<h1>Painel Executivo</h1>
+<p class="subtitle">Indicadores estratégicos consolidados para a diretoria.</p>
+
+<div class="kpis">
+    <div class="kpi"><div class="kpi-label">Valor da base instalada</div><div class="kpi-value" style="font-size:16px">@Fmt.Brl0(_valorBase)</div></div>
+    <div class="kpi k-ren"><div class="kpi-label">Total vendido (histórico)</div><div class="kpi-value" style="font-size:16px">@Fmt.Brl0(_totalVendido)</div></div>
+    <div class="kpi k-po"><div class="kpi-label">Oportunidades abertas</div><div class="kpi-value">@_oppCount</div><div class="kpi-sub">@Fmt.Brl0(_oppTotal)</div></div>
+    <div class="kpi k-venc"><div class="kpi-label">Janelas vencidas</div><div class="kpi-value">@_oppVencidas</div></div>
+</div>
+
+<div class="dash-grid">
+    <div class="panel">
+        <div class="dash-title">Vendas por região</div>
+        @Barras(_porRegiao)
+    </div>
+    <div class="panel">
+        <div class="dash-title">Vendas por vendedor</div>
+        @Barras(_porVendedor)
+    </div>
+    <div class="panel">
+        <div class="dash-title">Top 5 clientes por receita</div>
+        @Barras(_topClientes)
+    </div>
+    <div class="panel">
+        <div class="dash-title">Vendas por segmento</div>
+        @Barras(_porSegmento)
+    </div>
+</div>
+
+@code {
+    private decimal _valorBase, _totalVendido, _oppTotal;
+    private int _oppCount, _oppVencidas;
+    private List<KeyValuePair<string, decimal>> _porRegiao = new(), _porVendedor = new(), _topClientes = new(), _porSegmento = new();
+
+    protected override void OnInitialized()
+    {
+        var vendas = Vendas.All();
+        var units = Units.All().ToDictionary(u => u.Id, u => u);
+        var equip = Equipamentos.All().ToDictionary(e => e.Id, e => e.ValorCompleto);
+        var spName = Salespeople.All().ToDictionary(s => s.Id, s => s.Nome);
+        var compName = Companies.All().ToDictionary(c => c.Id, c => c.Nome);
+
+        _valorBase = Base.All().Sum(b => (equip.TryGetValue(b.EquipmentId, out var v) ? v : 0) * b.Quantidade);
+        _totalVendido = vendas.Sum(v => v.Valor);
+
+        var opps = Intel.Opportunities();
+        _oppCount = opps.Count;
+        _oppTotal = opps.Sum(o => o.ValorEstimado);
+        _oppVencidas = opps.Count(o => o.DiasAteJanela < 0);
+
+        string Regiao(string unitId) => units.TryGetValue(unitId, out var u) && !string.IsNullOrEmpty(u.Regiao) ? u.Regiao : "—";
+        string Segmento(string unitId) => units.TryGetValue(unitId, out var u) && !string.IsNullOrEmpty(u.Segmento) ? u.Segmento : "—";
+        string Cliente(string unitId) => units.TryGetValue(unitId, out var u) && compName.TryGetValue(u.CompanyId, out var n) ? n : "—";
+
+        _porRegiao = Top(vendas.GroupBy(v => Regiao(v.ClientUnitId)));
+        _porSegmento = Top(vendas.GroupBy(v => Segmento(v.ClientUnitId)));
+        _porVendedor = Top(vendas.GroupBy(v => spName.TryGetValue(v.VendedorId, out var n) ? n : "—"));
+        _topClientes = Top(vendas.GroupBy(v => Cliente(v.ClientUnitId)), 5);
+    }
+
+    private static List<KeyValuePair<string, decimal>> Top(IEnumerable<IGrouping<string, Models.SalesRecord>> groups, int? n = null)
+    {
+        var q = groups.Select(g => new KeyValuePair<string, decimal>(g.Key, g.Sum(x => x.Valor)))
+                      .OrderByDescending(x => x.Value);
+        return (n.HasValue ? q.Take(n.Value) : q).ToList();
+    }
+
+    private RenderFragment Barras(List<KeyValuePair<string, decimal>> dados) => builder =>
+    {
+        if (dados.Count == 0) { builder.AddMarkupContent(0, "<p class=\"empty\">Sem dados.</p>"); return; }
+        var max = dados.Max(x => x.Value);
+        int seq = 1;
+        foreach (var d in dados)
+        {
+            var pct = max <= 0 ? 0 : (int)Math.Round(100m * d.Value / max);
+            builder.AddMarkupContent(seq++,
+                $"<div class=\"bar-row\"><div class=\"bar-label\">{System.Net.WebUtility.HtmlEncode(d.Key)}</div>" +
+                $"<div class=\"bar-track\"><div class=\"bar\" style=\"width:{pct}%\"></div></div>" +
+                $"<div class=\"bar-value\">{Fmt.Brl0(d.Value)}</div></div>");
+        }
+    };
+}

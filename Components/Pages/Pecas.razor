@@ -1,7 +1,77 @@
 @page "/pecas"
 @attribute [Authorize]
+@rendermode InteractiveServer
+@inject PartRepository Pecas
+@inject EquipmentRepository Equipamentos
+
 <PageTitle>Regras Técnicas de Troca · AFM HSA</PageTitle>
 
-<ModuleScaffold Title="Regras Técnicas de Troca"
-                Subtitle="Regras técnicas de troca de peças e periodicidade."
-                Icon="wrench" />
+<h1>Regras Técnicas de Troca</h1>
+<p class="subtitle">@Filtradas.Count peça(s) · @Filtradas.Count(p => p.Critica) crítica(s)</p>
+
+<div class="toolbar">
+    <input class="cell" style="max-width:300px" placeholder="Buscar peça, equipamento, código…"
+           @bind="_busca" @bind:event="oninput" />
+    <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)">
+        <input type="checkbox" @bind="_soCriticas" /> Só críticas
+    </label>
+</div>
+
+<div style="overflow-x:auto">
+<table class="grid">
+    <thead>
+        <tr>
+            <th>Equipamento</th><th>Peça</th><th class="right">Ciclo (meses)</th>
+            <th>Crítica</th><th>Código</th><th class="right">Valor estimado</th><th>Vender junto</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var p in Filtradas)
+        {
+            <tr>
+                <td>@Equip(p.EquipmentId)</td>
+                <td>@p.Nome</td>
+                <td class="right">@p.CicloMeses</td>
+                <td>@(p.Critica ? "Sim" : "—")</td>
+                <td>@(string.IsNullOrEmpty(p.Codigo) ? "—" : p.Codigo)</td>
+                <td class="right nowrap">@(p.ValorEstimado > 0 ? Fmt.Brl0(p.ValorEstimado) : "—")</td>
+                <td>@(p.VenderJunto ? "Sim" : "—")</td>
+            </tr>
+        }
+        @if (Filtradas.Count == 0)
+        {
+            <tr><td colspan="7" class="empty">Nenhuma peça encontrada.</td></tr>
+        }
+    </tbody>
+</table>
+</div>
+
+@code {
+    private List<Part> _all = new();
+    private Dictionary<string, string> _equip = new();
+    private string _busca = "";
+    private bool _soCriticas;
+
+    protected override void OnInitialized()
+    {
+        _all = Pecas.All();
+        _equip = Equipamentos.All().ToDictionary(e => e.Id, e => e.Nome);
+    }
+
+    private string Equip(string id) => _equip.TryGetValue(id, out var n) ? n : id;
+
+    private List<Part> Filtradas
+    {
+        get
+        {
+            IEnumerable<Part> q = _all;
+            if (_soCriticas) q = q.Where(p => p.Critica);
+            if (!string.IsNullOrWhiteSpace(_busca))
+            {
+                var b = _busca.Trim().ToLowerInvariant();
+                q = q.Where(p => (p.Nome + Equip(p.EquipmentId) + p.Codigo).ToLowerInvariant().Contains(b));
+            }
+            return q.OrderBy(p => Equip(p.EquipmentId)).ThenBy(p => p.Nome).ToList();
+        }
+    }
+}

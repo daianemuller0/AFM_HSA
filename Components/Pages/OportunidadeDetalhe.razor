@@ -1,11 +1,50 @@
 @page "/oportunidades/{Id}"
 @attribute [Authorize]
+@rendermode InteractiveServer
+@inject IntelligenceService Intel
+
 <PageTitle>Oportunidade · AFM HSA</PageTitle>
 
-<ModuleScaffold Title="@($"Oportunidade {Id}")"
-                Subtitle="Detalhe e acompanhamento da oportunidade."
-                Icon="target" />
+@if (_op is null)
+{
+    <h1>Oportunidade</h1>
+    <div class="panel empty-state"><div class="empty-title">Oportunidade não encontrada</div>
+        <p class="empty-text">Ela pode ter mudado com o histórico de vendas.</p>
+        <a class="btn-ghost" href="/oportunidades">Voltar</a></div>
+}
+else
+{
+    <div class="page-head">
+        <div>
+            <h1>@Intel.UnitLabel(_op.ClientUnitId)</h1>
+            <p class="subtitle">@Intel.EquipmentNome(_op.EquipmentId) · @_op.Item</p>
+        </div>
+        <div class="page-actions"><a class="btn-ghost" href="/oportunidades">← Oportunidades</a></div>
+    </div>
+
+    <div class="kpis">
+        <div class="kpi"><div class="kpi-label">Urgência</div>
+            <div class="kpi-value" style="font-size:18px"><span class="badge @IntelligenceService.UrgClass(_op.Urgencia)">@_op.Urgencia</span></div></div>
+        <div class="kpi"><div class="kpi-label">Janela prevista</div><div class="kpi-value" style="font-size:18px">@Fmt.Date(_op.DataPrevista)</div></div>
+        <div class="kpi"><div class="kpi-label">Prazo</div><div class="kpi-value" style="font-size:18px">@(_op.DiasAteJanela < 0 ? $"vencida há {_op.DiasAtraso} d" : $"em {_op.DiasAteJanela} d")</div></div>
+        <div class="kpi k-ren"><div class="kpi-label">Potencial técnico</div><div class="kpi-value" style="font-size:18px">@Fmt.Brl0(_op.ValorEstimado)</div></div>
+    </div>
+
+    <div class="panel">
+        <div class="dash-title">Justificativa técnica</div>
+        <p>@_op.Justificativa</p>
+        <div class="task-next"><strong>Próxima ação:</strong> @_op.ProximaAcao</div>
+        <div class="side-item"><span>Vendedor responsável</span><span>@Intel.SalespersonName(_op.VendedorId)</span></div>
+        <div class="side-item"><span>Última venda</span><span>@Fmt.Date(_op.DataUltimaVenda)</span></div>
+        <div class="side-item"><span>Ciclo técnico</span><span>@_op.CicloMeses meses</span></div>
+        <div class="side-item"><span>Status</span><span>@_op.Status</span></div>
+    </div>
+}
 
 @code {
     [Parameter] public string? Id { get; set; }
+    private Opportunity? _op;
+
+    protected override void OnInitialized() =>
+        _op = Intel.Opportunities().FirstOrDefault(o => o.Id == Id);
 }

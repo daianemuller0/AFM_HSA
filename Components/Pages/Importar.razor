@@ -1,7 +1,38 @@
 @page "/importar"
 @attribute [Authorize]
+@rendermode InteractiveServer
+@inject CompanyRepository Companies
+@inject EquipmentRepository Equipamentos
+@inject SalesRecordRepository Vendas
+@inject PartRepository Pecas
+
 <PageTitle>Importar · AFM HSA</PageTitle>
 
-<ModuleScaffold Title="Importar"
-                Subtitle="Importação de arquivos (Excel/Parquet) para a base."
-                Icon="database" />
+<h1>Importar</h1>
+<p class="subtitle">Carga de dados para a base (Parquet/DuckDB).</p>
+
+<div class="panel">
+    <div class="dash-title">Base atual</div>
+    <div class="kpis">
+        <div class="kpi"><div class="kpi-label">Clientes</div><div class="kpi-value">@_c</div></div>
+        <div class="kpi"><div class="kpi-label">Equipamentos</div><div class="kpi-value">@_e</div></div>
+        <div class="kpi"><div class="kpi-label">Peças</div><div class="kpi-value">@_p</div></div>
+        <div class="kpi"><div class="kpi-label">Histórico</div><div class="kpi-value">@_v</div></div>
+    </div>
+    <div class="summary-bar" style="margin-top:8px">
+        A base foi semeada na primeira execução com os dados do sistema original. A importação de
+        planilhas <strong>.xlsx</strong> (via ClosedXML) entra nesta tela numa próxima fase, gravando
+        os registros no mesmo formato Parquet.
+    </div>
+</div>
+
+@code {
+    private int _c, _e, _p, _v;
+    protected override void OnInitialized()
+    {
+        _c = Companies.All().Count;
+        _e = Equipamentos.All().Count;
+        _p = Pecas.All().Count;
+        _v = Vendas.All().Count;
+    }
+}

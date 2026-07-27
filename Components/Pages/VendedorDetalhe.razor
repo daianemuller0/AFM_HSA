@@ -1,11 +1,75 @@
 @page "/vendedores/{Id}"
 @attribute [Authorize]
+@rendermode InteractiveServer
+@inject SalespersonRepository Salespeople
+@inject ClientUnitRepository Units
+@inject CompanyRepository Companies
+@inject IntelligenceService Intel
+
 <PageTitle>Vendedor · AFM HSA</PageTitle>
 
-<ModuleScaffold Title="@($"Vendedor {Id}")"
-                Subtitle="Perfil e carteira do vendedor."
-                Icon="users" />
+@if (_v is null)
+{
+    <h1>Vendedor</h1>
+    <div class="panel empty-state"><div class="empty-title">Vendedor não encontrado</div>
+        <a class="btn-ghost" href="/vendedores">Voltar</a></div>
+}
+else
+{
+    <div class="page-head">
+        <div><h1>@_v.Nome</h1><p class="subtitle">@_v.Cargo · @_v.Regiao · @_v.Email</p></div>
+        <div class="page-actions"><a class="btn-ghost" href="/vendedores">← Vendedores</a></div>
+    </div>
+
+    <div class="kpis">
+        <div class="kpi"><div class="kpi-label">Unidades na carteira</div><div class="kpi-value">@_units.Count</div></div>
+        <div class="kpi k-po"><div class="kpi-label">Oportunidades</div><div class="kpi-value">@_opps.Count</div></div>
+        <div class="kpi k-ren"><div class="kpi-label">Potencial</div><div class="kpi-value" style="font-size:16px">@Fmt.Brl0(_opps.Sum(o => o.ValorEstimado))</div></div>
+        <div class="kpi"><div class="kpi-label">Situação</div><div class="kpi-value" style="font-size:16px">@(_v.Ativo ? "Ativo" : "Inativo")</div></div>
+    </div>
+
+    <div class="dash-title">Carteira</div>
+    <table class="grid" style="margin-bottom:20px">
+        <thead><tr><th>Cliente / Unidade</th><th>Cidade/UF</th><th>Segmento</th></tr></thead>
+        <tbody>
+            @foreach (var u in _units)
+            {
+                <tr><td>@Cliente(u.CompanyId) — @u.NomeUnidade</td><td class="nowrap">@u.Cidade / @u.Estado</td><td>@u.Segmento</td></tr>
+            }
+            @if (_units.Count == 0) { <tr><td colspan="3" class="empty">Sem unidades na carteira.</td></tr> }
+        </tbody>
+    </table>
+
+    <div class="dash-title">Oportunidades do vendedor</div>
+    <table class="grid">
+        <thead><tr><th>Cliente / Unidade</th><th>Item</th><th>Janela</th><th>Urgência</th><th class="right">Potencial</th></tr></thead>
+        <tbody>
+            @foreach (var o in _opps)
+            {
+                <tr><td>@Intel.UnitLabel(o.ClientUnitId)</td><td>@o.Item</td><td class="nowrap">@Fmt.Date(o.DataPrevista)</td>
+                    <td><span class="badge @IntelligenceService.UrgClass(o.Urgencia)">@o.Urgencia</span></td>
+                    <td class="right nowrap">@Fmt.Brl0(o.ValorEstimado)</td></tr>
+            }
+            @if (_opps.Count == 0) { <tr><td colspan="5" class="empty">Sem oportunidades.</td></tr> }
+        </tbody>
+    </table>
+}
 
 @code {
     [Parameter] public string? Id { get; set; }
+    private Salesperson? _v;
+    private List<ClientUnit> _units = new();
+    private List<Opportunity> _opps = new();
+    private Dictionary<string, string> _comp = new();
+
+    protected override void OnInitialized()
+    {
+        _v = Salespeople.All().FirstOrDefault(s => s.Id == Id);
+        if (_v is null) return;
+        _units = Units.All().Where(u => u.VendedorId == _v.Id).ToList();
+        _comp = Companies.All().ToDictionary(c => c.Id, c => c.Nome);
+        _opps = Intel.Opportunities().Where(o => o.VendedorId == _v.Id).ToList();
+    }
+
+    private string Cliente(string id) => _comp.TryGetValue(id, out var n) ? n : id;
 }

@@ -1,7 +1,85 @@
 @page "/historico"
 @attribute [Authorize]
+@rendermode InteractiveServer
+@inject SalesRecordRepository Vendas
+@inject IntelligenceService Intel
+
 <PageTitle>Histórico Aftermarket · AFM HSA</PageTitle>
 
-<ModuleScaffold Title="Histórico Aftermarket"
-                Subtitle="Histórico de vendas e serviços de aftermarket por cliente."
-                Icon="receipt" />
+<h1>Histórico Aftermarket</h1>
+<p class="subtitle">@Filtradas.Count registro(s) · Total @Fmt.Brl0(Total)</p>
+
+<div class="toolbar">
+    <input class="cell" style="max-width:300px" placeholder="Buscar cliente, equipamento, item, pedido…"
+           @bind="_busca" @bind:event="oninput" />
+    <select class="cell" style="max-width:140px" @bind="_ano">
+        <option value="">Todos os anos</option>
+        @foreach (var a in _anos)
+        {
+            <option value="@a">@a</option>
+        }
+    </select>
+</div>
+
+<div style="overflow-x:auto">
+<table class="grid">
+    <thead>
+        <tr>
+            <th>Data</th><th>Pedido</th><th>Cliente / Unidade</th><th>Equipamento</th>
+            <th>Item</th><th class="right">Qtd</th><th class="right">Valor</th><th>Vendedor</th><th>Origem</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var s in Filtradas)
+        {
+            <tr>
+                <td class="nowrap">@Fmt.Date(s.DataVenda)</td>
+                <td>@s.Pedido</td>
+                <td>@Intel.UnitLabel(s.ClientUnitId)</td>
+                <td>@Intel.EquipmentModel(s.EquipmentId)</td>
+                <td>@s.ItemVendido</td>
+                <td class="right">@s.Quantidade</td>
+                <td class="right nowrap">@Fmt.Brl0(s.Valor)</td>
+                <td>@Intel.SalespersonName(s.VendedorId)</td>
+                <td>@s.Origem</td>
+            </tr>
+        }
+        @if (Filtradas.Count == 0)
+        {
+            <tr><td colspan="9" class="empty">Nenhum registro encontrado.</td></tr>
+        }
+    </tbody>
+</table>
+</div>
+
+@code {
+    private List<SalesRecord> _all = new();
+    private List<string> _anos = new();
+    private string _busca = "", _ano = "";
+
+    protected override void OnInitialized()
+    {
+        _all = Vendas.All();
+        _anos = _all.Where(s => s.DataVenda.Length >= 4).Select(s => s.DataVenda.Substring(0, 4))
+                    .Distinct().OrderByDescending(a => a).ToList();
+    }
+
+    private List<SalesRecord> Filtradas
+    {
+        get
+        {
+            IEnumerable<SalesRecord> q = _all;
+            if (!string.IsNullOrWhiteSpace(_ano))
+                q = q.Where(s => s.DataVenda.StartsWith(_ano));
+            if (!string.IsNullOrWhiteSpace(_busca))
+            {
+                var b = _busca.Trim().ToLowerInvariant();
+                q = q.Where(s => (Intel.UnitLabel(s.ClientUnitId) + Intel.EquipmentModel(s.EquipmentId) + s.ItemVendido + s.Pedido)
+                    .ToLowerInvariant().Contains(b));
+            }
+            return q.OrderByDescending(s => s.DataVenda, StringComparer.Ordinal).ToList();
+        }
+    }
+
+    private decimal Total => Filtradas.Sum(s => s.Valor);
+}

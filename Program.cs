@@ -45,6 +45,11 @@ builder.Services.AddScoped<InstalledBaseRepository>();
 builder.Services.AddScoped<PartRepository>();
 builder.Services.AddScoped<SalesRecordRepository>();
 builder.Services.AddScoped<AppUserRepository>();
+builder.Services.AddScoped<VisitRepository>();
+builder.Services.AddScoped<OfferRepository>();
+
+// Motor de inteligência (oportunidades, alertas, lookups).
+builder.Services.AddScoped<IntelligenceService>();
 
 var app = builder.Build();
 
