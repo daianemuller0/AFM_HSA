@@ -3,45 +3,78 @@
 @attribute [AllowAnonymous]
 @inject BrandingRepository Brand
 
-<div class="login-wrap">
-    <div class="login-card">
-        @if (!string.IsNullOrEmpty(_logo))
-        {
-            <div class="brand center"><img src="@_logo" style="max-height:110px;max-width:300px;width:auto;object-fit:contain" alt="logo" /></div>
-        }
-        else
-        {
-            <div class="brand center">
-                <div class="brand-mark big">H</div>
-                <div>
-                    <div class="brand-name">Howden</div>
-                    <div class="brand-sub">Aftermarket · AFM HSA</div>
+<div class="lg-split">
+    <div class="lg-left">
+        <div class="lg-topbar">
+            @if (!string.IsNullOrEmpty(_logo))
+            {
+                <img src="@_logo" class="lg-brandimg" alt="logo" />
+            }
+            else
+            {
+                <div class="lg-logo">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                    <span>Aftermarket <span class="teal">Intelligence</span></span>
                 </div>
+            }
+            <div class="lg-badges">
+                <span class="lg-badge solid">Enterprise Platform</span>
+                <span class="lg-badge">Predictive Revenue Intelligence</span>
             </div>
-        }
+        </div>
 
-        <h1 class="login-title">Entrar</h1>
+        <div class="lg-kicker">Aftermarket Intelligence</div>
+        <h1 class="lg-headline">Inteligência preditiva para <span class="teal">maximizar receita</span> no aftermarket industrial</h1>
+        <p class="lg-lead">Uma plataforma executiva para antecipar demanda, priorizar oportunidades e projetar receitas futuras com base na operação real, histórico de trocas, parque instalado e comportamento dos clientes.</p>
 
-        @if (Error)
-        {
-            <div class="alert-error">Usuário ou senha inválidos.</div>
-        }
+        <div class="lg-bullets">
+            <div class="lg-bullet">@((MarkupString)Icons.Svg("target")) Previsão de oportunidades por cliente, equipamento e período</div>
+            <div class="lg-bullet">@((MarkupString)Icons.Svg("trending")) Priorização comercial baseada em potencial de receita</div>
+            <div class="lg-bullet">@((MarkupString)Icons.Svg("boxes")) Visão executiva da base instalada e ciclo de reposição</div>
+            <div class="lg-bullet">@((MarkupString)Icons.Svg("check")) Apoio à tomada de decisão para vendas, serviços e gestão industrial</div>
+        </div>
 
-        <form method="post" action="/auth/login" class="login-form">
-            <label>
-                E-mail
-                <input type="text" name="usuario" autocomplete="username" required />
-            </label>
-            <label>
-                Senha
-                <input type="password" name="senha" autocomplete="current-password" required />
-            </label>
-            <button type="submit" class="btn-primary">Entrar</button>
-        </form>
+        <div class="lg-tags">
+            <span class="lg-tag">Industrial Aftermarket</span>
+            <span class="lg-tag">Executive Dashboard</span>
+            <span class="lg-tag">Installed Base Analytics</span>
+        </div>
 
-        <div class="login-hint">
-            Entre com seu e-mail e senha. Ex.: <b>admin@howden.com</b> / admin123<br />
-            Login geral da equipe: howden / howden2026
+        <div class="lg-foot">
+            <span>Feito para operações de aftermarket industrial.</span>
+            <span>© Howden Aftermarket Intelligence</span>
+        </div>
+    </div>
+
+    <div class="lg-right">
+        <div class="lg-lang">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            <span>Português</span>
+        </div>
+
+        <div class="lg-card">
+            <div class="lg-card-kicker">Aftermarket Intelligence</div>
+            <h1>Acesso à plataforma</h1>
+            <p class="lg-card-sub">Entre para visualizar previsões, oportunidades e indicadores executivos da operação.</p>
+
+            @if (Error)
+            {
+                <div class="alert-error">E-mail ou senha inválidos.</div>
+            }
+
+            <form method="post" action="/auth/login" class="login-form">
+                <label>
+                    E-mail
+                    <input type="text" name="usuario" autocomplete="username" placeholder="voce@empresa.com" required />
+                </label>
+                <label>
+                    Senha
+                    <input type="password" name="senha" autocomplete="current-password" placeholder="••••••••" required />
+                </label>
+                <button type="submit" class="lg-btn">Acessar plataforma →</button>
+            </form>
+
+            <div class="lg-secure">🔒 Conexão segura · acesso restrito</div>
         </div>
     </div>
 </div>
