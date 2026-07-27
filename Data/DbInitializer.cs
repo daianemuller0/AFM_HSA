@@ -44,6 +44,42 @@ public static class DbInitializer
         }
 
         SeedVisits(store);
+        SeedConstruction(store);
+    }
+
+    // Dados construtivos de exemplo do Ventilador CT 1024.00.00 SBL6T (eq-1),
+    // do app original (seedConstructionData de store.ts).
+    private static void SeedConstruction(ParquetStore store)
+    {
+        if (!store.IsEmpty("constructionData")) return;
+
+        // item_name, weight_kg, dimensions, material, equipment_part, item_model
+        var itens = new[]
+        {
+            new[] { "Discos laterais", "250", "", "SAC 350", "Parte Girante", "" },
+            new[] { "Palhetas", "170", "", "SAC 350", "Parte Girante", "" },
+            new[] { "Cone de proteção", "50", "", "SAC 350", "Parte Girante", "" },
+            new[] { "Chapa de desgaste da palheta", "98", "", "CDP 4666 5+3", "Parte Girante", "" },
+            new[] { "Eixo", "400", "160x2300", "SAE 4140", "Parte Girante", "" },
+            new[] { "Cone aspirante", "75", "", "ASTM A36", "Parte Estática", "" },
+            new[] { "Carcaça", "800", "", "ASTM A36", "Parte Estática", "" },
+            new[] { "Registro Veneziana", "100", "900x800", "ASTM A36", "Parte Estática", "" },
+            new[] { "Base Metálica", "980", "", "ASTM A36", "Parte Estática", "" },
+            new[] { "Mancal", "", "", "", "Mancal", "SOFN 520" },
+            new[] { "Motor", "", "", "", "Motor", "W22 IE2 150 kW 4P 315S/M 3F 380-400-415/660-690//460 V 60 Hz IC411 - TEFC - B3T" },
+            new[] { "Atuador", "", "", "", "Atuador", "Atuador Elétrico CSM6/16/40/60/80/120" },
+            new[] { "Pintura", "", "", "", "Pintura", "Fundo epoxi 235 - Azul 671837" },
+        };
+
+        var cols = new[] { "id", "equipment_id", "item_name", "weight_kg", "dimensions", "material", "equipment_part", "item_model" };
+        var rows = new List<IReadOnlyList<KeyValuePair<string, object?>>>();
+        for (int i = 0; i < itens.Length; i++)
+        {
+            var v = itens[i];
+            var full = new[] { $"cd-{i + 1}", "eq-1", v[0], v[1], v[2], v[3], v[4], v[5] };
+            rows.Add(cols.Select((c, j) => new KeyValuePair<string, object?>(c, full[j])).ToList());
+        }
+        store.WriteBatch("constructionData", rows);
     }
 
     // Visitas de exemplo (seedVisits() de src/lib/store.ts do app original).

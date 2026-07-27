@@ -1,17 +1,17 @@
 @page "/clientes"
 @attribute [Authorize]
 @rendermode InteractiveServer
-@inject CompanyRepository Companies
 @inject ClientUnitRepository Units
-@inject SalespersonRepository Salespeople
+@inject InstalledBaseRepository Base
+@inject IntelligenceService Intel
 
 <PageTitle>Clientes e Unidades · AFM HSA</PageTitle>
 
 <h1>Clientes e Unidades</h1>
-<p class="subtitle">@Filtradas.Count cliente(s) · @_units.Count unidade(s)</p>
+<p class="subtitle">@Filtradas.Count unidades na base instalada</p>
 
 <div class="toolbar">
-    <input class="cell" style="max-width:320px" placeholder="Buscar cliente, cidade, segmento…"
+    <input class="cell" style="max-width:320px" placeholder="Buscar cliente, unidade, segmento…"
            @bind="_busca" @bind:event="oninput" />
 </div>
 
@@ -19,63 +19,61 @@
 <table class="grid">
     <thead>
         <tr>
-            <th>Cliente</th><th>Segmento</th><th>Cidade/UF</th><th>Região</th>
-            <th class="right">Unidades</th><th>Vendedores</th>
+            <th>Cliente</th><th>Unidade</th><th>Segmento</th><th>UF</th>
+            <th class="right">Equipamentos</th><th class="right">Janelas abertas</th>
+            <th class="right">Valor potencial técnico</th><th>Vendedor</th><th></th>
         </tr>
     </thead>
     <tbody>
-        @foreach (var c in Filtradas)
+        @foreach (var u in Filtradas)
         {
-            var us = _units.Where(u => u.CompanyId == c.Id).ToList();
             <tr>
-                <td><a class="btn-link" href="@($"/clientes/{c.Id}")">@c.Nome</a></td>
-                <td>@c.Segmento</td>
-                <td class="nowrap">@c.Cidade / @c.Estado</td>
-                <td>@c.Regiao</td>
-                <td class="right">@us.Count</td>
-                <td>@Vendedores(us)</td>
+                <td>@Intel.CompanyName(u.CompanyId)</td>
+                <td>@u.NomeUnidade</td>
+                <td>@u.Segmento</td>
+                <td>@u.Estado</td>
+                <td class="right">@_equipCount.GetValueOrDefault(u.Id)</td>
+                <td class="right">@_oppCount.GetValueOrDefault(u.Id)</td>
+                <td class="right nowrap">@Fmt.Brl0(_oppValor.GetValueOrDefault(u.Id))</td>
+                <td>@Intel.SalespersonName(u.VendedorId)</td>
+                <td class="nowrap"><a class="btn-link" href="@($"/clientes/{u.Id}")">Abrir</a></td>
             </tr>
         }
         @if (Filtradas.Count == 0)
         {
-            <tr><td colspan="6" class="empty">Nenhum cliente encontrado.</td></tr>
+            <tr><td colspan="9" class="empty">Nenhuma unidade encontrada.</td></tr>
         }
     </tbody>
 </table>
 </div>
 
 @code {
-    private List<Company> _all = new();
-    private List<ClientUnit> _units = new();
-    private Dictionary<string, string> _spName = new();
+    private List<ClientUnit> _all = new();
+    private Dictionary<string, int> _equipCount = new(), _oppCount = new();
+    private Dictionary<string, decimal> _oppValor = new();
     private string _busca = "";
 
     protected override void OnInitialized()
     {
-        _all = Companies.All();
-        _units = Units.All();
-        _spName = Salespeople.All().ToDictionary(s => s.Id, s => s.Nome);
+        _all = Units.All();
+        _equipCount = Base.All().GroupBy(b => b.ClientUnitId).ToDictionary(g => g.Key, g => g.Count());
+        var open = Intel.OpenOpportunities();
+        _oppCount = open.GroupBy(o => o.ClientUnitId).ToDictionary(g => g.Key, g => g.Count());
+        _oppValor = open.GroupBy(o => o.ClientUnitId).ToDictionary(g => g.Key, g => g.Sum(o => o.ValorEstimado));
     }
 
-    private List<Company> Filtradas
+    private List<ClientUnit> Filtradas
     {
         get
         {
-            IEnumerable<Company> q = _all;
+            IEnumerable<ClientUnit> q = _all;
             if (!string.IsNullOrWhiteSpace(_busca))
             {
                 var b = _busca.Trim().ToLowerInvariant();
-                q = q.Where(c => (c.Nome + c.Segmento + c.Cidade + c.Estado + c.Regiao)
+                q = q.Where(u => (Intel.CompanyName(u.CompanyId) + u.NomeUnidade + u.Segmento + u.Estado)
                     .ToLowerInvariant().Contains(b));
             }
-            return q.OrderBy(c => c.Nome).ToList();
+            return q.OrderBy(u => Intel.CompanyName(u.CompanyId)).ThenBy(u => u.NomeUnidade).ToList();
         }
-    }
-
-    private string Vendedores(List<ClientUnit> us)
-    {
-        var nomes = us.Select(u => _spName.TryGetValue(u.VendedorId, out var n) ? n : u.VendedorId)
-                      .Where(n => !string.IsNullOrWhiteSpace(n)).Distinct();
-        return string.Join(", ", nomes);
     }
 }

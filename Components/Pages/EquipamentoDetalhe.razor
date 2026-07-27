@@ -1,11 +1,13 @@
 @page "/equipamentos/{Id}"
 @attribute [Authorize]
 @rendermode InteractiveServer
+@using System.Globalization
 @inject EquipmentRepository Equipamentos
 @inject PartRepository Pecas
 @inject InstalledBaseRepository Base
-@inject ClientUnitRepository Units
-@inject CompanyRepository Companies
+@inject SalesRecordRepository Vendas
+@inject ConstructionRepository Construcao
+@inject IntelligenceService Intel
 
 <PageTitle>Equipamento · AFM HSA</PageTitle>
 
@@ -13,44 +15,76 @@
 {
     <h1>Equipamento</h1>
     <div class="panel empty-state"><div class="empty-title">Equipamento não encontrado</div>
-        <a class="btn-ghost" href="/equipamentos">Voltar</a></div>
+        <a class="btn-ghost" href="/clientes">Voltar</a></div>
 }
 else
 {
     <div class="page-head">
-        <div><h1>@_e.Nome</h1><p class="subtitle">@_e.Tipo · @_e.Modelo · @_e.Segmento</p></div>
-        <div class="page-actions"><a class="btn-ghost" href="/equipamentos">← Equipamentos</a></div>
+        <div><h1>@_e.Nome</h1><p class="subtitle">Aplicação: @_e.Aplicacao</p></div>
+        <div class="page-actions"><a class="btn-ghost" href="javascript:history.back()">Voltar</a></div>
     </div>
 
-    <div class="kpis">
-        <div class="kpi"><div class="kpi-label">Fabricante</div><div class="kpi-value" style="font-size:15px">@_e.Fabricante</div></div>
-        <div class="kpi"><div class="kpi-label">Aplicação</div><div class="kpi-value" style="font-size:13px">@_e.Aplicacao</div></div>
-        <div class="kpi k-ren"><div class="kpi-label">Valor completo</div><div class="kpi-value" style="font-size:16px">@Fmt.Brl0(_e.ValorCompleto)</div></div>
-        <div class="kpi"><div class="kpi-label">Instalações</div><div class="kpi-value">@_base.Count</div></div>
+    <div class="kpis kpis-8">
+        <div class="kpi"><div class="kpi-label">Segmento</div><div class="kpi-value" style="font-size:15px">@_e.Segmento</div></div>
+        <div class="kpi"><div class="kpi-label">Fabricante</div><div class="kpi-value" style="font-size:12px">@_e.Fabricante</div></div>
+        <div class="kpi"><div class="kpi-label">Qtd. instalada</div><div class="kpi-value">@_qtd</div></div>
+        <div class="kpi k-venc"><div class="kpi-label">Peças críticas</div><div class="kpi-value">@_pecasCriticas</div></div>
+        <div class="kpi k-ren"><div class="kpi-label">Valor completo</div><div class="kpi-value" style="font-size:14px">@Fmt.Brl0(_e.ValorCompleto)</div></div>
+        <div class="kpi k-po"><div class="kpi-label">Valor potencial 24 meses</div><div class="kpi-value" style="font-size:14px">@Fmt.Brl0(_pot24)</div></div>
     </div>
 
-    <div class="dash-title">Peças e ciclos de troca (@_parts.Count)</div>
+    <div class="dash-title">Cliente / unidade onde está instalado</div>
     <table class="grid" style="margin-bottom:20px">
-        <thead><tr><th>Peça</th><th class="right">Ciclo (meses)</th><th>Crítica</th></tr></thead>
-        <tbody>
-            @foreach (var p in _parts)
-            {
-                <tr><td>@p.Nome</td><td class="right">@p.CicloMeses</td><td>@(p.Critica ? "Sim" : "—")</td></tr>
-            }
-            @if (_parts.Count == 0) { <tr><td colspan="3" class="empty">Sem peças cadastradas.</td></tr> }
-        </tbody>
-    </table>
-
-    <div class="dash-title">Onde está instalado</div>
-    <table class="grid">
-        <thead><tr><th>Cliente / Unidade</th><th class="right">Qtd</th><th>Ano</th><th>Criticidade</th></tr></thead>
+        <thead><tr><th>Cliente / Unidade</th><th class="right">Qtd</th><th>Ano</th><th>Status</th><th>Criticidade</th></tr></thead>
         <tbody>
             @foreach (var b in _base)
             {
-                <tr><td>@Unidade(b.ClientUnitId)</td><td class="right">@b.Quantidade</td>
-                    <td>@(b.AnoInstalacao > 0 ? b.AnoInstalacao.ToString() : "—")</td><td>@b.Criticidade</td></tr>
+                <tr>
+                    <td>@Intel.ClienteDaUnidade(b.ClientUnitId) — @Intel.UnitNome(b.ClientUnitId)</td>
+                    <td class="right">@b.Quantidade</td>
+                    <td>@(b.AnoInstalacao > 0 ? b.AnoInstalacao.ToString() : "—")</td>
+                    <td>@Cap(b.Status)</td>
+                    <td><span class="badge @CritClass(b.Criticidade)">@Cap(b.Criticidade)</span></td>
+                </tr>
             }
-            @if (_base.Count == 0) { <tr><td colspan="4" class="empty">Não instalado.</td></tr> }
+            @if (_base.Count == 0) { <tr><td colspan="5" class="empty">Não instalado.</td></tr> }
+        </tbody>
+    </table>
+
+    <div class="dash-title">Regras técnicas de troca (peças e ciclos)</div>
+    <table class="grid" style="margin-bottom:20px">
+        <thead><tr><th>Item / Conjunto</th><th>Frequência de troca</th><th>Origem</th><th class="right">Valor estimado</th><th>Criticidade</th></tr></thead>
+        <tbody>
+            @foreach (var p in _parts)
+            {
+                <tr>
+                    <td>@p.Nome</td>
+                    <td class="nowrap">@Freq(p.CicloMeses)</td>
+                    <td><span class="badge st-ok">@Origem(p.Nome)</span></td>
+                    <td class="right nowrap">@(p.ValorEstimado > 0 ? Fmt.Brl0(p.ValorEstimado) : "—")</td>
+                    <td><span class="badge @(p.Critica ? "st-vencida" : "st-plan")">@(p.Critica ? "Crítica" : "Normal")</span></td>
+                </tr>
+            }
+            @if (_parts.Count == 0) { <tr><td colspan="5" class="empty">Sem peças cadastradas.</td></tr> }
+        </tbody>
+    </table>
+
+    <div class="dash-title">Dados construtivos</div>
+    <table class="grid">
+        <thead><tr><th>Item</th><th class="right">Peso (kg)</th><th>Dimensões</th><th>Material</th><th>Parte do equipamento</th><th>Modelo</th></tr></thead>
+        <tbody>
+            @foreach (var c in _constr)
+            {
+                <tr>
+                    <td>@c.ItemName</td>
+                    <td class="right">@(string.IsNullOrEmpty(c.WeightKg) ? "—" : c.WeightKg)</td>
+                    <td>@(string.IsNullOrEmpty(c.Dimensions) ? "—" : c.Dimensions)</td>
+                    <td>@(string.IsNullOrEmpty(c.Material) ? "—" : c.Material)</td>
+                    <td>@c.EquipmentPart</td>
+                    <td>@(string.IsNullOrEmpty(c.ItemModel) ? "—" : c.ItemModel)</td>
+                </tr>
+            }
+            @if (_constr.Count == 0) { <tr><td colspan="6" class="empty">Nenhum dado construtivo cadastrado.</td></tr> }
         </tbody>
     </table>
 }
@@ -60,7 +94,10 @@ else
     private Equipment? _e;
     private List<Part> _parts = new();
     private List<InstalledBase> _base = new();
-    private Dictionary<string, string> _unitLabel = new();
+    private List<ConstructionItem> _constr = new();
+    private List<SalesRecord> _sales = new();
+    private int _qtd, _pecasCriticas;
+    private decimal _pot24;
 
     protected override void OnInitialized()
     {
@@ -68,11 +105,28 @@ else
         if (_e is null) return;
         _parts = Pecas.All().Where(p => p.EquipmentId == _e.Id).OrderBy(p => p.Nome).ToList();
         _base = Base.All().Where(b => b.EquipmentId == _e.Id).ToList();
-        var units = Units.All();
-        var comp = Companies.All().ToDictionary(c => c.Id, c => c.Nome);
-        _unitLabel = units.ToDictionary(u => u.Id,
-            u => (comp.TryGetValue(u.CompanyId, out var cn) ? cn : "") + " — " + u.NomeUnidade);
+        _constr = Construcao.ForEquip(_e.Id);
+        _sales = Vendas.All().Where(s => s.EquipmentId == _e.Id).ToList();
+        _qtd = _base.Sum(b => b.Quantidade);
+        _pecasCriticas = _parts.Count(p => p.Critica);
+        _pot24 = Intel.OpenOpportunities()
+            .Where(o => o.EquipmentId == _e.Id && o.DiasAteJanela <= 730)
+            .Sum(o => o.ValorEstimado);
     }
 
-    private string Unidade(string id) => _unitLabel.TryGetValue(id, out var n) ? n : id;
+    private static string Freq(int meses) =>
+        $"{meses} meses (~{(meses / 12.0).ToString("0.0", CultureInfo.InvariantCulture)} anos)";
+
+    private string Origem(string parte)
+    {
+        var pn = parte.ToLowerInvariant();
+        var n = _sales.Count(s => { var it = s.ItemVendido.ToLowerInvariant(); return it.Contains(pn) || pn.Contains(it); });
+        return n > 0 ? $"Histórico ({n} compras)" : "Regra técnica";
+    }
+
+    private static string Cap(string s) => string.IsNullOrEmpty(s) ? "—" : char.ToUpperInvariant(s[0]) + s[1..];
+    private static string CritClass(string c) => c.ToLowerInvariant() switch
+    {
+        "crítica" => "st-vencida", "alta" => "st-critica", "média" => "st-atencao", "baixa" => "st-ok", _ => "st-plan",
+    };
 }

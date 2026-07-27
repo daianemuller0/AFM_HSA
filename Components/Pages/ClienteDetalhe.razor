@@ -1,84 +1,95 @@
 @page "/clientes/{Id}"
 @attribute [Authorize]
 @rendermode InteractiveServer
-@inject CompanyRepository Companies
 @inject ClientUnitRepository Units
 @inject InstalledBaseRepository Base
 @inject EquipmentRepository Equipamentos
-@inject SalespersonRepository Salespeople
+@inject IntelligenceService Intel
 
 <PageTitle>Cliente · AFM HSA</PageTitle>
 
-@if (_c is null)
+@if (_u is null)
 {
-    <h1>Cliente</h1>
-    <div class="panel empty-state"><div class="empty-title">Cliente não encontrado</div>
+    <h1>Unidade</h1>
+    <div class="panel empty-state"><div class="empty-title">Unidade não encontrada</div>
         <a class="btn-ghost" href="/clientes">Voltar</a></div>
 }
 else
 {
     <div class="page-head">
-        <div><h1>@_c.Nome</h1><p class="subtitle">@_c.Segmento · @_c.Cidade / @_c.Estado · @_c.Regiao</p></div>
-        <div class="page-actions"><a class="btn-ghost" href="/clientes">← Clientes</a></div>
+        <div><h1>@Intel.CompanyName(_u.CompanyId)</h1>
+            <p class="subtitle">@_u.NomeUnidade · @_u.Cidade/@_u.Estado · @_u.Segmento</p></div>
+        <div class="page-actions"><a class="btn-ghost" href="/clientes">Voltar</a></div>
     </div>
 
-    <div class="dash-title">Unidades (@_units.Count)</div>
-    <table class="grid" style="margin-bottom:20px">
-        <thead><tr><th>Unidade</th><th>Cidade/UF</th><th>Segmento</th><th>Vendedor</th><th class="right">Equip. instalados</th></tr></thead>
-        <tbody>
-            @foreach (var u in _units)
-            {
-                <tr>
-                    <td>@u.NomeUnidade</td>
-                    <td class="nowrap">@u.Cidade / @u.Estado</td>
-                    <td>@u.Segmento</td>
-                    <td>@Sp(u.VendedorId)</td>
-                    <td class="right">@_base.Count(b => b.ClientUnitId == u.Id)</td>
-                </tr>
-            }
-            @if (_units.Count == 0) { <tr><td colspan="5" class="empty">Sem unidades.</td></tr> }
-        </tbody>
-    </table>
+    <div class="kpis">
+        <div class="kpi"><div class="kpi-label">Segmento</div><div class="kpi-value" style="font-size:16px">@_u.Segmento</div></div>
+        <div class="kpi"><div class="kpi-label">Região</div><div class="kpi-value" style="font-size:16px">@_u.Regiao</div></div>
+        <div class="kpi"><div class="kpi-label">Vendedor responsável</div><div class="kpi-value" style="font-size:15px">@Intel.SalespersonName(_u.VendedorId)</div></div>
+        <div class="kpi k-ren"><div class="kpi-label">Valor potencial em aberto</div><div class="kpi-value" style="font-size:16px">@Fmt.Brl0(_opps.Sum(o => o.ValorEstimado))</div></div>
+    </div>
 
-    <div class="dash-title">Base instalada</div>
-    <table class="grid">
-        <thead><tr><th>Unidade</th><th>Equipamento</th><th class="right">Qtd</th><th>Ano</th><th>Criticidade</th></tr></thead>
+    <div class="dash-title">Equipamentos instalados</div>
+    <table class="grid" style="margin-bottom:20px">
+        <thead><tr><th>Equipamento</th><th>Aplicação</th><th class="right">Qtd</th><th>Ano</th><th>Criticidade</th></tr></thead>
         <tbody>
             @foreach (var b in _base)
             {
                 <tr>
-                    <td>@Unidade(b.ClientUnitId)</td>
-                    <td>@Equip(b.EquipmentId)</td>
+                    <td><a class="btn-link" href="@($"/equipamentos/{b.EquipmentId}")">@Modelo(b.EquipmentId)</a></td>
+                    <td>@Aplicacao(b.EquipmentId)</td>
                     <td class="right">@b.Quantidade</td>
                     <td>@(b.AnoInstalacao > 0 ? b.AnoInstalacao.ToString() : "—")</td>
-                    <td>@b.Criticidade</td>
+                    <td><span class="badge @CritClass(b.Criticidade)">@Cap(b.Criticidade)</span></td>
                 </tr>
             }
-            @if (_base.Count == 0) { <tr><td colspan="5" class="empty">Sem base instalada.</td></tr> }
+            @if (_base.Count == 0) { <tr><td colspan="5" class="empty">Sem equipamentos instalados.</td></tr> }
+        </tbody>
+    </table>
+
+    <div class="dash-title">Oportunidades abertas</div>
+    <table class="grid">
+        <thead><tr><th>Data prevista</th><th>Peça / Conjunto</th><th class="right">Valor</th><th>Urgência</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+            @foreach (var o in _opps)
+            {
+                <tr>
+                    <td class="nowrap">@Fmt.Date(o.DataPrevista)</td>
+                    <td>@o.Item</td>
+                    <td class="right nowrap">@Fmt.Brl0(o.ValorEstimado)</td>
+                    <td><span class="badge @IntelligenceService.UrgClass(o.Urgencia)">@o.Urgencia</span></td>
+                    <td>@o.Status</td>
+                    <td class="nowrap"><a class="btn-link" href="@($"/oportunidades/{o.Id}")">Abrir</a></td>
+                </tr>
+            }
+            @if (_opps.Count == 0) { <tr><td colspan="6" class="empty">Sem oportunidades abertas.</td></tr> }
         </tbody>
     </table>
 }
 
 @code {
     [Parameter] public string? Id { get; set; }
-    private Company? _c;
-    private List<ClientUnit> _units = new();
+    private ClientUnit? _u;
     private List<InstalledBase> _base = new();
-    private Dictionary<string, string> _equip = new(), _unit = new(), _sp = new();
+    private List<Opportunity> _opps = new();
+    private Dictionary<string, Equipment> _equip = new();
 
     protected override void OnInitialized()
     {
-        _c = Companies.All().FirstOrDefault(c => c.Id == Id);
-        if (_c is null) return;
-        _units = Units.All().Where(u => u.CompanyId == _c.Id).ToList();
-        var unitIds = _units.Select(u => u.Id).ToHashSet();
-        _base = Base.All().Where(b => unitIds.Contains(b.ClientUnitId)).ToList();
-        _equip = Equipamentos.All().ToDictionary(e => e.Id, e => e.Nome);
-        _unit = _units.ToDictionary(u => u.Id, u => u.NomeUnidade);
-        _sp = Salespeople.All().ToDictionary(s => s.Id, s => s.Nome);
+        _u = Units.All().FirstOrDefault(u => u.Id == Id);
+        if (_u is null) return;
+        _base = Base.All().Where(b => b.ClientUnitId == _u.Id).ToList();
+        _equip = Equipamentos.All().ToDictionary(e => e.Id, e => e);
+        _opps = Intel.OpenOpportunities().Where(o => o.ClientUnitId == _u.Id)
+            .OrderBy(o => o.DataPrevista, StringComparer.Ordinal).ToList();
     }
 
-    private string Sp(string id) => _sp.TryGetValue(id, out var n) ? n : id;
-    private string Unidade(string id) => _unit.TryGetValue(id, out var n) ? n : id;
-    private string Equip(string id) => _equip.TryGetValue(id, out var n) ? n : id;
+    private string Modelo(string id) => _equip.TryGetValue(id, out var e) ? e.Modelo : id;
+    private string Aplicacao(string id) => _equip.TryGetValue(id, out var e) ? e.Aplicacao : "";
+
+    private static string Cap(string s) => string.IsNullOrEmpty(s) ? "—" : char.ToUpperInvariant(s[0]) + s[1..];
+    private static string CritClass(string c) => c.ToLowerInvariant() switch
+    {
+        "crítica" => "st-vencida", "alta" => "st-critica", "média" => "st-atencao", "baixa" => "st-ok", _ => "st-plan",
+    };
 }
