@@ -1,5 +1,6 @@
 @implements IDisposable
 @inject NavigationManager Nav
+@inject LocState Loc
 
 <aside class="sidebar no-print">
     <div class="brand">
@@ -13,12 +14,12 @@
     <nav class="nav">
         @foreach (var sec in Sections)
         {
-            <div class="nav-section">@sec.Name</div>
+            <div class="nav-section">@Loc.T(sec.Name)</div>
             @foreach (var it in sec.Items)
             {
                 <NavLink class="nav-item" href="@it.Href" Match="NavLinkMatch.All">
                     @((MarkupString)Icons.Svg(it.Icon, "nav-ico"))
-                    <span>@it.Label</span>
+                    <span>@Loc.T(it.Label)</span>
                 </NavLink>
             }
         }
@@ -69,7 +70,15 @@
         }),
     };
 
-    protected override void OnInitialized() => Nav.LocationChanged += OnChanged;
+    protected override void OnInitialized()
+    {
+        Nav.LocationChanged += OnChanged;
+        Loc.Changed += StateHasChanged;
+    }
     private void OnChanged(object? s, LocationChangedEventArgs e) => StateHasChanged();
-    public void Dispose() => Nav.LocationChanged -= OnChanged;
+    public void Dispose()
+    {
+        Nav.LocationChanged -= OnChanged;
+        Loc.Changed -= StateHasChanged;
+    }
 }

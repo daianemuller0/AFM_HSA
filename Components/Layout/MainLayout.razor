@@ -1,17 +1,24 @@
 @inherits LayoutComponentBase
+@implements IDisposable
+@inject LocState Loc
 
 <div class="app-shell">
     <NavMenu />
     <div class="main-col">
         <header class="topbar no-print">
             <div>
-                <div class="topbar-title">Howden Aftermarket Intelligence</div>
-                <div class="topbar-sub">AFM HSA · Inteligência comercial para base instalada industrial</div>
+                <div class="topbar-title">@Loc.T("Howden Aftermarket Intelligence")</div>
+                <div class="topbar-sub">@Loc.T("AFM HSA · Inteligência comercial para base instalada industrial")</div>
             </div>
             <div class="topbar-right">
                 <div class="lang">
                     <svg class="lang-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-                    <span>Português</span>
+                    <select @bind="_lang" @bind:after="Aplicar"
+                            style="border:none;background:transparent;font-family:inherit;font-size:13px;color:var(--muted);cursor:pointer">
+                        <option value="pt">Português</option>
+                        <option value="en">English</option>
+                        <option value="es">Español</option>
+                    </select>
                 </div>
                 <AuthorizeView>
                     <Authorized>
@@ -21,7 +28,7 @@
                         </div>
                         <div class="avatar">@Iniciais(context.User.Identity?.Name)</div>
                         <form method="post" action="/auth/logout">
-                            <button class="btn-logout" type="submit" title="Sair">
+                            <button class="btn-logout" type="submit" title="@Loc.T("Sair")">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
                             </button>
                         </form>
@@ -36,6 +43,18 @@
 </div>
 
 @code {
+    private string _lang = "pt";
+
+    protected override void OnInitialized()
+    {
+        _lang = Loc.Lang;
+        Loc.Changed += StateHasChanged;
+    }
+
+    private void Aplicar() => Loc.Set(_lang);
+
+    public void Dispose() => Loc.Changed -= StateHasChanged;
+
     // Iniciais do usuário para o avatar (ex.: "Equipe Howden" -> "EH").
     private static string Iniciais(string? nome)
     {

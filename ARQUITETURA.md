@@ -183,3 +183,32 @@ dotnet restore
 dotnet run
 # abre http://localhost:5090  (login padrão: howden / howden2026)
 ```
+
+---
+
+## 9. Estado da migração (funcionalidades implementadas)
+
+A migração evoluiu da estrutura vazia para um app funcional, em ondas:
+
+- **Base de dados**: 8 entidades centrais semeadas do sistema original (Parquet/DuckDB).
+- **Motor de inteligência** (`IntelligenceService`, porta de `engine.ts`): gera
+  oportunidades de reposição (histórico + ciclo técnico das peças), urgência,
+  janela prevista e alertas. Data-base fixa (28/05/2026), igual ao original.
+- **Oportunidades**: lista e detalhe com edição — status, reprogramação de
+  janela, notas comerciais e exclusão lógica (persistidos em `oppOverrides`/`oppNotes`).
+- **Central de Inteligência**: 8 KPIs + gráficos (janelas por mês, histórico por
+  ano, potencial por cliente/vendedor, por segmento/criticidade, por tipo).
+- **Plano de Ação Comercial**: KPIs, painéis de janelas críticas/próximas, ações
+  em campo e filtro por vendedor.
+- **Visitas**: lista + cadastro de ação em campo.
+- **Ofertas**: cadastro com itens (inclui peças do equipamento), condições
+  comerciais no template Howden/Chart e documento imprimível (PDF).
+- **Cadastros**: novo equipamento e novo vendedor.
+- **Autenticação**: login por usuário (e-mail/senha na tabela `users`, com perfil
+  e `salesperson_id` nas claims); login geral da equipe como fallback.
+- **Idioma**: seletor PT/EN/ES traduz a navegação e o cabeçalho (`LocState`/`I18n`);
+  o corpo das telas segue em PT (extensível).
+
+> Itens ainda não portados do original (fora de escopo por ora): DM Action AI,
+> integração Salesforce ao vivo, geração de proposta de licença e tradução do
+> conteúdo completo das páginas.

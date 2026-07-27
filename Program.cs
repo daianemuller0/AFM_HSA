@@ -52,6 +52,9 @@ builder.Services.AddScoped<OppOverrideRepository>();
 // Motor de inteligência (oportunidades, alertas, lookups).
 builder.Services.AddScoped<IntelligenceService>();
 
+// Estado de idioma (PT/EN/ES) por sessão.
+builder.Services.AddScoped<LocState>();
+
 var app = builder.Build();
 
 // Popula o seed na primeira execução (hoje sem entidades — base nasce vazia).
