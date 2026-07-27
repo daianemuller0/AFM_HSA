@@ -7,8 +7,8 @@
     <div class="brand">
         @if (!string.IsNullOrEmpty(_logo))
         {
-            <div style="@(_logoBg == "white" ? "background:#fff;padding:6px;border-radius:8px;" : "")">
-                <img src="@_logo" style="max-height:40px;max-width:190px" alt="logo" />
+            <div style="width:100%;text-align:center;@(_logoBg == "white" ? "background:#fff;padding:12px;border-radius:12px;" : "padding:4px 0;")">
+                <img src="@_logo" style="max-height:88px;max-width:100%;width:auto;object-fit:contain" alt="logo" />
             </div>
         }
         else
