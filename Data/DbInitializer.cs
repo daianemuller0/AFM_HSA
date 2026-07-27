@@ -31,13 +31,16 @@ public static class DbInitializer
                 continue;
             if (!store.IsEmpty(entity)) continue; // já semeado
 
+            // Monta todas as linhas e grava em lote (1 arquivo por entidade).
+            var rows = new List<IReadOnlyList<KeyValuePair<string, object?>>>();
             foreach (var item in arr.EnumerateArray())
             {
                 var row = new List<KeyValuePair<string, object?>>();
                 foreach (var field in item.EnumerateObject())
                     row.Add(new KeyValuePair<string, object?>(field.Name, JsonToString(field.Value)));
-                store.WriteRow(entity, row);
+                rows.Add(row);
             }
+            store.WriteBatch(entity, rows);
         }
     }
 

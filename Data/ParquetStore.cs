@@ -94,6 +94,57 @@ public sealed class ParquetStore
     }
 
     /// <summary>
+    /// Grava VÁRIAS linhas de uma vez, num ÚNICO arquivo Parquet e uma só conexão.
+    /// Muito mais rápido que WriteRow em loop (ex.: seed inicial) — evita abrir
+    /// centenas de conexões e escrever centenas de arquivos na pasta de rede.
+    /// As linhas podem ter colunas diferentes; usa-se a união (faltantes = NULL).
+    /// </summary>
+    public void WriteBatch(string entity, IReadOnlyList<IReadOnlyList<KeyValuePair<string, object?>>> rows)
+    {
+        if (rows.Count == 0) return;
+
+        // União das colunas, preservando a ordem de primeira aparição.
+        var cols = new List<string>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var row in rows)
+            foreach (var kv in row)
+                if (seen.Add(kv.Key)) cols.Add(kv.Key);
+
+        using var conn = Open();
+
+        var colDefs = string.Join(", ", cols.Select(c => $"\"{c}\" VARCHAR")) + ", _ts BIGINT, _deleted BOOLEAN";
+        using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = $"CREATE TABLE t ({colDefs});";
+            cmd.ExecuteNonQuery();
+        }
+
+        var placeholders = string.Join(", ", cols.Select(_ => "?")) + ", ?, ?";
+        var ts = DateTime.UtcNow.Ticks;
+        foreach (var row in rows)
+        {
+            var map = new Dictionary<string, object?>(StringComparer.Ordinal);
+            foreach (var kv in row) map[kv.Key] = kv.Value;
+
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = $"INSERT INTO t VALUES ({placeholders});";
+            foreach (var c in cols) AddParam(cmd, map.TryGetValue(c, out var v) ? v : null);
+            AddParam(cmd, ts);
+            AddParam(cmd, false);
+            cmd.ExecuteNonQuery();
+        }
+
+        var dir = EntityDir(entity);
+        var fileName = $"{DateTime.UtcNow.Ticks:D19}_{Guid.NewGuid():N}.parquet";
+        var full = Duck(Path.Combine(dir, fileName));
+        using (var copy = conn.CreateCommand())
+        {
+            copy.CommandText = $"COPY t TO '{full}' (FORMAT PARQUET);";
+            copy.ExecuteNonQuery();
+        }
+    }
+
+    /// <summary>
     /// Lê a entidade já consolidada: versão mais recente por id, sem os apagados.
     /// Retorna vazio se ainda não houver nenhum arquivo (primeira execução).
     /// </summary>
