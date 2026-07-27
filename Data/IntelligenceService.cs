@@ -67,6 +67,9 @@ public class IntelligenceService
     public string SalespersonName(string id) => SpNames.TryGetValue(id, out var n) ? n : "—";
     public string EquipmentModel(string id) => Equipments.TryGetValue(id, out var e) ? e.Modelo : "";
     public string EquipmentNome(string id) => Equipments.TryGetValue(id, out var e) ? e.Nome : id;
+    public string UnitSegmento(string unitId) => Units.TryGetValue(unitId, out var u) ? u.Segmento : "—";
+    public string UnitNome(string unitId) => Units.TryGetValue(unitId, out var u) ? u.NomeUnidade : unitId;
+    public string ClienteDaUnidade(string unitId) => Units.TryGetValue(unitId, out var u) ? CompanyName(u.CompanyId) : unitId;
 
     public string UnitLabel(string unitId)
     {
@@ -355,6 +358,106 @@ public class IntelligenceService
         return p.Length == 2 ? $"{p[1]}/{p[0]}" : ym;
     }
 
+    // ---- Previsão de Vendas (forecast) -----------------------------------
+    // Confiança por faixa de prazo (mesmos patamares do app original).
+    private static int ConfFor(int dias) => dias <= 90 ? 90 : dias <= 180 ? 82 : 64;
+
+    public ForecastVM Forecast()
+    {
+        var open = OpenOpportunities();
+        // Base = janelas previstas nos próximos 12 meses (futuras).
+        var baseF = open.Where(o => o.DiasAteJanela >= 0 && o.DiasAteJanela <= 365).ToList();
+
+        decimal Ponderado(IEnumerable<Opportunity> xs) => xs.Sum(o => o.ValorEstimado * ConfFor(o.DiasAteJanela) / 100m);
+
+        var receita = baseF.Sum(o => o.ValorEstimado);
+        var ponderadoTotal = Ponderado(baseF);
+
+        var termos = new List<TermRow>();
+        void Term(string nome, Func<Opportunity, bool> pred, int conf)
+        {
+            var xs = baseF.Where(pred).ToList();
+            termos.Add(new TermRow(nome, xs.Count, xs.Sum(o => o.ValorEstimado), conf,
+                Math.Round(xs.Sum(o => o.ValorEstimado) * conf / 100m)));
+        }
+        Term("Curto prazo (≤ 90 dias)", o => o.DiasAteJanela <= 90, 90);
+        Term("Médio prazo (91–180 dias)", o => o.DiasAteJanela > 90 && o.DiasAteJanela <= 180, 82);
+        Term("Longo prazo (> 180 dias)", o => o.DiasAteJanela > 180, 64);
+
+        string ClienteDe(string u) => Units.TryGetValue(u, out var x) ? CompanyName(x.CompanyId) : "—";
+        string SegDe(string u) => Units.TryGetValue(u, out var x) && !string.IsNullOrEmpty(x.Segmento) ? x.Segmento : "—";
+
+        List<ChartItem> Val(Func<Opportunity, string> key, int top = 8) =>
+            baseF.GroupBy(key).Select(g => new ChartItem(g.Key, Math.Round(g.Sum(o => o.ValorEstimado))))
+                 .OrderByDescending(c => c.Valor).Take(top).ToList();
+
+        var projecao = baseF.Where(o => o.DataPrevista.Length >= 7)
+            .GroupBy(o => o.DataPrevista[..7]).OrderBy(g => g.Key, StringComparer.Ordinal)
+            .Select(g => new ChartItem(MesLabel(g.Key), Math.Round(g.Sum(o => o.ValorEstimado)))).ToList();
+
+        var realizado = Sales.Where(s => s.DataVenda.Length >= 4)
+            .GroupBy(s => s.DataVenda[..4]).OrderBy(g => g.Key, StringComparer.Ordinal)
+            .Select(g => new ChartItem(g.Key, Math.Round(g.Sum(s => s.Valor)))).ToList();
+
+        var maiores = baseF.OrderByDescending(o => o.ValorEstimado).Take(10).ToList();
+
+        return new ForecastVM
+        {
+            Receita12m = receita,
+            Ponderado = Math.Round(ponderadoTotal),
+            Previsto90d = baseF.Where(o => o.DiasAteJanela <= 90).Sum(o => o.ValorEstimado),
+            Janelas12m = baseF.Count,
+            TicketMedio = baseF.Count > 0 ? Math.Round(receita / baseF.Count) : 0,
+            Termos = termos,
+            ProjecaoMes = projecao,
+            PorSegmento = Val(o => SegDe(o.ClientUnitId)),
+            PorVendedor = Val(o => SalespersonName(o.VendedorId)),
+            PorCliente = Val(o => ClienteDe(o.ClientUnitId)),
+            RealizadoAno = realizado,
+            Backtest = RunBacktest(),
+            Maiores = maiores,
+        };
+    }
+
+    // Backtest do modelo de ciclo: para cada série (equip+item) com histórico
+    // suficiente, esconde a última venda e prevê a data a partir da anterior.
+    private BacktestVM RunBacktest()
+    {
+        var groups = new Dictionary<string, List<SalesRecord>>();
+        foreach (var s in Sales)
+        {
+            var key = $"{s.EquipmentId}::{NormItem(s.ItemVendido)}";
+            if (!groups.TryGetValue(key, out var arr)) { arr = new(); groups[key] = arr; }
+            arr.Add(s);
+        }
+
+        int series = 0, ok1 = 0, ok3 = 0;
+        double somaErro = 0;
+        foreach (var recs in groups.Values)
+        {
+            if (recs.Count < 2) continue;
+            recs.Sort((a, b) => string.CompareOrdinal(a.DataVenda, b.DataVenda));
+            var prev = recs[^2];
+            var atual = recs[^1];
+            var (meses, _) = PartCycleFor(prev.EquipmentId, prev.ItemVendido);
+            if (!DateTime.TryParse(AddMonths(prev.DataVenda, meses), CultureInfo.InvariantCulture, DateTimeStyles.None, out var previsto)) continue;
+            if (!DateTime.TryParse(atual.DataVenda, CultureInfo.InvariantCulture, DateTimeStyles.None, out var real)) continue;
+            var erroDias = Math.Abs((previsto - real).TotalDays);
+            series++;
+            somaErro += erroDias;
+            if (erroDias <= 31) ok1++;
+            if (erroDias <= 92) ok3++;
+        }
+
+        return new BacktestVM
+        {
+            Series = series,
+            Pct1m = series > 0 ? (int)Math.Round(100.0 * ok1 / series) : 0,
+            Pct3m = series > 0 ? (int)Math.Round(100.0 * ok3 / series) : 0,
+            ErroMedioMeses = series > 0 ? Math.Round(somaErro / series / 30.0, 1) : 0,
+        };
+    }
+
     // ---- helpers de data e texto -----------------------------------------
     private static string NormItem(string s) =>
         Regex.Replace(s.Trim().ToLowerInvariant(), @"\s+", " ");
@@ -405,4 +508,34 @@ public class DashboardVM
     public List<ChartItem> PorTipo { get; set; } = new();
     public List<ChartItem> SalesByYear { get; set; } = new();
     public List<AfmHsa.Models.Opportunity> CriticasTop { get; set; } = new();
+}
+
+// Faixa de prazo da previsão (curto/médio/longo).
+public record TermRow(string Faixa, int Janelas, decimal Valor, int ConfiancaPct, decimal Ponderado);
+
+// Backtest do modelo de ciclo.
+public class BacktestVM
+{
+    public int Series { get; set; }
+    public int Pct1m { get; set; }
+    public int Pct3m { get; set; }
+    public double ErroMedioMeses { get; set; }
+}
+
+// Dados prontos da Previsão de Vendas.
+public class ForecastVM
+{
+    public decimal Receita12m { get; set; }
+    public decimal Ponderado { get; set; }
+    public decimal Previsto90d { get; set; }
+    public decimal TicketMedio { get; set; }
+    public int Janelas12m { get; set; }
+    public List<TermRow> Termos { get; set; } = new();
+    public List<ChartItem> ProjecaoMes { get; set; } = new();
+    public List<ChartItem> PorSegmento { get; set; } = new();
+    public List<ChartItem> PorVendedor { get; set; } = new();
+    public List<ChartItem> PorCliente { get; set; } = new();
+    public List<ChartItem> RealizadoAno { get; set; } = new();
+    public BacktestVM Backtest { get; set; } = new();
+    public List<AfmHsa.Models.Opportunity> Maiores { get; set; } = new();
 }

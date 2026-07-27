@@ -3,63 +3,109 @@
 @rendermode InteractiveServer
 @inject IntelligenceService Intel
 
-<PageTitle>Previsão · AFM HSA</PageTitle>
+<PageTitle>Previsão de Vendas · AFM HSA</PageTitle>
 
-<h1>Previsão de Reposição</h1>
-<p class="subtitle">Projeção de janelas técnicas e potencial de receita a partir do histórico.</p>
+<IntelTabs />
+
+<div style="background:linear-gradient(135deg,var(--sidebar-top),var(--secondary));color:#fff;border-radius:var(--radius);padding:20px 24px;margin-bottom:18px;box-shadow:var(--shadow)">
+    <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;opacity:.85">Receita prevista — próximos 12 meses</div>
+    <div style="font-size:34px;font-weight:700;margin-top:4px">@Fmt.Brl0(_f.Receita12m)</div>
+    <div style="font-size:13px;opacity:.9;margin-top:4px">@_f.Janelas12m janelas de reposição previstas no período · ponderado pela confiança @Fmt.Brl0(_f.Ponderado)</div>
+</div>
 
 <div class="kpis">
-    <div class="kpi k-venc"><div class="kpi-label">Vencidas</div><div class="kpi-value">@_vencidas</div><div class="kpi-sub">janela ultrapassada</div></div>
-    <div class="kpi k-urg"><div class="kpi-label">Próximas (90d)</div><div class="kpi-value">@_prox90</div></div>
-    <div class="kpi"><div class="kpi-label">Total oportunidades</div><div class="kpi-value">@_all.Count</div></div>
-    <div class="kpi k-ren"><div class="kpi-label">Potencial total</div><div class="kpi-value" style="font-size:16px">@Fmt.Brl0(_total)</div></div>
+    <div class="kpi"><div class="kpi-label">Previsto — 12 meses</div><div class="kpi-value" style="font-size:16px">@Fmt.Brl0(_f.Receita12m)</div></div>
+    <div class="kpi"><div class="kpi-label">Previsto — 90 dias</div><div class="kpi-value" style="font-size:16px">@Fmt.Brl0(_f.Previsto90d)</div></div>
+    <div class="kpi k-po"><div class="kpi-label">Janelas previstas (12M)</div><div class="kpi-value">@_f.Janelas12m</div></div>
+    <div class="kpi k-ren"><div class="kpi-label">Ticket médio por janela</div><div class="kpi-value" style="font-size:16px">@Fmt.Brl0(_f.TicketMedio)</div></div>
+</div>
+
+<div class="panel" style="margin-bottom:16px">
+    <div class="dash-title">Confiança da previsão por faixa de prazo</div>
+    <table class="grid">
+        <thead><tr><th>Faixa de prazo</th><th class="right">Janelas (12M)</th><th class="right">Valor previsto</th><th class="right">Confiança</th><th class="right">Valor ponderado</th></tr></thead>
+        <tbody>
+            @foreach (var t in _f.Termos)
+            {
+                <tr>
+                    <td>@t.Faixa</td>
+                    <td class="right">@t.Janelas</td>
+                    <td class="right nowrap">@Fmt.Brl0(t.Valor)</td>
+                    <td class="right"><span class="badge st-ok">@t.ConfiancaPct%</span></td>
+                    <td class="right nowrap">@Fmt.Brl0(t.Ponderado)</td>
+                </tr>
+            }
+            <tr class="side-item-total">
+                <td><strong>Total</strong></td>
+                <td class="right"><strong>@_f.Janelas12m</strong></td>
+                <td class="right nowrap"><strong>@Fmt.Brl0(_f.Receita12m)</strong></td>
+                <td></td>
+                <td class="right nowrap"><strong>@Fmt.Brl0(_f.Ponderado)</strong></td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="panel" style="margin-bottom:16px"><div class="dash-title">Projeção de receita mês a mês (12 meses)</div>@Barras(_f.ProjecaoMes)</div>
+
+<div class="dash-grid">
+    <div class="panel"><div class="dash-title">Receita prevista por segmento</div>@Barras(_f.PorSegmento)</div>
+    <div class="panel"><div class="dash-title">Receita prevista por vendedor</div>@Barras(_f.PorVendedor)</div>
+    <div class="panel"><div class="dash-title">Receita prevista por cliente</div>@Barras(_f.PorCliente)</div>
+    <div class="panel"><div class="dash-title">Realizado por ano</div>@Barras(_f.RealizadoAno)</div>
+</div>
+
+<div class="panel" style="margin:16px 0">
+    <div class="dash-title">Acurácia do modelo (backtest)</div>
+    <p class="subtitle" style="margin-top:-4px">Testado em @_f.Backtest.Series séries com histórico suficiente: escondemos a última troca e o modelo prevê a data a partir do histórico anterior.</p>
+    <div class="kpis">
+        <div class="kpi"><div class="kpi-label">Dentro de ±1 mês</div><div class="kpi-value">@_f.Backtest.Pct1m%</div></div>
+        <div class="kpi"><div class="kpi-label">Dentro de ±3 meses</div><div class="kpi-value">@_f.Backtest.Pct3m%</div></div>
+        <div class="kpi"><div class="kpi-label">Erro médio (meses)</div><div class="kpi-value">@_f.Backtest.ErroMedioMeses.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)</div></div>
+    </div>
 </div>
 
 <div class="panel">
-    <div class="dash-title">Potencial por mês da janela prevista</div>
-    @if (_porMes.Count == 0)
-    {
-        <p class="empty">Sem oportunidades futuras.</p>
-    }
-    else
-    {
-        var max = _porMes.Max(x => x.Value);
-        @foreach (var m in _porMes)
-        {
-            <div class="bar-row">
-                <div class="bar-label">@m.Key</div>
-                <div class="bar-track"><div class="bar" style="width:@Pct(m.Value, max)%"></div></div>
-                <div class="bar-value">@Fmt.Brl0(m.Value)</div>
-            </div>
-        }
-    }
+    <div class="dash-title">Maiores previsões dos próximos 12 meses</div>
+    <div style="overflow-x:auto">
+    <table class="grid">
+        <thead><tr><th>Data prevista</th><th>Cliente</th><th>Equipamento</th><th>Item / Conjunto</th><th>Segmento</th><th>Vendedor</th><th class="right">Valor potencial</th></tr></thead>
+        <tbody>
+            @foreach (var o in _f.Maiores)
+            {
+                <tr>
+                    <td class="nowrap">@Fmt.Date(o.DataPrevista)</td>
+                    <td>@Intel.ClienteDaUnidade(o.ClientUnitId)</td>
+                    <td class="nowrap">@Intel.EquipmentModel(o.EquipmentId)</td>
+                    <td>@o.Item</td>
+                    <td>@Intel.UnitSegmento(o.ClientUnitId)</td>
+                    <td>@Intel.SalespersonName(o.VendedorId)</td>
+                    <td class="right nowrap">@Fmt.Brl0(o.ValorEstimado)</td>
+                </tr>
+            }
+            @if (_f.Maiores.Count == 0) { <tr><td colspan="7" class="empty">Sem previsões.</td></tr> }
+        </tbody>
+    </table>
+    </div>
 </div>
 
 @code {
-    private List<Opportunity> _all = new();
-    private int _vencidas, _prox90;
-    private decimal _total;
-    private List<KeyValuePair<string, decimal>> _porMes = new();
+    private ForecastVM _f = new();
 
-    protected override void OnInitialized()
+    protected override void OnInitialized() => _f = Intel.Forecast();
+
+    private RenderFragment Barras(List<ChartItem> dados) => builder =>
     {
-        _all = Intel.Opportunities();
-        _vencidas = _all.Count(o => o.DiasAteJanela < 0);
-        _prox90 = _all.Count(o => o.DiasAteJanela >= 0 && o.DiasAteJanela <= 90);
-        _total = _all.Sum(o => o.ValorEstimado);
-        _porMes = _all
-            .Where(o => o.DataPrevista.Length >= 7)
-            .GroupBy(o => o.DataPrevista.Substring(0, 7))
-            .OrderBy(g => g.Key)
-            .Select(g => new KeyValuePair<string, decimal>(Mes(g.Key), g.Sum(o => o.ValorEstimado)))
-            .ToList();
-    }
-
-    private static string Mes(string ym)
-    {
-        var p = ym.Split('-');
-        return p.Length == 2 ? $"{p[1]}/{p[0]}" : ym;
-    }
-
-    private static int Pct(decimal v, decimal max) => max <= 0 ? 0 : (int)Math.Round(100m * v / max);
+        if (dados.Count == 0) { builder.AddMarkupContent(0, "<p class=\"empty\">Sem dados.</p>"); return; }
+        var max = dados.Max(x => x.Valor);
+        int seq = 1;
+        foreach (var d in dados)
+        {
+            var pct = max <= 0 ? 0 : (int)Math.Round(100m * d.Valor / max);
+            builder.AddMarkupContent(seq++,
+                $"<div class=\"bar-row\"><div class=\"bar-label\">{System.Net.WebUtility.HtmlEncode(d.Nome)}</div>" +
+                $"<div class=\"bar-track\"><div class=\"bar\" style=\"width:{pct}%\"></div></div>" +
+                $"<div class=\"bar-value\">{Fmt.Brl0(d.Valor)}</div></div>");
+        }
+    };
 }

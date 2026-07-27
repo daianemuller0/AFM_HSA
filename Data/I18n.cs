@@ -12,6 +12,7 @@ public static class I18n
         ["Gestão de Vendas"] = ("Sales Management", "Gestión de Ventas"),
         ["Clientes & Base"] = ("Clients & Base", "Clientes y Base"),
         ["Comercial"] = ("Commercial", "Comercial"),
+        ["Controle"] = ("Control", "Control"),
         ["Dados & Marca"] = ("Data & Brand", "Datos y Marca"),
         // itens do menu
         ["Central de Inteligência"] = ("Intelligence Center", "Centro de Inteligencia"),

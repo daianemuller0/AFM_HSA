@@ -1,0 +1,18 @@
+@inject NavigationManager Nav
+
+<h1>Central de Inteligência</h1>
+<p class="subtitle">Previsão preditiva de vendas de aftermarket — projeção de receita por janela técnica de reposição.</p>
+
+<div class="views">
+    <a class="view @Cls("/dashboard")" href="/dashboard">Central de Inteligência</a>
+    <a class="view @Cls("/previsao")" href="/previsao">Previsão de Vendas</a>
+    <a class="view @Cls("/planejamento")" href="/planejamento">Planejamento</a>
+</div>
+
+@code {
+    private string Cls(string path)
+    {
+        var rel = "/" + Nav.ToBaseRelativePath(Nav.Uri).Split('?')[0].TrimEnd('/');
+        return rel == path ? "active" : "";
+    }
+}
