@@ -1,7 +1,7 @@
 @page "/ofertas"
 @attribute [Authorize]
 @rendermode InteractiveServer
-@inject OfferRepository Ofertas
+@inject OfferRepository OffersRepo
 
 <PageTitle>Ofertas · AFM HSA</PageTitle>
 
@@ -40,5 +40,5 @@ else
 
 @code {
     private List<CommercialOffer> _all = new();
-    protected override void OnInitialized() => _all = Ofertas.All();
+    protected override void OnInitialized() => _all = OffersRepo.All();
 }
