@@ -24,13 +24,20 @@
     <nav class="nav">
         @foreach (var sec in Sections)
         {
-            <div class="nav-section">@Loc.T(sec.Name)</div>
-            @foreach (var it in sec.Items)
+            var open = !_collapsed.Contains(sec.Name);
+            <button class="nav-section nav-section-btn" @onclick="() => Toggle(sec.Name)" aria-expanded="@open">
+                <span>@Loc.T(sec.Name)</span>
+                <svg class="nav-chevron @(open ? "" : "closed")" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            @if (open)
             {
-                <NavLink class="nav-item" href="@it.Href" Match="NavLinkMatch.All">
-                    @((MarkupString)Icons.Svg(it.Icon, "nav-ico"))
-                    <span>@Loc.T(it.Label)</span>
-                </NavLink>
+                @foreach (var it in sec.Items)
+                {
+                    <NavLink class="nav-item" href="@it.Href" Match="NavLinkMatch.All">
+                        @((MarkupString)Icons.Svg(it.Icon, "nav-ico"))
+                        <span>@Loc.T(it.Label)</span>
+                    </NavLink>
+                }
             }
         }
     </nav>
@@ -74,6 +81,12 @@
 
     private string _logo = "";
     private string _logoBg = "transparent";
+    private readonly HashSet<string> _collapsed = new();
+
+    private void Toggle(string name)
+    {
+        if (!_collapsed.Add(name)) _collapsed.Remove(name);
+    }
 
     protected override void OnInitialized()
     {

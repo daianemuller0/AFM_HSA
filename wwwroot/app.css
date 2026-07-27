@@ -623,3 +623,13 @@ h1 { font-size: 24px; margin: 0 0 4px; color: var(--primary); letter-spacing: -.
     .lg-split { grid-template-columns: 1fr; }
     .lg-left { display: none; }
 }
+
+/* ---- seções recolhíveis do menu ---- */
+.nav-section-btn {
+    display: flex; align-items: center; justify-content: space-between; width: 100%;
+    background: none; border: none; cursor: pointer; font-family: inherit;
+    text-align: left; transition: color .15s;
+}
+.nav-section-btn:hover { color: #c6d8ea; }
+.nav-chevron { width: 14px; height: 14px; flex: none; opacity: .7; transition: transform .18s; }
+.nav-chevron.closed { transform: rotate(-90deg); }
