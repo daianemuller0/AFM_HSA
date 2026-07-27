@@ -1,49 +1,222 @@
 @page "/dados-marca"
 @attribute [Authorize]
 @rendermode InteractiveServer
-@inject CompanyRepository Companies
-@inject ClientUnitRepository Units
+@using System.Globalization
 @inject SalespersonRepository Salespeople
-@inject EquipmentRepository Equipamentos
-@inject InstalledBaseRepository Base
-@inject PartRepository Pecas
-@inject SalesRecordRepository Vendas
-@inject VisitRepository Visitas
+@inject ClientUnitRepository Units
+@inject IntelligenceService Intel
+@inject ImportService Importer
+@inject BrandingRepository Brand
+@inject IJSRuntime JS
 
 <PageTitle>Dados e Importação · AFM HSA</PageTitle>
 
 <h1>Dados e Importação</h1>
-<p class="subtitle">Situação das bases carregadas (Parquet/DuckDB na pasta de rede).</p>
+<p class="subtitle">Equipe comercial, importação de dados e logo / marca em um só lugar.</p>
 
-<div style="overflow-x:auto">
-<table class="grid">
-    <thead><tr><th>Base</th><th class="right">Registros</th></tr></thead>
-    <tbody>
-        @foreach (var l in _linhas)
+<div class="views">
+    <button class="view @(_tab == "equipe" ? "active" : "")" @onclick='() => _tab = "equipe"'>Equipe Comercial</button>
+    <button class="view @(_tab == "import" ? "active" : "")" @onclick='() => _tab = "import"'>Importação de Dados</button>
+    <button class="view @(_tab == "logo" ? "active" : "")" @onclick='() => _tab = "logo"'>Logo / Marca</button>
+</div>
+
+@if (_tab == "equipe")
+{
+    <p class="subtitle">@_sps.Count(s => s.Ativo) ativos · @_sps.Count(s => !s.Ativo) inativos · @_sps.Count no total</p>
+    <div class="toolbar">
+        <a class="btn-primary" href="/vendedores/novo">+ Cadastrar vendedor</a>
+        <select class="cell" style="max-width:160px" @bind="_filtro">
+            <option value="ativos">Ativos</option><option value="inativos">Inativos</option><option value="todos">Todos</option>
+        </select>
+    </div>
+    <div style="overflow-x:auto">
+    <table class="grid">
+        <thead><tr><th>Vendedor</th><th>Cargo</th><th>Segmento</th><th class="right">Clientes</th>
+            <th class="right">Oport. abertas</th><th class="right">Valor potencial</th><th>Telefone</th><th>Ações</th></tr></thead>
+        <tbody>
+            @foreach (var v in EquipeFiltrada)
+            {
+                <tr>
+                    <td><a class="btn-link" href="@($"/vendedores/{v.Id}")">@v.Nome</a>@(v.Ativo ? "" : " (inativo)")</td>
+                    <td>@v.Cargo</td>
+                    <td>@_segmentos.GetValueOrDefault(v.Id, "—")</td>
+                    <td class="right">@_clientes.GetValueOrDefault(v.Id)</td>
+                    <td class="right">@_oport.GetValueOrDefault(v.Id)</td>
+                    <td class="right nowrap">@Fmt.Brl0(_valor.GetValueOrDefault(v.Id))</td>
+                    <td class="nowrap">@v.Telefone</td>
+                    <td class="nowrap">
+                        <button class="btn-link" @onclick="() => Alternar(v)">@(v.Ativo ? "Inativar" : "Ativar")</button>
+                        <button class="btn-link" style="color:#b91c1c" @onclick="() => Excluir(v)">Excluir</button>
+                    </td>
+                </tr>
+            }
+            @if (EquipeFiltrada.Count == 0) { <tr><td colspan="8" class="empty">Nenhum vendedor.</td></tr> }
+        </tbody>
+    </table>
+    </div>
+}
+else if (_tab == "import")
+{
+    <div class="panel">
+        <div style="font-size:12.5px;color:var(--muted);margin-bottom:8px">Tipo de dado a importar</div>
+        <div class="tabs">
+            @foreach (var t in _tipos)
+            {
+                <button class="tab @(_impTipo == t.Key ? "active" : "")" @onclick="() => _impTipo = t.Key">@t.Label</button>
+            }
+        </div>
+        <div class="alert-warn" style="background:#eef6ff;color:#0c4a6e;border:1px solid #cfe3f7">
+            Colunas esperadas: <strong>@Colunas(_impTipo)</strong>
+        </div>
+        <div class="toolbar" style="margin-top:12px">
+            <button class="btn-ghost" @onclick="BaixarModelo">⬇ Baixar modelo de Excel (CSV)</button>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)">
+                <input type="checkbox" @bind="_substituir" /> Substituir base existente
+            </label>
+        </div>
+        <div class="logo-preview" style="flex-direction:column;gap:8px;margin-top:12px">
+            <div style="font-weight:600;color:var(--secondary)">Selecione um arquivo .xlsx</div>
+            <InputFile OnChange="OnArquivo" accept=".xlsx" />
+        </div>
+        @if (_impMsg is not null)
         {
-            <tr><td>@l.Key</td><td class="right">@l.Value</td></tr>
+            <div class="@(_impOk ? "side-ok" : "alert-error")" style="margin-top:12px">@_impMsg</div>
         }
-    </tbody>
-</table>
-</div>
+    </div>
+}
+else
+{
+    <div class="panel">
+        <div class="summary-bar">Esta é uma área de teste: o logo enviado fica salvo na base e é aplicado no menu e no login. Use "Voltar ao logo padrão" para remover.</div>
+        <div style="font-size:12.5px;color:var(--muted);margin:12px 0 6px">Enviar imagem do logo (PNG, JPG ou SVG)</div>
+        <div class="logo-preview" style="flex-direction:column;gap:8px">
+            <InputFile OnChange="OnLogo" accept="image/*" />
+        </div>
+        <div style="font-size:12.5px;color:var(--muted);margin:14px 0 6px">Fundo atrás do logo</div>
+        <div class="chips">
+            <button class="chip @(_brand.LogoBg == "transparent" ? "active" : "")" @onclick='() => SetBg("transparent")'>Sem fundo (direto no azul)</button>
+            <button class="chip @(_brand.LogoBg == "white" ? "active" : "")" @onclick='() => SetBg("white")'>Bloco branco</button>
+        </div>
+        <button class="btn-ghost" style="margin-top:10px" @onclick="ResetLogo">↺ Voltar ao logo padrão</button>
+        @if (_logoMsg is not null) { <div class="side-ok" style="margin-top:10px">@_logoMsg</div> }
 
-<div class="summary-bar" style="margin-top:16px">
-    Os dados são gravados como arquivos <strong>Parquet</strong> e consolidados pelo <strong>DuckDB</strong>
-    na pasta configurada em <code>Data:Folder</code>. A importação em lote (Excel) será adicionada aqui.
-</div>
+        <div class="dash-grid" style="margin-top:18px">
+            <div>
+                <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Sobre o azul do menu</div>
+                <div style="background:var(--sidebar-top);border-radius:12px;padding:22px;display:grid;place-items:center">@Preview(true)</div>
+            </div>
+            <div>
+                <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Sobre fundo claro (login)</div>
+                <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:22px;display:grid;place-items:center">@Preview(false)</div>
+            </div>
+        </div>
+    </div>
+}
 
 @code {
-    private List<KeyValuePair<string, int>> _linhas = new();
+    private string _tab = "equipe";
+    private List<Salesperson> _sps = new();
+    private Dictionary<string, string> _segmentos = new();
+    private Dictionary<string, int> _clientes = new(), _oport = new();
+    private Dictionary<string, decimal> _valor = new();
+    private string _filtro = "ativos";
 
-    protected override void OnInitialized() => _linhas = new()
+    private record Tipo(string Key, string Label);
+    private readonly Tipo[] _tipos =
     {
-        new("Clientes", Companies.All().Count),
-        new("Unidades", Units.All().Count),
-        new("Vendedores", Salespeople.All().Count),
-        new("Equipamentos", Equipamentos.All().Count),
-        new("Base instalada", Base.All().Count),
-        new("Peças", Pecas.All().Count),
-        new("Histórico de vendas", Vendas.All().Count),
-        new("Visitas", Visitas.All().Count),
+        new("base", "Base instalada"), new("historico", "Histórico de vendas"),
+        new("vendedores", "Vendedores"), new("construtivos", "Dados Construtivos"),
+    };
+    private string _impTipo = "base";
+    private bool _substituir;
+    private string? _impMsg;
+    private bool _impOk;
+
+    private Branding _brand = new();
+    private string? _logoMsg;
+
+    protected override void OnInitialized()
+    {
+        _sps = Salespeople.All();
+        var units = Units.All();
+        var open = Intel.OpenOpportunities();
+        _clientes = units.GroupBy(u => u.VendedorId).ToDictionary(g => g.Key, g => g.Select(u => u.CompanyId).Distinct().Count());
+        _segmentos = units.GroupBy(u => u.VendedorId)
+            .ToDictionary(g => g.Key, g => string.Join(", ", g.Select(u => u.Segmento).Where(s => !string.IsNullOrEmpty(s)).Distinct()));
+        _oport = open.GroupBy(o => o.VendedorId).ToDictionary(g => g.Key, g => g.Count());
+        _valor = open.GroupBy(o => o.VendedorId).ToDictionary(g => g.Key, g => g.Sum(o => o.ValorEstimado));
+        _brand = Brand.Get();
+    }
+
+    private List<Salesperson> EquipeFiltrada => _filtro switch
+    {
+        "ativos" => _sps.Where(s => s.Ativo).ToList(),
+        "inativos" => _sps.Where(s => !s.Ativo).ToList(),
+        _ => _sps,
+    };
+
+    private void Alternar(Salesperson v) { v.Ativo = !v.Ativo; Salespeople.Save(v); }
+    private void Excluir(Salesperson v) { Salespeople.Delete(v.Id); _sps = Salespeople.All(); }
+
+    private string Colunas(string tipo) => tipo switch
+    {
+        "base" => "modelo, tag, tipo, aplicacao, cliente, unidade, ano, criticidade, quantidade, valor_completo",
+        "historico" => "data_venda, pedido, cliente, unidade, tag_equipamento, equipamento, codigo_peca, item_vendido, tipo_movimento, quantidade, valor, vendedor",
+        "vendedores" => "nome, email, telefone, cargo, regiao, segmento, perfil",
+        "construtivos" => "cliente, modelo_do_equipamento, tipo_do_equipamento, item, peso_kg, dimensoes, material, parte_do_equipamento, modelo_do_item",
+        _ => "",
+    };
+
+    private async Task BaixarModelo()
+    {
+        var header = Colunas(_impTipo).Replace(", ", ";");
+        var bytes = System.Text.Encoding.UTF8.GetBytes(header + "\n");
+        var b64 = Convert.ToBase64String(bytes);
+        await JS.InvokeVoidAsync("appDownload", $"modelo_{_impTipo}.csv", "text/csv", b64);
+    }
+
+    private async Task OnArquivo(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            using var ms = new MemoryStream();
+            await e.File.OpenReadStream(15 * 1024 * 1024).CopyToAsync(ms);
+            var res = Importer.Import(_impTipo, ms.ToArray(), _substituir);
+            _impOk = res.Ok;
+            _impMsg = res.Message;
+        }
+        catch (Exception ex) { _impOk = false; _impMsg = "Falha: " + ex.Message; }
+    }
+
+    private async Task OnLogo(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            var f = e.File;
+            using var ms = new MemoryStream();
+            await f.OpenReadStream(3 * 1024 * 1024).CopyToAsync(ms);
+            var ct = string.IsNullOrEmpty(f.ContentType) ? "image/png" : f.ContentType;
+            _brand.LogoDataUri = $"data:{ct};base64,{Convert.ToBase64String(ms.ToArray())}";
+            Brand.Save(_brand);
+            _logoMsg = "Logo atualizado. Recarregue para ver no menu.";
+        }
+        catch (Exception ex) { _logoMsg = "Falha: " + ex.Message; }
+    }
+
+    private void SetBg(string bg) { _brand.LogoBg = bg; Brand.Save(_brand); }
+    private void ResetLogo() { Brand.Reset(); _brand = Brand.Get(); _logoMsg = "Logo padrão restaurado."; }
+
+    private RenderFragment Preview(bool dark) => builder =>
+    {
+        if (!string.IsNullOrEmpty(_brand.LogoDataUri))
+        {
+            var wrap = _brand.LogoBg == "white" ? "background:#fff;padding:8px;border-radius:8px;" : "";
+            builder.AddMarkupContent(0, $"<div style=\"{wrap}\"><img src=\"{_brand.LogoDataUri}\" style=\"max-height:44px;max-width:200px\" /></div>");
+        }
+        else
+        {
+            var color = dark ? "#fff" : "var(--primary)";
+            builder.AddMarkupContent(1, $"<div style=\"font-weight:700;font-size:18px;color:{color}\">Aftermarket <span style=\"color:var(--accent)\">Intelligence</span></div>");
+        }
     };
 }

@@ -49,6 +49,8 @@ builder.Services.AddScoped<VisitRepository>();
 builder.Services.AddScoped<OfferRepository>();
 builder.Services.AddScoped<OppOverrideRepository>();
 builder.Services.AddScoped<ConstructionRepository>();
+builder.Services.AddScoped<BrandingRepository>();
+builder.Services.AddScoped<ImportService>();
 
 // Motor de inteligência (oportunidades, alertas, lookups).
 builder.Services.AddScoped<IntelligenceService>();

@@ -57,6 +57,9 @@ public class SalespersonRepository
         new("cargo", s.Cargo), new("regiao", s.Regiao), new("gestor_id", s.GestorId),
         new("ativo", s.Ativo ? "true" : "false"), new("perfil", s.Perfil),
     });
+
+    public void Delete(string id) => _s.WriteRow("salespeople",
+        new KeyValuePair<string, object?>[] { new("id", id) }, deleted: true);
 }
 
 public class EquipmentRepository

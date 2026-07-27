@@ -1,14 +1,24 @@
 @implements IDisposable
 @inject NavigationManager Nav
 @inject LocState Loc
+@inject BrandingRepository Brand
 
 <aside class="sidebar no-print">
     <div class="brand">
-        <div class="brand-mark">H</div>
-        <div>
-            <div class="brand-name">Howden</div>
-            <div class="brand-sub">Aftermarket · AFM HSA</div>
-        </div>
+        @if (!string.IsNullOrEmpty(_logo))
+        {
+            <div style="@(_logoBg == "white" ? "background:#fff;padding:6px;border-radius:8px;" : "")">
+                <img src="@_logo" style="max-height:40px;max-width:190px" alt="logo" />
+            </div>
+        }
+        else
+        {
+            <div class="brand-mark">H</div>
+            <div>
+                <div class="brand-name">Howden</div>
+                <div class="brand-sub">Aftermarket · AFM HSA</div>
+            </div>
+        }
     </div>
 
     <nav class="nav">
@@ -57,10 +67,16 @@
         }),
     };
 
+    private string _logo = "";
+    private string _logoBg = "transparent";
+
     protected override void OnInitialized()
     {
         Nav.LocationChanged += OnChanged;
         Loc.Changed += StateHasChanged;
+        var b = Brand.Get();
+        _logo = b.LogoDataUri;
+        _logoBg = b.LogoBg;
     }
     private void OnChanged(object? s, LocationChangedEventArgs e) => StateHasChanged();
     public void Dispose()
