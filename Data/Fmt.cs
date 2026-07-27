@@ -41,6 +41,16 @@ public static class Fmt
     // Moeda sem centavos (R$ 350.000) — padrão do app original em KPIs/alertas.
     public static string Brl0(decimal v) => "R$ " + N0(Math.Round(v));
 
+    // Moeda compacta para KPIs executivos (R$ 7,95 mi / R$ 320 mil).
+    public static string BrlShort(decimal v)
+    {
+        var nfi = new NumberFormatInfo { NumberGroupSeparator = ".", NumberDecimalSeparator = "," };
+        var a = Math.Abs(v);
+        if (a >= 1_000_000m) return "R$ " + (v / 1_000_000m).ToString("#,##0.00", nfi) + " mi";
+        if (a >= 10_000m) return "R$ " + (v / 1_000m).ToString("#,##0", nfi) + " mil";
+        return Brl0(v);
+    }
+
     // Data ISO (yyyy-MM-dd) -> dd/MM/yyyy. Vazio/ inválido -> "—".
     public static string Date(string? iso)
     {

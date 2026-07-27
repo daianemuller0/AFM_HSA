@@ -68,6 +68,9 @@ public class IntelligenceService
     public string EquipmentModel(string id) => Equipments.TryGetValue(id, out var e) ? e.Modelo : "";
     public string EquipmentNome(string id) => Equipments.TryGetValue(id, out var e) ? e.Nome : id;
     public string UnitSegmento(string unitId) => Units.TryGetValue(unitId, out var u) ? u.Segmento : "—";
+    public string EquipmentTipo(string id) => Equipments.TryGetValue(id, out var e) && !string.IsNullOrEmpty(e.Tipo) ? e.Tipo : "—";
+    // Data-base de referência das janelas (fixa, igual ao app original).
+    public static readonly DateOnly BaseDate = new(2026, 5, 28);
     public string UnitNome(string unitId) => Units.TryGetValue(unitId, out var u) ? u.NomeUnidade : unitId;
     public string ClienteDaUnidade(string unitId) => Units.TryGetValue(unitId, out var u) ? CompanyName(u.CompanyId) : unitId;
 
@@ -360,7 +363,7 @@ public class IntelligenceService
 
     // ---- Previsão de Vendas (forecast) -----------------------------------
     // Confiança por faixa de prazo (mesmos patamares do app original).
-    private static int ConfFor(int dias) => dias <= 90 ? 90 : dias <= 180 ? 82 : 64;
+    public static int ConfFor(int dias) => dias <= 90 ? 90 : dias <= 180 ? 82 : 64;
 
     public ForecastVM Forecast()
     {
