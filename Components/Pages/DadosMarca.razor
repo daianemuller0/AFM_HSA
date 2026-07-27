@@ -87,29 +87,30 @@ else if (_tab == "import")
 else
 {
     <div class="panel">
-        <div class="summary-bar">Esta é uma área de teste: o logo enviado fica salvo na base e é aplicado no menu e no login. Use "Voltar ao logo padrão" para remover.</div>
-        <div style="font-size:12.5px;color:var(--muted);margin:12px 0 6px">Enviar imagem do logo (PNG, JPG ou SVG)</div>
-        <div class="logo-preview" style="flex-direction:column;gap:8px">
-            <InputFile OnChange="OnLogo" accept="image/*" />
-        </div>
-        <div style="font-size:12.5px;color:var(--muted);margin:14px 0 6px">Fundo atrás do logo</div>
-        <div class="chips">
-            <button class="chip @(_brand.LogoBg == "transparent" ? "active" : "")" @onclick='() => SetBg("transparent")'>Sem fundo (direto no azul)</button>
-            <button class="chip @(_brand.LogoBg == "white" ? "active" : "")" @onclick='() => SetBg("white")'>Bloco branco</button>
-        </div>
-        <button class="btn-ghost" style="margin-top:10px" @onclick="ResetLogo">↺ Voltar ao logo padrão</button>
-        @if (_logoMsg is not null) { <div class="side-ok" style="margin-top:10px">@_logoMsg</div> }
+        <div class="summary-bar">O logo enviado fica salvo na base. Há um logo para o <strong>menu interno</strong> e outro para a <strong>capa de login</strong> — envie cada um separadamente. Use "Voltar ao padrão" para remover ambos.</div>
 
-        <div class="dash-grid" style="margin-top:18px">
+        <div class="dash-grid" style="margin-top:14px">
             <div>
-                <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Sobre o azul do menu</div>
-                <div style="background:var(--sidebar-top);border-radius:12px;padding:22px;display:grid;place-items:center">@Preview(true)</div>
+                <div class="dash-title">Logo do programa (menu lateral)</div>
+                <div class="logo-preview" style="flex-direction:column;gap:8px"><InputFile OnChange="OnLogoMenu" accept="image/*" /></div>
+                <div style="font-size:12.5px;color:var(--muted);margin:12px 0 6px">Fundo atrás do logo (menu)</div>
+                <div class="chips">
+                    <button class="chip @(_brand.LogoBg == "transparent" ? "active" : "")" @onclick='() => SetBg("transparent")'>Sem fundo (direto no azul)</button>
+                    <button class="chip @(_brand.LogoBg == "white" ? "active" : "")" @onclick='() => SetBg("white")'>Bloco branco</button>
+                </div>
+                <div style="font-size:12px;color:var(--muted);margin:12px 0 6px">Prévia sobre o azul do menu</div>
+                <div style="background:var(--sidebar-top);border-radius:12px;padding:22px;display:grid;place-items:center">@Preview(_brand.LogoMenu, true)</div>
             </div>
             <div>
-                <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Sobre fundo claro (login)</div>
-                <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:22px;display:grid;place-items:center">@Preview(false)</div>
+                <div class="dash-title">Logo da capa de login</div>
+                <div class="logo-preview" style="flex-direction:column;gap:8px"><InputFile OnChange="OnLogoLogin" accept="image/*" /></div>
+                <div style="font-size:12px;color:var(--muted);margin:12px 0 6px">Prévia sobre fundo claro (login)</div>
+                <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:22px;display:grid;place-items:center">@Preview(_brand.LogoLogin, false)</div>
             </div>
         </div>
+
+        <button class="btn-ghost" style="margin-top:14px" @onclick="ResetLogo">↺ Voltar ao logo padrão (ambos)</button>
+        @if (_logoMsg is not null) { <div class="side-ok" style="margin-top:10px">@_logoMsg</div> }
     </div>
 }
 
@@ -170,8 +171,7 @@ else
     private async Task BaixarModelo()
     {
         var header = Colunas(_impTipo).Replace(", ", ";");
-        var bytes = System.Text.Encoding.UTF8.GetBytes(header + "\n");
-        var b64 = Convert.ToBase64String(bytes);
+        var b64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(header + "\n"));
         await JS.InvokeVoidAsync("appDownload", $"modelo_{_impTipo}.csv", "text/csv", b64);
     }
 
@@ -188,30 +188,36 @@ else
         catch (Exception ex) { _impOk = false; _impMsg = "Falha: " + ex.Message; }
     }
 
-    private async Task OnLogo(InputFileChangeEventArgs e)
+    private async Task<string> LerImagem(InputFileChangeEventArgs e)
     {
-        try
-        {
-            var f = e.File;
-            using var ms = new MemoryStream();
-            await f.OpenReadStream(3 * 1024 * 1024).CopyToAsync(ms);
-            var ct = string.IsNullOrEmpty(f.ContentType) ? "image/png" : f.ContentType;
-            _brand.LogoDataUri = $"data:{ct};base64,{Convert.ToBase64String(ms.ToArray())}";
-            Brand.Save(_brand);
-            _logoMsg = "Logo atualizado. Recarregue para ver no menu.";
-        }
+        var f = e.File;
+        using var ms = new MemoryStream();
+        await f.OpenReadStream(3 * 1024 * 1024).CopyToAsync(ms);
+        var ct = string.IsNullOrEmpty(f.ContentType) ? "image/png" : f.ContentType;
+        return $"data:{ct};base64,{Convert.ToBase64String(ms.ToArray())}";
+    }
+
+    private async Task OnLogoMenu(InputFileChangeEventArgs e)
+    {
+        try { _brand.LogoMenu = await LerImagem(e); Brand.Save(_brand); _logoMsg = "Logo do menu atualizado. Recarregue para ver no menu."; }
+        catch (Exception ex) { _logoMsg = "Falha: " + ex.Message; }
+    }
+
+    private async Task OnLogoLogin(InputFileChangeEventArgs e)
+    {
+        try { _brand.LogoLogin = await LerImagem(e); Brand.Save(_brand); _logoMsg = "Logo da capa de login atualizado."; }
         catch (Exception ex) { _logoMsg = "Falha: " + ex.Message; }
     }
 
     private void SetBg(string bg) { _brand.LogoBg = bg; Brand.Save(_brand); }
-    private void ResetLogo() { Brand.Reset(); _brand = Brand.Get(); _logoMsg = "Logo padrão restaurado."; }
+    private void ResetLogo() { Brand.Reset(); _brand = Brand.Get(); _logoMsg = "Logos padrão restaurados."; }
 
-    private RenderFragment Preview(bool dark) => builder =>
+    private RenderFragment Preview(string uri, bool dark) => builder =>
     {
-        if (!string.IsNullOrEmpty(_brand.LogoDataUri))
+        if (!string.IsNullOrEmpty(uri))
         {
-            var wrap = _brand.LogoBg == "white" ? "background:#fff;padding:8px;border-radius:8px;" : "";
-            builder.AddMarkupContent(0, $"<div style=\"{wrap}\"><img src=\"{_brand.LogoDataUri}\" style=\"max-height:44px;max-width:200px\" /></div>");
+            var wrap = (dark && _brand.LogoBg == "white") ? "background:#fff;padding:8px;border-radius:8px;" : "";
+            builder.AddMarkupContent(0, $"<div style=\"{wrap}\"><img src=\"{uri}\" style=\"max-height:44px;max-width:220px\" /></div>");
         }
         else
         {

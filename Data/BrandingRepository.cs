@@ -9,15 +9,24 @@ public class BrandingRepository
 
     public Branding Get()
     {
-        var list = _s.ReadLatest("branding", "id, logo_data_uri, logo_bg",
-            r => new Branding { Id = Fmt.S(r, 0), LogoDataUri = Fmt.S(r, 1), LogoBg = Fmt.S(r, 2) });
-        return list.FirstOrDefault() ?? new Branding();
+        var list = _s.ReadLatest("branding", "id, logo_data_uri, logo_login_uri, logo_bg",
+            r => new Branding
+            {
+                Id = Fmt.S(r, 0),
+                LogoMenu = Fmt.S(r, 1),      // coluna logo_data_uri (compatível com versão anterior)
+                LogoLogin = Fmt.S(r, 2),
+                LogoBg = Fmt.S(r, 3),
+            });
+        var b = list.FirstOrDefault() ?? new Branding();
+        if (string.IsNullOrEmpty(b.LogoBg)) b.LogoBg = "transparent";
+        return b;
     }
 
     public void Save(Branding b) => _s.WriteRow("branding", new KeyValuePair<string, object?>[]
     {
         new("id", "app"),
-        new("logo_data_uri", b.LogoDataUri),
+        new("logo_data_uri", b.LogoMenu),
+        new("logo_login_uri", b.LogoLogin),
         new("logo_bg", string.IsNullOrEmpty(b.LogoBg) ? "transparent" : b.LogoBg),
     });
 

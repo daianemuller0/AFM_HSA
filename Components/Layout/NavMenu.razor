@@ -75,7 +75,7 @@
         Nav.LocationChanged += OnChanged;
         Loc.Changed += StateHasChanged;
         var b = Brand.Get();
-        _logo = b.LogoDataUri;
+        _logo = b.LogoMenu;
         _logoBg = b.LogoBg;
     }
     private void OnChanged(object? s, LocationChangedEventArgs e) => StateHasChanged();

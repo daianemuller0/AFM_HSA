@@ -1,16 +1,24 @@
 @page "/login"
 @layout EmptyLayout
 @attribute [AllowAnonymous]
+@inject BrandingRepository Brand
 
 <div class="login-wrap">
     <div class="login-card">
-        <div class="brand center">
-            <div class="brand-mark big">H</div>
-            <div>
-                <div class="brand-name">Howden</div>
-                <div class="brand-sub">Aftermarket · AFM HSA</div>
+        @if (!string.IsNullOrEmpty(_logo))
+        {
+            <div class="brand center"><img src="@_logo" style="max-height:64px;max-width:260px" alt="logo" /></div>
+        }
+        else
+        {
+            <div class="brand center">
+                <div class="brand-mark big">H</div>
+                <div>
+                    <div class="brand-name">Howden</div>
+                    <div class="brand-sub">Aftermarket · AFM HSA</div>
+                </div>
             </div>
-        </div>
+        }
 
         <h1 class="login-title">Entrar</h1>
 
@@ -43,4 +51,7 @@
     public string? ErrorFlag { get; set; }
 
     private bool Error => ErrorFlag == "1";
+
+    private string _logo = "";
+    protected override void OnInitialized() => _logo = Brand.Get().LogoLogin;
 }
