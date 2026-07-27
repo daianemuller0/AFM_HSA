@@ -69,6 +69,32 @@ else
         </tbody>
     </table>
 
+    <div class="dash-title">Histórico Aftermarket (deste equipamento)
+        @if (_sales.Count > 0)
+        {
+            <span style="margin-left:8px;font-size:12px;font-weight:600;color:#0a7d6c;background:#e6f7f3;border-radius:20px;padding:3px 10px">@_sales.Count compra(s) · @Fmt.Brl0(_sales.Sum(s => s.Valor))</span>
+        }
+    </div>
+    <table class="grid" style="margin-bottom:20px">
+        <thead><tr><th>Data</th><th>Pedido</th><th>Cliente / Unidade</th><th>Item vendido</th><th class="right">Qtd</th><th class="right">Valor</th><th>Vendedor</th><th>Origem</th></tr></thead>
+        <tbody>
+            @foreach (var s in _sales.OrderByDescending(s => s.DataVenda))
+            {
+                <tr>
+                    <td class="nowrap">@Fmt.Date(s.DataVenda)</td>
+                    <td>@(string.IsNullOrEmpty(s.Pedido) ? "—" : s.Pedido)</td>
+                    <td>@Intel.ClienteDaUnidade(s.ClientUnitId) — @Intel.UnitNome(s.ClientUnitId)</td>
+                    <td>@s.ItemVendido</td>
+                    <td class="right">@s.Quantidade</td>
+                    <td class="right nowrap">@Fmt.Brl0(s.Valor)</td>
+                    <td>@Intel.SalespersonName(s.VendedorId)</td>
+                    <td>@(string.IsNullOrEmpty(s.Origem) ? "—" : s.Origem)</td>
+                </tr>
+            }
+            @if (_sales.Count == 0) { <tr><td colspan="8" class="empty">Sem histórico de vendas AFM para este equipamento.</td></tr> }
+        </tbody>
+    </table>
+
     <div class="dash-title">Dados construtivos</div>
     <table class="grid">
         <thead><tr><th>Item</th><th class="right">Peso (kg)</th><th>Dimensões</th><th>Material</th><th>Parte do equipamento</th><th>Modelo</th></tr></thead>
