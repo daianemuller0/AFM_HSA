@@ -1,0 +1,3402 @@
+{
+  "companies": [
+    {
+      "id": "votorantim",
+      "nome": "Votorantim",
+      "segmento": "Cimento",
+      "cidade": "Laranjeiras",
+      "estado": "SE",
+      "regiao": "Nordeste"
+    },
+    {
+      "id": "vale",
+      "nome": "Vale",
+      "segmento": "Mineração",
+      "cidade": "São Luís",
+      "estado": "MA",
+      "regiao": "Nordeste"
+    },
+    {
+      "id": "petrobras-reduc",
+      "nome": "Petrobras Reduc",
+      "segmento": "Óleo e Gás",
+      "cidade": "Duque de Caxias",
+      "estado": "RJ",
+      "regiao": "Sudeste"
+    },
+    {
+      "id": "gerdau",
+      "nome": "Gerdau",
+      "segmento": "Siderurgia",
+      "cidade": "Ouro Branco",
+      "estado": "MG",
+      "regiao": "Sudeste"
+    },
+    {
+      "id": "csn",
+      "nome": "CSN",
+      "segmento": "Siderurgia",
+      "cidade": "Volta Redonda",
+      "estado": "RJ",
+      "regiao": "Sudeste"
+    },
+    {
+      "id": "petrobras",
+      "nome": "Petrobras",
+      "segmento": "Óleo e Gás",
+      "cidade": "Cubatão",
+      "estado": "SP",
+      "regiao": "Sudeste"
+    },
+    {
+      "id": "suzano",
+      "nome": "Suzano",
+      "segmento": "Papel e Celulose",
+      "cidade": "Imperatriz",
+      "estado": "MA",
+      "regiao": "Nordeste"
+    },
+    {
+      "id": "klabin",
+      "nome": "Klabin",
+      "segmento": "Papel e Celulose",
+      "cidade": "Ortigueira",
+      "estado": "PR",
+      "regiao": "Sul"
+    },
+    {
+      "id": "usiminas",
+      "nome": "Usiminas",
+      "segmento": "Siderurgia",
+      "cidade": "Ipatinga",
+      "estado": "MG",
+      "regiao": "Sudeste"
+    },
+    {
+      "id": "arcelormittal",
+      "nome": "ArcelorMittal",
+      "segmento": "Siderurgia",
+      "cidade": "Tubarão",
+      "estado": "ES",
+      "regiao": "Sudeste"
+    }
+  ],
+  "clientUnits": [
+    {
+      "id": "votorantim-laranjeiras",
+      "company_id": "votorantim",
+      "nome_unidade": "Laranjeiras",
+      "cidade": "Laranjeiras",
+      "estado": "SE",
+      "segmento": "Cimento",
+      "regiao": "Nordeste",
+      "vendedor_id": "sp-3"
+    },
+    {
+      "id": "vale-s-o-lu-s",
+      "company_id": "vale",
+      "nome_unidade": "São Luís",
+      "cidade": "São Luís",
+      "estado": "MA",
+      "segmento": "Mineração",
+      "regiao": "Nordeste",
+      "vendedor_id": "sp-3"
+    },
+    {
+      "id": "petrobras-reduc-duque-de-caxias",
+      "company_id": "petrobras-reduc",
+      "nome_unidade": "Duque de Caxias",
+      "cidade": "Duque de Caxias",
+      "estado": "RJ",
+      "segmento": "Óleo e Gás",
+      "regiao": "Sudeste",
+      "vendedor_id": "sp-2"
+    },
+    {
+      "id": "gerdau-ouro-branco",
+      "company_id": "gerdau",
+      "nome_unidade": "Ouro Branco",
+      "cidade": "Ouro Branco",
+      "estado": "MG",
+      "segmento": "Siderurgia",
+      "regiao": "Sudeste",
+      "vendedor_id": "sp-1"
+    },
+    {
+      "id": "csn-volta-redonda",
+      "company_id": "csn",
+      "nome_unidade": "Volta Redonda",
+      "cidade": "Volta Redonda",
+      "estado": "RJ",
+      "segmento": "Siderurgia",
+      "regiao": "Sudeste",
+      "vendedor_id": "sp-2"
+    },
+    {
+      "id": "petrobras-cubat-o",
+      "company_id": "petrobras",
+      "nome_unidade": "Cubatão",
+      "cidade": "Cubatão",
+      "estado": "SP",
+      "segmento": "Óleo e Gás",
+      "regiao": "Sudeste",
+      "vendedor_id": "sp-1"
+    },
+    {
+      "id": "vale-itabira",
+      "company_id": "vale",
+      "nome_unidade": "Itabira",
+      "cidade": "Itabira",
+      "estado": "MG",
+      "segmento": "Mineração",
+      "regiao": "Sudeste",
+      "vendedor_id": "sp-3"
+    },
+    {
+      "id": "suzano-imperatriz",
+      "company_id": "suzano",
+      "nome_unidade": "Imperatriz",
+      "cidade": "Imperatriz",
+      "estado": "MA",
+      "segmento": "Papel e Celulose",
+      "regiao": "Nordeste",
+      "vendedor_id": "sp-3"
+    },
+    {
+      "id": "klabin-ortigueira",
+      "company_id": "klabin",
+      "nome_unidade": "Ortigueira",
+      "cidade": "Ortigueira",
+      "estado": "PR",
+      "segmento": "Papel e Celulose",
+      "regiao": "Sul",
+      "vendedor_id": "sp-4"
+    },
+    {
+      "id": "usiminas-ipatinga",
+      "company_id": "usiminas",
+      "nome_unidade": "Ipatinga",
+      "cidade": "Ipatinga",
+      "estado": "MG",
+      "segmento": "Siderurgia",
+      "regiao": "Sudeste",
+      "vendedor_id": "sp-1"
+    },
+    {
+      "id": "arcelormittal-tubar-o",
+      "company_id": "arcelormittal",
+      "nome_unidade": "Tubarão",
+      "cidade": "Tubarão",
+      "estado": "ES",
+      "segmento": "Siderurgia",
+      "regiao": "Sudeste",
+      "vendedor_id": "sp-2"
+    }
+  ],
+  "salespeople": [
+    {
+      "id": "sp-1",
+      "nome": "Carlos Andrade",
+      "email": "carlos@howden.com",
+      "telefone": "+55 11 98000-0001",
+      "cargo": "Vendedor Sênior",
+      "regiao": "Sudeste",
+      "gestor_id": "sp-mgr"
+    },
+    {
+      "id": "sp-2",
+      "nome": "Fernanda Lima",
+      "email": "fernanda@howden.com",
+      "telefone": "+55 21 98000-0002",
+      "cargo": "Vendedora",
+      "regiao": "Sudeste",
+      "gestor_id": "sp-mgr"
+    },
+    {
+      "id": "sp-3",
+      "nome": "Ricardo Souza",
+      "email": "ricardo@howden.com",
+      "telefone": "+55 98 98000-0003",
+      "cargo": "Vendedor",
+      "regiao": "Nordeste",
+      "gestor_id": "sp-mgr"
+    },
+    {
+      "id": "sp-4",
+      "nome": "Juliana Castro",
+      "email": "juliana@howden.com",
+      "telefone": "+55 41 98000-0004",
+      "cargo": "Vendedora",
+      "regiao": "Sul",
+      "gestor_id": "sp-mgr"
+    },
+    {
+      "id": "sp-mgr",
+      "nome": "Gestor Comercial",
+      "email": "gestor@howden.com",
+      "telefone": "+55 11 90000-0002",
+      "cargo": "Gestor Comercial",
+      "regiao": "Brasil",
+      "gestor_id": null
+    }
+  ],
+  "equipment": [
+    {
+      "id": "eq-1",
+      "doc_num": "01",
+      "tipo": "Ventilador centrifugo",
+      "modelo": "CT 1024.00.00 SBL6T",
+      "nome": "Ventilador centrifugo CT 1024.00.00 SBL6T",
+      "aplicacao": "Exaustor pós filtro- Moagem de coque",
+      "segmento": "Cimento",
+      "fabricante": "Howden Aftermarket Intelligence",
+      "valor_completo": 350000.0
+    },
+    {
+      "id": "eq-2",
+      "doc_num": "02",
+      "tipo": "VARIAX",
+      "modelo": "VX 2924.00.00 DBL6T",
+      "nome": "VARIAX VX 2924.00.00 DBL6T",
+      "aplicacao": "CAF",
+      "segmento": "Mineração",
+      "fabricante": "Howden Aftermarket Intelligence",
+      "valor_completo": 2500000.0
+    },
+    {
+      "id": "eq-3",
+      "doc_num": "03",
+      "tipo": "VARIAX",
+      "modelo": "VX 2025.00.00 SBL6T",
+      "nome": "VARIAX VX 2025.00.00 SBL6T",
+      "aplicacao": "COF",
+      "segmento": "Mineração",
+      "fabricante": "Howden Aftermarket Intelligence",
+      "valor_completo": 1800000.0
+    },
+    {
+      "id": "eq-4",
+      "doc_num": "04",
+      "tipo": "Air Pre Heater",
+      "modelo": "APY 35.8- 24H",
+      "nome": "Air Pre Heater APY 35.8- 24H",
+      "aplicacao": "Pré Aquecedor Refinaria 1",
+      "segmento": "Óleo e Gás",
+      "fabricante": "Howden Aftermarket Intelligence",
+      "valor_completo": 10000000.0
+    },
+    {
+      "id": "eq-5",
+      "doc_num": "06",
+      "tipo": "Ventilador Axial",
+      "modelo": "AX 980.00.00 SBL6T",
+      "nome": "Ventilador Axial AX 980.00.00 SBL6T",
+      "aplicacao": "Resfriamento da parede do forno",
+      "segmento": "Cimento",
+      "fabricante": "Howden Aftermarket Intelligence",
+      "valor_completo": 2050000.0
+    },
+    {
+      "id": "eq-6",
+      "doc_num": "07",
+      "tipo": "Ventilador centrifugo",
+      "modelo": "CT 1840.00.00 DBL6T",
+      "nome": "Ventilador centrifugo CT 1840.00.00 DBL6T",
+      "aplicacao": "Exaustão de gases do forno",
+      "segmento": "Siderurgia",
+      "fabricante": "Howden Aftermarket Intelligence",
+      "valor_completo": 980000.0
+    },
+    {
+      "id": "eq-7",
+      "doc_num": "08",
+      "tipo": "Ventilador Axial",
+      "modelo": "AX 1250.00.00 SBL6T",
+      "nome": "Ventilador Axial AX 1250.00.00 SBL6T",
+      "aplicacao": "Resfriamento de linha industrial",
+      "segmento": "Siderurgia",
+      "fabricante": "Howden Aftermarket Intelligence",
+      "valor_completo": 930000.0
+    },
+    {
+      "id": "eq-8",
+      "doc_num": "09",
+      "tipo": "Air Pre Heater",
+      "modelo": "APH 42.10-30H",
+      "nome": "Air Pre Heater APH 42.10-30H",
+      "aplicacao": "Pré-aquecedor de ar da caldeira",
+      "segmento": "Óleo e Gás",
+      "fabricante": "Howden Aftermarket Intelligence",
+      "valor_completo": 14500000.0
+    },
+    {
+      "id": "eq-9",
+      "doc_num": "10",
+      "tipo": "VARIAX",
+      "modelo": "VX 3310.00.00 DBL6T",
+      "nome": "VARIAX VX 3310.00.00 DBL6T",
+      "aplicacao": "Sistema de insuflamento",
+      "segmento": "Mineração",
+      "fabricante": "Howden Aftermarket Intelligence",
+      "valor_completo": 3200000.0
+    },
+    {
+      "id": "eq-10",
+      "doc_num": "11",
+      "tipo": "Ventilador centrifugo",
+      "modelo": "CT 1560.00.00 SBL6T",
+      "nome": "Ventilador centrifugo CT 1560.00.00 SBL6T",
+      "aplicacao": "Exaustão de particulados",
+      "segmento": "Papel e Celulose",
+      "fabricante": "Howden Aftermarket Intelligence",
+      "valor_completo": 1180000.0
+    },
+    {
+      "id": "eq-11",
+      "doc_num": "12",
+      "tipo": "Soprador Industrial",
+      "modelo": "SB 740.00.00 SBL6T",
+      "nome": "Soprador Industrial SB 740.00.00 SBL6T",
+      "aplicacao": "Transporte pneumático",
+      "segmento": "Papel e Celulose",
+      "fabricante": "Howden Aftermarket Intelligence",
+      "valor_completo": 620000.0
+    },
+    {
+      "id": "eq-12",
+      "doc_num": "13",
+      "tipo": "Exaustor Industrial",
+      "modelo": "EX 2100.00.00 DBL6T",
+      "nome": "Exaustor Industrial EX 2100.00.00 DBL6T",
+      "aplicacao": "Exaustão da aciaria",
+      "segmento": "Siderurgia",
+      "fabricante": "Howden Aftermarket Intelligence",
+      "valor_completo": 2750000.0
+    },
+    {
+      "id": "eq-13",
+      "doc_num": "14",
+      "tipo": "Ventilador de Tiragem",
+      "modelo": "VT 1880.00.00 SBL6T",
+      "nome": "Ventilador de Tiragem VT 1880.00.00 SBL6T",
+      "aplicacao": "Tiragem induzida de gases",
+      "segmento": "Siderurgia",
+      "fabricante": "Howden Aftermarket Intelligence",
+      "valor_completo": 1950000.0
+    }
+  ],
+  "installedBase": [
+    {
+      "id": "ib-1",
+      "client_unit_id": "votorantim-laranjeiras",
+      "equipment_id": "eq-1",
+      "quantidade": 1,
+      "ano_instalacao": 2013,
+      "criticidade": "alta",
+      "status": "ativo",
+      "vendedor_id": "sp-3"
+    },
+    {
+      "id": "ib-2",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-2",
+      "quantidade": 1,
+      "ano_instalacao": 2014,
+      "criticidade": "média",
+      "status": "ativo",
+      "vendedor_id": "sp-3"
+    },
+    {
+      "id": "ib-3",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-3",
+      "quantidade": 1,
+      "ano_instalacao": 2014,
+      "criticidade": "alta",
+      "status": "ativo",
+      "vendedor_id": "sp-3"
+    },
+    {
+      "id": "ib-4",
+      "client_unit_id": "petrobras-reduc-duque-de-caxias",
+      "equipment_id": "eq-4",
+      "quantidade": 1,
+      "ano_instalacao": 1998,
+      "criticidade": "crítica",
+      "status": "ativo",
+      "vendedor_id": "sp-2"
+    },
+    {
+      "id": "ib-5",
+      "client_unit_id": "votorantim-laranjeiras",
+      "equipment_id": "eq-5",
+      "quantidade": 12,
+      "ano_instalacao": 2012,
+      "criticidade": "alta",
+      "status": "ativo",
+      "vendedor_id": "sp-3"
+    },
+    {
+      "id": "ib-6",
+      "client_unit_id": "gerdau-ouro-branco",
+      "equipment_id": "eq-6",
+      "quantidade": 1,
+      "ano_instalacao": 2014,
+      "criticidade": "média",
+      "status": "ativo",
+      "vendedor_id": "sp-1"
+    },
+    {
+      "id": "ib-7",
+      "client_unit_id": "csn-volta-redonda",
+      "equipment_id": "eq-7",
+      "quantidade": 1,
+      "ano_instalacao": 2015,
+      "criticidade": "crítica",
+      "status": "ativo",
+      "vendedor_id": "sp-2"
+    },
+    {
+      "id": "ib-8",
+      "client_unit_id": "petrobras-cubat-o",
+      "equipment_id": "eq-8",
+      "quantidade": 1,
+      "ano_instalacao": 2006,
+      "criticidade": "média",
+      "status": "ativo",
+      "vendedor_id": "sp-1"
+    },
+    {
+      "id": "ib-9",
+      "client_unit_id": "vale-itabira",
+      "equipment_id": "eq-9",
+      "quantidade": 1,
+      "ano_instalacao": 2015,
+      "criticidade": "alta",
+      "status": "ativo",
+      "vendedor_id": "sp-3"
+    },
+    {
+      "id": "ib-10",
+      "client_unit_id": "suzano-imperatriz",
+      "equipment_id": "eq-10",
+      "quantidade": 1,
+      "ano_instalacao": 2016,
+      "criticidade": "alta",
+      "status": "ativo",
+      "vendedor_id": "sp-3"
+    },
+    {
+      "id": "ib-11",
+      "client_unit_id": "klabin-ortigueira",
+      "equipment_id": "eq-11",
+      "quantidade": 1,
+      "ano_instalacao": 2017,
+      "criticidade": "crítica",
+      "status": "ativo",
+      "vendedor_id": "sp-4"
+    },
+    {
+      "id": "ib-12",
+      "client_unit_id": "usiminas-ipatinga",
+      "equipment_id": "eq-12",
+      "quantidade": 1,
+      "ano_instalacao": 2014,
+      "criticidade": "média",
+      "status": "ativo",
+      "vendedor_id": "sp-1"
+    },
+    {
+      "id": "ib-13",
+      "client_unit_id": "arcelormittal-tubar-o",
+      "equipment_id": "eq-13",
+      "quantidade": 1,
+      "ano_instalacao": 2018,
+      "criticidade": "crítica",
+      "status": "ativo",
+      "vendedor_id": "sp-2"
+    }
+  ],
+  "parts": [
+    {
+      "id": "pt-1",
+      "equipment_id": "eq-1",
+      "nome": "Rotor",
+      "ciclo_meses": 30,
+      "critica": true
+    },
+    {
+      "id": "pt-2",
+      "equipment_id": "eq-1",
+      "nome": "Eixo",
+      "ciclo_meses": 30,
+      "critica": true
+    },
+    {
+      "id": "pt-3",
+      "equipment_id": "eq-1",
+      "nome": "Cone aspirante",
+      "ciclo_meses": 36,
+      "critica": false
+    },
+    {
+      "id": "pt-4",
+      "equipment_id": "eq-1",
+      "nome": "Carcaça",
+      "ciclo_meses": 60,
+      "critica": true
+    },
+    {
+      "id": "pt-5",
+      "equipment_id": "eq-1",
+      "nome": "Registro Veneziana de entrada",
+      "ciclo_meses": 60,
+      "critica": false
+    },
+    {
+      "id": "pt-6",
+      "equipment_id": "eq-1",
+      "nome": "Base Metalica",
+      "ciclo_meses": 120,
+      "critica": false
+    },
+    {
+      "id": "pt-7",
+      "equipment_id": "eq-2",
+      "nome": "Rotor 1",
+      "ciclo_meses": 30,
+      "critica": true
+    },
+    {
+      "id": "pt-8",
+      "equipment_id": "eq-2",
+      "nome": "Rotor 2",
+      "ciclo_meses": 30,
+      "critica": true
+    },
+    {
+      "id": "pt-9",
+      "equipment_id": "eq-2",
+      "nome": "Mancal",
+      "ciclo_meses": 60,
+      "critica": false
+    },
+    {
+      "id": "pt-10",
+      "equipment_id": "eq-2",
+      "nome": "Carcaça",
+      "ciclo_meses": 60,
+      "critica": true
+    },
+    {
+      "id": "pt-11",
+      "equipment_id": "eq-2",
+      "nome": "Paleta",
+      "ciclo_meses": 30,
+      "critica": true
+    },
+    {
+      "id": "pt-12",
+      "equipment_id": "eq-2",
+      "nome": "Eixo da paleta",
+      "ciclo_meses": 30,
+      "critica": true
+    },
+    {
+      "id": "pt-13",
+      "equipment_id": "eq-2",
+      "nome": "Cilindro",
+      "ciclo_meses": 48,
+      "critica": false
+    },
+    {
+      "id": "pt-14",
+      "equipment_id": "eq-2",
+      "nome": "Acoplamento",
+      "ciclo_meses": 36,
+      "critica": false
+    },
+    {
+      "id": "pt-15",
+      "equipment_id": "eq-2",
+      "nome": "Difusor",
+      "ciclo_meses": 48,
+      "critica": false
+    },
+    {
+      "id": "pt-16",
+      "equipment_id": "eq-2",
+      "nome": "Silenciador",
+      "ciclo_meses": 72,
+      "critica": false
+    },
+    {
+      "id": "pt-17",
+      "equipment_id": "eq-2",
+      "nome": "Cardan",
+      "ciclo_meses": 48,
+      "critica": false
+    },
+    {
+      "id": "pt-18",
+      "equipment_id": "eq-2",
+      "nome": "Rotulas da palheta",
+      "ciclo_meses": 30,
+      "critica": true
+    },
+    {
+      "id": "pt-19",
+      "equipment_id": "eq-3",
+      "nome": "Rotor 1",
+      "ciclo_meses": 30,
+      "critica": true
+    },
+    {
+      "id": "pt-20",
+      "equipment_id": "eq-3",
+      "nome": "Mancal",
+      "ciclo_meses": 60,
+      "critica": false
+    },
+    {
+      "id": "pt-21",
+      "equipment_id": "eq-3",
+      "nome": "Carcaça",
+      "ciclo_meses": 60,
+      "critica": true
+    },
+    {
+      "id": "pt-22",
+      "equipment_id": "eq-3",
+      "nome": "Paleta",
+      "ciclo_meses": 30,
+      "critica": true
+    },
+    {
+      "id": "pt-23",
+      "equipment_id": "eq-3",
+      "nome": "Eixo da paleta",
+      "ciclo_meses": 30,
+      "critica": true
+    },
+    {
+      "id": "pt-24",
+      "equipment_id": "eq-3",
+      "nome": "Cilindro",
+      "ciclo_meses": 48,
+      "critica": false
+    },
+    {
+      "id": "pt-25",
+      "equipment_id": "eq-3",
+      "nome": "Acoplamento",
+      "ciclo_meses": 36,
+      "critica": false
+    },
+    {
+      "id": "pt-26",
+      "equipment_id": "eq-3",
+      "nome": "Difusor",
+      "ciclo_meses": 48,
+      "critica": false
+    },
+    {
+      "id": "pt-27",
+      "equipment_id": "eq-3",
+      "nome": "Silenciador",
+      "ciclo_meses": 72,
+      "critica": false
+    },
+    {
+      "id": "pt-28",
+      "equipment_id": "eq-3",
+      "nome": "Cardan",
+      "ciclo_meses": 48,
+      "critica": false
+    },
+    {
+      "id": "pt-29",
+      "equipment_id": "eq-3",
+      "nome": "Rotulas da palheta",
+      "ciclo_meses": 30,
+      "critica": true
+    },
+    {
+      "id": "pt-30",
+      "equipment_id": "eq-4",
+      "nome": "Cestos lado frio",
+      "ciclo_meses": 34,
+      "critica": true
+    },
+    {
+      "id": "pt-31",
+      "equipment_id": "eq-4",
+      "nome": "Cestos lado quente",
+      "ciclo_meses": 34,
+      "critica": true
+    },
+    {
+      "id": "pt-32",
+      "equipment_id": "eq-4",
+      "nome": "Cestos intermediários",
+      "ciclo_meses": 34,
+      "critica": true
+    },
+    {
+      "id": "pt-33",
+      "equipment_id": "eq-4",
+      "nome": "Eixo principal",
+      "ciclo_meses": 30,
+      "critica": true
+    },
+    {
+      "id": "pt-34",
+      "equipment_id": "eq-4",
+      "nome": "Mancais",
+      "ciclo_meses": 60,
+      "critica": false
+    },
+    {
+      "id": "pt-35",
+      "equipment_id": "eq-5",
+      "nome": "Rotor",
+      "ciclo_meses": 30,
+      "critica": true
+    },
+    {
+      "id": "pt-36",
+      "equipment_id": "eq-5",
+      "nome": "Palhetas",
+      "ciclo_meses": 30,
+      "critica": true
+    },
+    {
+      "id": "pt-37",
+      "equipment_id": "eq-5",
+      "nome": "Difusor",
+      "ciclo_meses": 48,
+      "critica": false
+    },
+    {
+      "id": "pt-38",
+      "equipment_id": "eq-5",
+      "nome": "Carcaça",
+      "ciclo_meses": 60,
+      "critica": true
+    },
+    {
+      "id": "pt-39",
+      "equipment_id": "eq-6",
+      "nome": "Rotor",
+      "ciclo_meses": 30,
+      "critica": true
+    },
+    {
+      "id": "pt-40",
+      "equipment_id": "eq-6",
+      "nome": "Eixo",
+      "ciclo_meses": 30,
+      "critica": true
+    },
+    {
+      "id": "pt-41",
+      "equipment_id": "eq-6",
+      "nome": "Mancais",
+      "ciclo_meses": 60,
+      "critica": false
+    },
+    {
+      "id": "pt-42",
+      "equipment_id": "eq-6",
+      "nome": "Cone aspirante",
+      "ciclo_meses": 36,
+      "critica": false
+    },
+    {
+      "id": "pt-43",
+      "equipment_id": "eq-6",
+      "nome": "Carcaça",
+      "ciclo_meses": 60,
+      "critica": true
+    },
+    {
+      "id": "pt-44",
+      "equipment_id": "eq-6",
+      "nome": "Acoplamento",
+      "ciclo_meses": 36,
+      "critica": false
+    },
+    {
+      "id": "pt-45",
+      "equipment_id": "eq-6",
+      "nome": "Base metálica",
+      "ciclo_meses": 120,
+      "critica": false
+    },
+    {
+      "id": "pt-46",
+      "equipment_id": "eq-7",
+      "nome": "Rotor",
+      "ciclo_meses": 30,
+      "critica": true
+    },
+    {
+      "id": "pt-47",
+      "equipment_id": "eq-7",
+      "nome": "Palhetas",
+      "ciclo_meses": 30,
+      "critica": true
+    },
+    {
+      "id": "pt-48",
+      "equipment_id": "eq-7",
+      "nome": "Difusor",
+      "ciclo_meses": 48,
+      "critica": false
+    },
+    {
+      "id": "pt-49",
+      "equipment_id": "eq-7",
+      "nome": "Carcaça",
+      "ciclo_meses": 60,
+      "critica": true
+    },
+    {
+      "id": "pt-50",
+      "equipment_id": "eq-7",
+      "nome": "Mancais",
+      "ciclo_meses": 60,
+      "critica": false
+    },
+    {
+      "id": "pt-51",
+      "equipment_id": "eq-7",
+      "nome": "Base de fixação",
+      "ciclo_meses": 48,
+      "critica": false
+    },
+    {
+      "id": "pt-52",
+      "equipment_id": "eq-8",
+      "nome": "Cestos lado frio",
+      "ciclo_meses": 34,
+      "critica": true
+    },
+    {
+      "id": "pt-53",
+      "equipment_id": "eq-8",
+      "nome": "Cestos lado quente",
+      "ciclo_meses": 34,
+      "critica": true
+    },
+    {
+      "id": "pt-54",
+      "equipment_id": "eq-8",
+      "nome": "Cestos intermediários",
+      "ciclo_meses": 34,
+      "critica": true
+    },
+    {
+      "id": "pt-55",
+      "equipment_id": "eq-8",
+      "nome": "Eixo principal",
+      "ciclo_meses": 30,
+      "critica": true
+    },
+    {
+      "id": "pt-56",
+      "equipment_id": "eq-8",
+      "nome": "Mancais",
+      "ciclo_meses": 60,
+      "critica": false
+    },
+    {
+      "id": "pt-57",
+      "equipment_id": "eq-8",
+      "nome": "Vedação radial",
+      "ciclo_meses": 48,
+      "critica": false
+    },
+    {
+      "id": "pt-58",
+      "equipment_id": "eq-9",
+      "nome": "Rotor 1",
+      "ciclo_meses": 30,
+      "critica": true
+    },
+    {
+      "id": "pt-59",
+      "equipment_id": "eq-9",
+      "nome": "Rotor 2",
+      "ciclo_meses": 30,
+      "critica": true
+    },
+    {
+      "id": "pt-60",
+      "equipment_id": "eq-9",
+      "nome": "Paleta",
+      "ciclo_meses": 30,
+      "critica": true
+    },
+    {
+      "id": "pt-61",
+      "equipment_id": "eq-9",
+      "nome": "Eixo da paleta",
+      "ciclo_meses": 30,
+      "critica": true
+    },
+    {
+      "id": "pt-62",
+      "equipment_id": "eq-9",
+      "nome": "Acoplamento",
+      "ciclo_meses": 36,
+      "critica": false
+    },
+    {
+      "id": "pt-63",
+      "equipment_id": "eq-9",
+      "nome": "Cilindro",
+      "ciclo_meses": 48,
+      "critica": false
+    },
+    {
+      "id": "pt-64",
+      "equipment_id": "eq-9",
+      "nome": "Cardan",
+      "ciclo_meses": 48,
+      "critica": false
+    },
+    {
+      "id": "pt-65",
+      "equipment_id": "eq-9",
+      "nome": "Mancal",
+      "ciclo_meses": 60,
+      "critica": false
+    },
+    {
+      "id": "pt-66",
+      "equipment_id": "eq-9",
+      "nome": "Difusor",
+      "ciclo_meses": 48,
+      "critica": false
+    },
+    {
+      "id": "pt-67",
+      "equipment_id": "eq-9",
+      "nome": "Rótulas da palheta",
+      "ciclo_meses": 30,
+      "critica": true
+    },
+    {
+      "id": "pt-68",
+      "equipment_id": "eq-10",
+      "nome": "Rotor",
+      "ciclo_meses": 30,
+      "critica": true
+    },
+    {
+      "id": "pt-69",
+      "equipment_id": "eq-10",
+      "nome": "Eixo",
+      "ciclo_meses": 30,
+      "critica": true
+    },
+    {
+      "id": "pt-70",
+      "equipment_id": "eq-10",
+      "nome": "Mancais",
+      "ciclo_meses": 60,
+      "critica": false
+    },
+    {
+      "id": "pt-71",
+      "equipment_id": "eq-10",
+      "nome": "Carcaça",
+      "ciclo_meses": 60,
+      "critica": true
+    },
+    {
+      "id": "pt-72",
+      "equipment_id": "eq-10",
+      "nome": "Cone aspirante",
+      "ciclo_meses": 36,
+      "critica": false
+    },
+    {
+      "id": "pt-73",
+      "equipment_id": "eq-10",
+      "nome": "Registro veneziana",
+      "ciclo_meses": 60,
+      "critica": false
+    },
+    {
+      "id": "pt-74",
+      "equipment_id": "eq-10",
+      "nome": "Base metálica",
+      "ciclo_meses": 120,
+      "critica": false
+    },
+    {
+      "id": "pt-75",
+      "equipment_id": "eq-11",
+      "nome": "Rotor",
+      "ciclo_meses": 30,
+      "critica": true
+    },
+    {
+      "id": "pt-76",
+      "equipment_id": "eq-11",
+      "nome": "Lóbulos",
+      "ciclo_meses": 48,
+      "critica": false
+    },
+    {
+      "id": "pt-77",
+      "equipment_id": "eq-11",
+      "nome": "Engrenagens",
+      "ciclo_meses": 48,
+      "critica": false
+    },
+    {
+      "id": "pt-78",
+      "equipment_id": "eq-11",
+      "nome": "Mancais",
+      "ciclo_meses": 60,
+      "critica": false
+    },
+    {
+      "id": "pt-79",
+      "equipment_id": "eq-11",
+      "nome": "Vedação",
+      "ciclo_meses": 48,
+      "critica": false
+    },
+    {
+      "id": "pt-80",
+      "equipment_id": "eq-11",
+      "nome": "Acoplamento",
+      "ciclo_meses": 36,
+      "critica": false
+    },
+    {
+      "id": "pt-81",
+      "equipment_id": "eq-11",
+      "nome": "Base metálica",
+      "ciclo_meses": 120,
+      "critica": false
+    },
+    {
+      "id": "pt-82",
+      "equipment_id": "eq-12",
+      "nome": "Rotor",
+      "ciclo_meses": 30,
+      "critica": true
+    },
+    {
+      "id": "pt-83",
+      "equipment_id": "eq-12",
+      "nome": "Eixo",
+      "ciclo_meses": 30,
+      "critica": true
+    },
+    {
+      "id": "pt-84",
+      "equipment_id": "eq-12",
+      "nome": "Carcaça",
+      "ciclo_meses": 60,
+      "critica": true
+    },
+    {
+      "id": "pt-85",
+      "equipment_id": "eq-12",
+      "nome": "Difusor",
+      "ciclo_meses": 48,
+      "critica": false
+    },
+    {
+      "id": "pt-86",
+      "equipment_id": "eq-12",
+      "nome": "Mancais",
+      "ciclo_meses": 60,
+      "critica": false
+    },
+    {
+      "id": "pt-87",
+      "equipment_id": "eq-12",
+      "nome": "Acoplamento",
+      "ciclo_meses": 36,
+      "critica": false
+    },
+    {
+      "id": "pt-88",
+      "equipment_id": "eq-12",
+      "nome": "Registro de entrada",
+      "ciclo_meses": 60,
+      "critica": false
+    },
+    {
+      "id": "pt-89",
+      "equipment_id": "eq-13",
+      "nome": "Rotor",
+      "ciclo_meses": 30,
+      "critica": true
+    },
+    {
+      "id": "pt-90",
+      "equipment_id": "eq-13",
+      "nome": "Eixo",
+      "ciclo_meses": 30,
+      "critica": true
+    },
+    {
+      "id": "pt-91",
+      "equipment_id": "eq-13",
+      "nome": "Mancais",
+      "ciclo_meses": 60,
+      "critica": false
+    },
+    {
+      "id": "pt-92",
+      "equipment_id": "eq-13",
+      "nome": "Carcaça",
+      "ciclo_meses": 60,
+      "critica": true
+    },
+    {
+      "id": "pt-93",
+      "equipment_id": "eq-13",
+      "nome": "Pás diretrizes",
+      "ciclo_meses": 48,
+      "critica": false
+    },
+    {
+      "id": "pt-94",
+      "equipment_id": "eq-13",
+      "nome": "Cone de entrada",
+      "ciclo_meses": 48,
+      "critica": false
+    },
+    {
+      "id": "pt-95",
+      "equipment_id": "eq-13",
+      "nome": "Base metálica",
+      "ciclo_meses": 120,
+      "critica": false
+    }
+  ],
+  "salesHistory": [
+    {
+      "id": "sl-1",
+      "data_venda": "2013-03-24",
+      "pedido": "NV0198",
+      "client_unit_id": "votorantim-laranjeiras",
+      "equipment_id": "eq-1",
+      "item_vendido": "Equipamento completo",
+      "quantidade": 1,
+      "valor": 350000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-2",
+      "data_venda": "2016-04-19",
+      "pedido": "FT0571",
+      "client_unit_id": "votorantim-laranjeiras",
+      "equipment_id": "eq-1",
+      "item_vendido": "Rotor + Eixo",
+      "quantidade": 1,
+      "valor": 105000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-3",
+      "data_venda": "2017-01-05",
+      "pedido": "FT0601",
+      "client_unit_id": "votorantim-laranjeiras",
+      "equipment_id": "eq-1",
+      "item_vendido": "Cone aspirante",
+      "quantidade": 1,
+      "valor": 3000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-4",
+      "data_venda": "2018-11-20",
+      "pedido": "FT0690",
+      "client_unit_id": "votorantim-laranjeiras",
+      "equipment_id": "eq-1",
+      "item_vendido": "Rotor + Eixo",
+      "quantidade": 1,
+      "valor": 123900.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-5",
+      "data_venda": "2019-05-14",
+      "pedido": "FT0748",
+      "client_unit_id": "votorantim-laranjeiras",
+      "equipment_id": "eq-1",
+      "item_vendido": "Mancais",
+      "quantidade": 1,
+      "valor": 18500.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-6",
+      "data_venda": "2020-09-22",
+      "pedido": "FT0832",
+      "client_unit_id": "votorantim-laranjeiras",
+      "equipment_id": "eq-1",
+      "item_vendido": "Cone aspirante",
+      "quantidade": 1,
+      "valor": 4800.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-7",
+      "data_venda": "2021-06-11",
+      "pedido": "FT0915",
+      "client_unit_id": "votorantim-laranjeiras",
+      "equipment_id": "eq-1",
+      "item_vendido": "Rotor + Eixo",
+      "quantidade": 1,
+      "valor": 138000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-8",
+      "data_venda": "2021-10-18",
+      "pedido": "FT0942",
+      "client_unit_id": "votorantim-laranjeiras",
+      "equipment_id": "eq-1",
+      "item_vendido": "Mancais",
+      "quantidade": 1,
+      "valor": 22700.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-9",
+      "data_venda": "2022-04-07",
+      "pedido": "FT1018",
+      "client_unit_id": "votorantim-laranjeiras",
+      "equipment_id": "eq-1",
+      "item_vendido": "Registro veneziana de entrada",
+      "quantidade": 1,
+      "valor": 16900.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-10",
+      "data_venda": "2023-08-16",
+      "pedido": "FT1126",
+      "client_unit_id": "votorantim-laranjeiras",
+      "equipment_id": "eq-1",
+      "item_vendido": "Carcaça",
+      "quantidade": 1,
+      "valor": 42000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-11",
+      "data_venda": "2023-11-29",
+      "pedido": "FT1164",
+      "client_unit_id": "votorantim-laranjeiras",
+      "equipment_id": "eq-1",
+      "item_vendido": "Rotor + Eixo",
+      "quantidade": 1,
+      "valor": 156500.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-12",
+      "data_venda": "2024-03-12",
+      "pedido": "FT1198",
+      "client_unit_id": "votorantim-laranjeiras",
+      "equipment_id": "eq-1",
+      "item_vendido": "Mancais",
+      "quantidade": 1,
+      "valor": 27800.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-13",
+      "data_venda": "2024-09-25",
+      "pedido": "FT1267",
+      "client_unit_id": "votorantim-laranjeiras",
+      "equipment_id": "eq-1",
+      "item_vendido": "Cone aspirante",
+      "quantidade": 1,
+      "valor": 7900.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-14",
+      "data_venda": "2025-04-17",
+      "pedido": "FT1335",
+      "client_unit_id": "votorantim-laranjeiras",
+      "equipment_id": "eq-1",
+      "item_vendido": "Base metálica",
+      "quantidade": 1,
+      "valor": 31600.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-15",
+      "data_venda": "2026-06-03",
+      "pedido": "FT1412",
+      "client_unit_id": "votorantim-laranjeiras",
+      "equipment_id": "eq-1",
+      "item_vendido": "Rotor + Eixo",
+      "quantidade": 1,
+      "valor": 174900.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-16",
+      "data_venda": "2026-08-19",
+      "pedido": "FT1439",
+      "client_unit_id": "votorantim-laranjeiras",
+      "equipment_id": "eq-1",
+      "item_vendido": "Mancais",
+      "quantidade": 1,
+      "valor": 34200.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-17",
+      "data_venda": "2014-02-18",
+      "pedido": "NV0234",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-2",
+      "item_vendido": "VARIAX completo",
+      "quantidade": 1,
+      "valor": 2500000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-18",
+      "data_venda": "2015-03-12",
+      "pedido": "FT0311",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-2",
+      "item_vendido": "Rótulas da palheta",
+      "quantidade": 1,
+      "valor": 23400.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-19",
+      "data_venda": "2016-02-26",
+      "pedido": "FT0394",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-2",
+      "item_vendido": "Paletas + Eixo da palheta + Acoplamento",
+      "quantidade": 1,
+      "valor": 253500.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-20",
+      "data_venda": "2016-11-18",
+      "pedido": "FT0438",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-2",
+      "item_vendido": "Mancal",
+      "quantidade": 1,
+      "valor": 85500.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-21",
+      "data_venda": "2017-04-07",
+      "pedido": "FT0489",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-2",
+      "item_vendido": "Rótulas da palheta",
+      "quantidade": 1,
+      "valor": 27600.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-22",
+      "data_venda": "2017-09-22",
+      "pedido": "FT0526",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-2",
+      "item_vendido": "Cardan",
+      "quantidade": 1,
+      "valor": 52800.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-23",
+      "data_venda": "2018-05-15",
+      "pedido": "FT0581",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-2",
+      "item_vendido": "Cilindro",
+      "quantidade": 1,
+      "valor": 102900.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-24",
+      "data_venda": "2018-10-30",
+      "pedido": "FT0617",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-2",
+      "item_vendido": "Rótulas da palheta",
+      "quantidade": 1,
+      "valor": 30300.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-25",
+      "data_venda": "2019-02-14",
+      "pedido": "FT0645",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-2",
+      "item_vendido": "Rotor 1 + Rotor 2",
+      "quantidade": 1,
+      "valor": 564000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-26",
+      "data_venda": "2019-08-09",
+      "pedido": "FT0692",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-2",
+      "item_vendido": "Paletas + Eixo da palheta + Acoplamento",
+      "quantidade": 1,
+      "valor": 289500.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-27",
+      "data_venda": "2019-12-03",
+      "pedido": "FT0716",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-2",
+      "item_vendido": "Mancal",
+      "quantidade": 1,
+      "valor": 97800.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-28",
+      "data_venda": "2020-06-19",
+      "pedido": "FT0768",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-2",
+      "item_vendido": "Rótulas da palheta",
+      "quantidade": 1,
+      "valor": 33600.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-29",
+      "data_venda": "2021-03-05",
+      "pedido": "FT0837",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-2",
+      "item_vendido": "Difusor",
+      "quantidade": 1,
+      "valor": 220500.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-30",
+      "data_venda": "2021-07-27",
+      "pedido": "FT0874",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-2",
+      "item_vendido": "Cilindro",
+      "quantidade": 1,
+      "valor": 119100.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-31",
+      "data_venda": "2021-11-12",
+      "pedido": "FT0909",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-2",
+      "item_vendido": "Cardan",
+      "quantidade": 1,
+      "valor": 64800.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-32",
+      "data_venda": "2022-02-21",
+      "pedido": "FT0941",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-2",
+      "item_vendido": "Rótulas da palheta",
+      "quantidade": 1,
+      "valor": 38400.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-33",
+      "data_venda": "2022-08-16",
+      "pedido": "FT1003",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-2",
+      "item_vendido": "Paletas + Eixo da palheta + Acoplamento",
+      "quantidade": 1,
+      "valor": 337200.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-34",
+      "data_venda": "2022-12-09",
+      "pedido": "FT1032",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-2",
+      "item_vendido": "Silenciador",
+      "quantidade": 1,
+      "valor": 267000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-35",
+      "data_venda": "2023-05-26",
+      "pedido": "FT1086",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-2",
+      "item_vendido": "Mancal",
+      "quantidade": 1,
+      "valor": 114600.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-36",
+      "data_venda": "2023-10-06",
+      "pedido": "FT1137",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-2",
+      "item_vendido": "Rótulas da palheta",
+      "quantidade": 1,
+      "valor": 41700.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-37",
+      "data_venda": "2024-04-18",
+      "pedido": "FT1204",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-2",
+      "item_vendido": "Rotor 1 + Rotor 2",
+      "quantidade": 1,
+      "valor": 693000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-38",
+      "data_venda": "2024-09-11",
+      "pedido": "FT1258",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-2",
+      "item_vendido": "Cilindro",
+      "quantidade": 1,
+      "valor": 138600.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-39",
+      "data_venda": "2024-11-29",
+      "pedido": "FT1289",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-2",
+      "item_vendido": "Carcaça",
+      "quantidade": 1,
+      "valor": 354000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-40",
+      "data_venda": "2025-02-14",
+      "pedido": "FT1321",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-2",
+      "item_vendido": "Rótulas da palheta",
+      "quantidade": 1,
+      "valor": 45600.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-41",
+      "data_venda": "2025-07-08",
+      "pedido": "FT1377",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-2",
+      "item_vendido": "Paletas + Eixo da palheta + Acoplamento",
+      "quantidade": 1,
+      "valor": 389400.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-42",
+      "data_venda": "2014-02-18",
+      "pedido": "NV0235",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-3",
+      "item_vendido": "VARIAX completo",
+      "quantidade": 1,
+      "valor": 1800000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-43",
+      "data_venda": "2015-02-12",
+      "pedido": "FT0315",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-3",
+      "item_vendido": "Rótulas da palheta",
+      "quantidade": 1,
+      "valor": 18000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-44",
+      "data_venda": "2016-02-26",
+      "pedido": "FT0396",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-3",
+      "item_vendido": "Paletas + Eixo da palheta + Acoplamento",
+      "quantidade": 1,
+      "valor": 198000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-45",
+      "data_venda": "2016-11-18",
+      "pedido": "FT0441",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-3",
+      "item_vendido": "Mancal",
+      "quantidade": 1,
+      "valor": 72000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-46",
+      "data_venda": "2017-04-07",
+      "pedido": "FT0492",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-3",
+      "item_vendido": "Rótulas da palheta",
+      "quantidade": 1,
+      "valor": 21000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-47",
+      "data_venda": "2017-09-22",
+      "pedido": "FT0529",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-3",
+      "item_vendido": "Cardan",
+      "quantidade": 1,
+      "valor": 45000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-48",
+      "data_venda": "2018-05-15",
+      "pedido": "FT0584",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-3",
+      "item_vendido": "Cilindro",
+      "quantidade": 1,
+      "valor": 78000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-49",
+      "data_venda": "2018-10-30",
+      "pedido": "FT0621",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-3",
+      "item_vendido": "Rótulas da palheta",
+      "quantidade": 1,
+      "valor": 24000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-50",
+      "data_venda": "2019-02-14",
+      "pedido": "FT0649",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-3",
+      "item_vendido": "Rotor 1",
+      "quantidade": 1,
+      "valor": 315000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-51",
+      "data_venda": "2019-08-09",
+      "pedido": "FT0696",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-3",
+      "item_vendido": "Paletas + Eixo da palheta + Acoplamento",
+      "quantidade": 1,
+      "valor": 225000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-52",
+      "data_venda": "2019-12-03",
+      "pedido": "FT0721",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-3",
+      "item_vendido": "Mancal",
+      "quantidade": 1,
+      "valor": 84000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-53",
+      "data_venda": "2020-06-19",
+      "pedido": "FT0772",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-3",
+      "item_vendido": "Rótulas da palheta",
+      "quantidade": 1,
+      "valor": 27000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-54",
+      "data_venda": "2021-03-05",
+      "pedido": "FT0842",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-3",
+      "item_vendido": "Difusor",
+      "quantidade": 1,
+      "valor": 170000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-55",
+      "data_venda": "2021-07-27",
+      "pedido": "FT0879",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-3",
+      "item_vendido": "Cilindro",
+      "quantidade": 1,
+      "valor": 95000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-56",
+      "data_venda": "2021-11-12",
+      "pedido": "FT0905",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-3",
+      "item_vendido": "Cardan",
+      "quantidade": 1,
+      "valor": 54000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-57",
+      "data_venda": "2022-01-21",
+      "pedido": "FT0947",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-3",
+      "item_vendido": "Rótulas da palheta",
+      "quantidade": 1,
+      "valor": 31000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-58",
+      "data_venda": "2022-08-16",
+      "pedido": "FT1008",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-3",
+      "item_vendido": "Paletas + Eixo da palheta + Acoplamento",
+      "quantidade": 1,
+      "valor": 260000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-59",
+      "data_venda": "2022-12-09",
+      "pedido": "FT1037",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-3",
+      "item_vendido": "Silenciador",
+      "quantidade": 1,
+      "valor": 210000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-60",
+      "data_venda": "2023-05-26",
+      "pedido": "FT1090",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-3",
+      "item_vendido": "Mancal",
+      "quantidade": 1,
+      "valor": 99000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-61",
+      "data_venda": "2023-10-06",
+      "pedido": "FT1142",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-3",
+      "item_vendido": "Rótulas da palheta",
+      "quantidade": 1,
+      "valor": 39000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-62",
+      "data_venda": "2024-04-18",
+      "pedido": "FT1212",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-3",
+      "item_vendido": "Rotor 1",
+      "quantidade": 1,
+      "valor": 390000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-63",
+      "data_venda": "2024-09-11",
+      "pedido": "FT1262",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-3",
+      "item_vendido": "Cilindro",
+      "quantidade": 1,
+      "valor": 120000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-64",
+      "data_venda": "2024-11-29",
+      "pedido": "FT1294",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-3",
+      "item_vendido": "Carcaça",
+      "quantidade": 1,
+      "valor": 290000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-65",
+      "data_venda": "2025-02-14",
+      "pedido": "FT1327",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-3",
+      "item_vendido": "Rótulas da palheta",
+      "quantidade": 1,
+      "valor": 48000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-66",
+      "data_venda": "2025-07-08",
+      "pedido": "FT1384",
+      "client_unit_id": "vale-s-o-lu-s",
+      "equipment_id": "eq-3",
+      "item_vendido": "Paletas + Eixo da palheta + Acoplamento",
+      "quantidade": 1,
+      "valor": 330000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-67",
+      "data_venda": "1998-03-18",
+      "pedido": "NV0001",
+      "client_unit_id": "petrobras-reduc-duque-de-caxias",
+      "equipment_id": "eq-4",
+      "item_vendido": "Air Pre Heater completo",
+      "quantidade": 1,
+      "valor": 10000000.0,
+      "vendedor_id": "sp-2",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-68",
+      "data_venda": "2014-02-12",
+      "pedido": "FT0214",
+      "client_unit_id": "petrobras-reduc-duque-de-caxias",
+      "equipment_id": "eq-4",
+      "item_vendido": "Cestos lado quente",
+      "quantidade": 1,
+      "valor": 1250000.0,
+      "vendedor_id": "sp-2",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-69",
+      "data_venda": "2014-08-27",
+      "pedido": "FT0248",
+      "client_unit_id": "petrobras-reduc-duque-de-caxias",
+      "equipment_id": "eq-4",
+      "item_vendido": "Mancais",
+      "quantidade": 1,
+      "valor": 580000.0,
+      "vendedor_id": "sp-2",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-70",
+      "data_venda": "2015-05-18",
+      "pedido": "FT0311",
+      "client_unit_id": "petrobras-reduc-duque-de-caxias",
+      "equipment_id": "eq-4",
+      "item_vendido": "Cestos lado frio",
+      "quantidade": 1,
+      "valor": 980000.0,
+      "vendedor_id": "sp-2",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-71",
+      "data_venda": "2016-06-09",
+      "pedido": "FT0387",
+      "client_unit_id": "petrobras-reduc-duque-de-caxias",
+      "equipment_id": "eq-4",
+      "item_vendido": "Cestos intermediários",
+      "quantidade": 1,
+      "valor": 1450000.0,
+      "vendedor_id": "sp-2",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-72",
+      "data_venda": "2017-01-23",
+      "pedido": "FT0452",
+      "client_unit_id": "petrobras-reduc-duque-de-caxias",
+      "equipment_id": "eq-4",
+      "item_vendido": "Cestos lado quente",
+      "quantidade": 1,
+      "valor": 1380000.0,
+      "vendedor_id": "sp-2",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-73",
+      "data_venda": "2018-07-16",
+      "pedido": "FT0579",
+      "client_unit_id": "petrobras-reduc-duque-de-caxias",
+      "equipment_id": "eq-4",
+      "item_vendido": "Cestos lado frio",
+      "quantidade": 1,
+      "valor": 1120000.0,
+      "vendedor_id": "sp-2",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-74",
+      "data_venda": "2019-09-05",
+      "pedido": "FT0688",
+      "client_unit_id": "petrobras-reduc-duque-de-caxias",
+      "equipment_id": "eq-4",
+      "item_vendido": "Eixo principal",
+      "quantidade": 1,
+      "valor": 2600000.0,
+      "vendedor_id": "sp-2",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-75",
+      "data_venda": "2019-11-19",
+      "pedido": "FT0713",
+      "client_unit_id": "petrobras-reduc-duque-de-caxias",
+      "equipment_id": "eq-4",
+      "item_vendido": "Mancais",
+      "quantidade": 1,
+      "valor": 690000.0,
+      "vendedor_id": "sp-2",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-76",
+      "data_venda": "2020-04-14",
+      "pedido": "FT0755",
+      "client_unit_id": "petrobras-reduc-duque-de-caxias",
+      "equipment_id": "eq-4",
+      "item_vendido": "Cestos lado quente",
+      "quantidade": 1,
+      "valor": 1520000.0,
+      "vendedor_id": "sp-2",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-77",
+      "data_venda": "2020-10-28",
+      "pedido": "FT0814",
+      "client_unit_id": "petrobras-reduc-duque-de-caxias",
+      "equipment_id": "eq-4",
+      "item_vendido": "Cestos intermediários",
+      "quantidade": 1,
+      "valor": 1620000.0,
+      "vendedor_id": "sp-2",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-78",
+      "data_venda": "2021-09-22",
+      "pedido": "FT0906",
+      "client_unit_id": "petrobras-reduc-duque-de-caxias",
+      "equipment_id": "eq-4",
+      "item_vendido": "Cestos lado frio",
+      "quantidade": 1,
+      "valor": 1260000.0,
+      "vendedor_id": "sp-2",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-79",
+      "data_venda": "2023-02-07",
+      "pedido": "FT1122",
+      "client_unit_id": "petrobras-reduc-duque-de-caxias",
+      "equipment_id": "eq-4",
+      "item_vendido": "Cestos lado quente",
+      "quantidade": 1,
+      "valor": 1710000.0,
+      "vendedor_id": "sp-2",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-80",
+      "data_venda": "2024-06-18",
+      "pedido": "FT1284",
+      "client_unit_id": "petrobras-reduc-duque-de-caxias",
+      "equipment_id": "eq-4",
+      "item_vendido": "Mancais",
+      "quantidade": 1,
+      "valor": 810000.0,
+      "vendedor_id": "sp-2",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-81",
+      "data_venda": "2024-09-11",
+      "pedido": "FT1319",
+      "client_unit_id": "petrobras-reduc-duque-de-caxias",
+      "equipment_id": "eq-4",
+      "item_vendido": "Cestos lado frio",
+      "quantidade": 1,
+      "valor": 1390000.0,
+      "vendedor_id": "sp-2",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-82",
+      "data_venda": "2024-12-04",
+      "pedido": "FT1352",
+      "client_unit_id": "petrobras-reduc-duque-de-caxias",
+      "equipment_id": "eq-4",
+      "item_vendido": "Cestos intermediários",
+      "quantidade": 1,
+      "valor": 1840000.0,
+      "vendedor_id": "sp-2",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-83",
+      "data_venda": "2025-12-16",
+      "pedido": "FT1498",
+      "client_unit_id": "petrobras-reduc-duque-de-caxias",
+      "equipment_id": "eq-4",
+      "item_vendido": "Cestos lado quente",
+      "quantidade": 1,
+      "valor": 1920000.0,
+      "vendedor_id": "sp-2",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-84",
+      "data_venda": "2012-03-18",
+      "pedido": "NV0212",
+      "client_unit_id": "votorantim-laranjeiras",
+      "equipment_id": "eq-5",
+      "item_vendido": "Ventilador Axial completo",
+      "quantidade": 12,
+      "valor": 1440000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-85",
+      "data_venda": "2014-09-22",
+      "pedido": "FT0368",
+      "client_unit_id": "votorantim-laranjeiras",
+      "equipment_id": "eq-5",
+      "item_vendido": "Rotor + Palhetas",
+      "quantidade": 12,
+      "valor": 420000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-86",
+      "data_venda": "2017-03-10",
+      "pedido": "FT0507",
+      "client_unit_id": "votorantim-laranjeiras",
+      "equipment_id": "eq-5",
+      "item_vendido": "Ventilador Axial completo",
+      "quantidade": 12,
+      "valor": 1680000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-87",
+      "data_venda": "2018-07-26",
+      "pedido": "FT0619",
+      "client_unit_id": "votorantim-laranjeiras",
+      "equipment_id": "eq-5",
+      "item_vendido": "Difusor",
+      "quantidade": 6,
+      "valor": 165000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-88",
+      "data_venda": "2019-09-18",
+      "pedido": "FT0736",
+      "client_unit_id": "votorantim-laranjeiras",
+      "equipment_id": "eq-5",
+      "item_vendido": "Rotor + Palhetas",
+      "quantidade": 12,
+      "valor": 520000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-89",
+      "data_venda": "2022-03-14",
+      "pedido": "FT0948",
+      "client_unit_id": "votorantim-laranjeiras",
+      "equipment_id": "eq-5",
+      "item_vendido": "Ventilador Axial completo",
+      "quantidade": 12,
+      "valor": 2050000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-90",
+      "data_venda": "2023-06-20",
+      "pedido": "FT1072",
+      "client_unit_id": "votorantim-laranjeiras",
+      "equipment_id": "eq-5",
+      "item_vendido": "Difusor",
+      "quantidade": 8,
+      "valor": 245000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-91",
+      "data_venda": "2024-09-04",
+      "pedido": "FT1241",
+      "client_unit_id": "votorantim-laranjeiras",
+      "equipment_id": "eq-5",
+      "item_vendido": "Rotor + Palhetas",
+      "quantidade": 12,
+      "valor": 690000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-92",
+      "data_venda": "2025-11-21",
+      "pedido": "FT1378",
+      "client_unit_id": "votorantim-laranjeiras",
+      "equipment_id": "eq-5",
+      "item_vendido": "Carcaça",
+      "quantidade": 4,
+      "valor": 410000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-93",
+      "data_venda": "2014-05-14",
+      "pedido": "NV0258",
+      "client_unit_id": "gerdau-ouro-branco",
+      "equipment_id": "eq-6",
+      "item_vendido": "Ventilador centrífugo completo",
+      "quantidade": 1,
+      "valor": 980000.0,
+      "vendedor_id": "sp-1",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-94",
+      "data_venda": "2016-10-18",
+      "pedido": "FT0449",
+      "client_unit_id": "gerdau-ouro-branco",
+      "equipment_id": "eq-6",
+      "item_vendido": "Rotor + Eixo",
+      "quantidade": 1,
+      "valor": 312000.0,
+      "vendedor_id": "sp-1",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-95",
+      "data_venda": "2017-03-27",
+      "pedido": "FT0498",
+      "client_unit_id": "gerdau-ouro-branco",
+      "equipment_id": "eq-6",
+      "item_vendido": "Mancais",
+      "quantidade": 1,
+      "valor": 62000.0,
+      "vendedor_id": "sp-1",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-96",
+      "data_venda": "2018-08-11",
+      "pedido": "FT0612",
+      "client_unit_id": "gerdau-ouro-branco",
+      "equipment_id": "eq-6",
+      "item_vendido": "Cone aspirante",
+      "quantidade": 1,
+      "valor": 48000.0,
+      "vendedor_id": "sp-1",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-97",
+      "data_venda": "2019-04-06",
+      "pedido": "FT0668",
+      "client_unit_id": "gerdau-ouro-branco",
+      "equipment_id": "eq-6",
+      "item_vendido": "Rotor + Eixo",
+      "quantidade": 1,
+      "valor": 356000.0,
+      "vendedor_id": "sp-1",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-98",
+      "data_venda": "2020-07-22",
+      "pedido": "FT0791",
+      "client_unit_id": "gerdau-ouro-branco",
+      "equipment_id": "eq-6",
+      "item_vendido": "Acoplamento",
+      "quantidade": 1,
+      "valor": 74000.0,
+      "vendedor_id": "sp-1",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-99",
+      "data_venda": "2021-12-15",
+      "pedido": "FT0938",
+      "client_unit_id": "gerdau-ouro-branco",
+      "equipment_id": "eq-6",
+      "item_vendido": "Mancais",
+      "quantidade": 1,
+      "valor": 83000.0,
+      "vendedor_id": "sp-1",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-100",
+      "data_venda": "2022-06-09",
+      "pedido": "FT1019",
+      "client_unit_id": "gerdau-ouro-branco",
+      "equipment_id": "eq-6",
+      "item_vendido": "Rotor + Eixo",
+      "quantidade": 1,
+      "valor": 425000.0,
+      "vendedor_id": "sp-1",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-101",
+      "data_venda": "2023-09-14",
+      "pedido": "FT1154",
+      "client_unit_id": "gerdau-ouro-branco",
+      "equipment_id": "eq-6",
+      "item_vendido": "Cone aspirante",
+      "quantidade": 1,
+      "valor": 68000.0,
+      "vendedor_id": "sp-1",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-102",
+      "data_venda": "2024-04-25",
+      "pedido": "FT1227",
+      "client_unit_id": "gerdau-ouro-branco",
+      "equipment_id": "eq-6",
+      "item_vendido": "Carcaça",
+      "quantidade": 1,
+      "valor": 255000.0,
+      "vendedor_id": "sp-1",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-103",
+      "data_venda": "2025-11-30",
+      "pedido": "FT1398",
+      "client_unit_id": "gerdau-ouro-branco",
+      "equipment_id": "eq-6",
+      "item_vendido": "Rotor + Eixo",
+      "quantidade": 1,
+      "valor": 518000.0,
+      "vendedor_id": "sp-1",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-104",
+      "data_venda": "2015-02-07",
+      "pedido": "NV0304",
+      "client_unit_id": "csn-volta-redonda",
+      "equipment_id": "eq-7",
+      "item_vendido": "Ventilador Axial completo",
+      "quantidade": 1,
+      "valor": 740000.0,
+      "vendedor_id": "sp-2",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-105",
+      "data_venda": "2017-09-18",
+      "pedido": "FT0533",
+      "client_unit_id": "csn-volta-redonda",
+      "equipment_id": "eq-7",
+      "item_vendido": "Rotor + Palhetas",
+      "quantidade": 1,
+      "valor": 268000.0,
+      "vendedor_id": "sp-2",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-106",
+      "data_venda": "2018-05-21",
+      "pedido": "FT0601",
+      "client_unit_id": "csn-volta-redonda",
+      "equipment_id": "eq-7",
+      "item_vendido": "Difusor",
+      "quantidade": 1,
+      "valor": 92000.0,
+      "vendedor_id": "sp-2",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-107",
+      "data_venda": "2020-03-04",
+      "pedido": "FT0741",
+      "client_unit_id": "csn-volta-redonda",
+      "equipment_id": "eq-7",
+      "item_vendido": "Rotor + Palhetas",
+      "quantidade": 1,
+      "valor": 318000.0,
+      "vendedor_id": "sp-2",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-108",
+      "data_venda": "2020-10-15",
+      "pedido": "FT0811",
+      "client_unit_id": "csn-volta-redonda",
+      "equipment_id": "eq-7",
+      "item_vendido": "Mancais",
+      "quantidade": 1,
+      "valor": 64000.0,
+      "vendedor_id": "sp-2",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-109",
+      "data_venda": "2022-08-12",
+      "pedido": "FT1001",
+      "client_unit_id": "csn-volta-redonda",
+      "equipment_id": "eq-7",
+      "item_vendido": "Ventilador Axial completo",
+      "quantidade": 1,
+      "valor": 930000.0,
+      "vendedor_id": "sp-2",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-110",
+      "data_venda": "2024-01-19",
+      "pedido": "FT1191",
+      "client_unit_id": "csn-volta-redonda",
+      "equipment_id": "eq-7",
+      "item_vendido": "Difusor",
+      "quantidade": 1,
+      "valor": 118000.0,
+      "vendedor_id": "sp-2",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-111",
+      "data_venda": "2024-09-04",
+      "pedido": "FT1257",
+      "client_unit_id": "csn-volta-redonda",
+      "equipment_id": "eq-7",
+      "item_vendido": "Rotor + Palhetas",
+      "quantidade": 1,
+      "valor": 395000.0,
+      "vendedor_id": "sp-2",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-112",
+      "data_venda": "2006-09-10",
+      "pedido": "NV0089",
+      "client_unit_id": "petrobras-cubat-o",
+      "equipment_id": "eq-8",
+      "item_vendido": "Air Pre Heater completo",
+      "quantidade": 1,
+      "valor": 14500000.0,
+      "vendedor_id": "sp-1",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-113",
+      "data_venda": "2014-03-13",
+      "pedido": "FT0228",
+      "client_unit_id": "petrobras-cubat-o",
+      "equipment_id": "eq-8",
+      "item_vendido": "Cestos lado quente",
+      "quantidade": 1,
+      "valor": 1680000.0,
+      "vendedor_id": "sp-1",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-114",
+      "data_venda": "2015-11-27",
+      "pedido": "FT0346",
+      "client_unit_id": "petrobras-cubat-o",
+      "equipment_id": "eq-8",
+      "item_vendido": "Cestos lado frio",
+      "quantidade": 1,
+      "valor": 1260000.0,
+      "vendedor_id": "sp-1",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-115",
+      "data_venda": "2016-07-04",
+      "pedido": "FT0409",
+      "client_unit_id": "petrobras-cubat-o",
+      "equipment_id": "eq-8",
+      "item_vendido": "Mancais",
+      "quantidade": 1,
+      "valor": 740000.0,
+      "vendedor_id": "sp-1",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-116",
+      "data_venda": "2017-06-21",
+      "pedido": "FT0504",
+      "client_unit_id": "petrobras-cubat-o",
+      "equipment_id": "eq-8",
+      "item_vendido": "Cestos intermediários",
+      "quantidade": 1,
+      "valor": 1950000.0,
+      "vendedor_id": "sp-1",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-117",
+      "data_venda": "2018-01-09",
+      "pedido": "FT0557",
+      "client_unit_id": "petrobras-cubat-o",
+      "equipment_id": "eq-8",
+      "item_vendido": "Cestos lado quente",
+      "quantidade": 1,
+      "valor": 1820000.0,
+      "vendedor_id": "sp-1",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-118",
+      "data_venda": "2019-08-11",
+      "pedido": "FT0681",
+      "client_unit_id": "petrobras-cubat-o",
+      "equipment_id": "eq-8",
+      "item_vendido": "Eixo principal",
+      "quantidade": 1,
+      "valor": 3150000.0,
+      "vendedor_id": "sp-1",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-119",
+      "data_venda": "2020-10-23",
+      "pedido": "FT0818",
+      "client_unit_id": "petrobras-cubat-o",
+      "equipment_id": "eq-8",
+      "item_vendido": "Cestos lado frio",
+      "quantidade": 1,
+      "valor": 1480000.0,
+      "vendedor_id": "sp-1",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-120",
+      "data_venda": "2021-05-05",
+      "pedido": "FT0859",
+      "client_unit_id": "petrobras-cubat-o",
+      "equipment_id": "eq-8",
+      "item_vendido": "Cestos lado quente",
+      "quantidade": 1,
+      "valor": 2080000.0,
+      "vendedor_id": "sp-1",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-121",
+      "data_venda": "2021-09-28",
+      "pedido": "FT0908",
+      "client_unit_id": "petrobras-cubat-o",
+      "equipment_id": "eq-8",
+      "item_vendido": "Vedação radial",
+      "quantidade": 1,
+      "valor": 420000.0,
+      "vendedor_id": "sp-1",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-122",
+      "data_venda": "2022-02-14",
+      "pedido": "FT0955",
+      "client_unit_id": "petrobras-cubat-o",
+      "equipment_id": "eq-8",
+      "item_vendido": "Mancais",
+      "quantidade": 1,
+      "valor": 890000.0,
+      "vendedor_id": "sp-1",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-123",
+      "data_venda": "2023-04-19",
+      "pedido": "FT1078",
+      "client_unit_id": "petrobras-cubat-o",
+      "equipment_id": "eq-8",
+      "item_vendido": "Cestos intermediários",
+      "quantidade": 1,
+      "valor": 2280000.0,
+      "vendedor_id": "sp-1",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-124",
+      "data_venda": "2024-03-07",
+      "pedido": "FT1209",
+      "client_unit_id": "petrobras-cubat-o",
+      "equipment_id": "eq-8",
+      "item_vendido": "Cestos lado quente",
+      "quantidade": 1,
+      "valor": 2420000.0,
+      "vendedor_id": "sp-1",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-125",
+      "data_venda": "2025-10-16",
+      "pedido": "FT1371",
+      "client_unit_id": "petrobras-cubat-o",
+      "equipment_id": "eq-8",
+      "item_vendido": "Cestos lado frio",
+      "quantidade": 1,
+      "valor": 1730000.0,
+      "vendedor_id": "sp-1",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-126",
+      "data_venda": "2015-04-22",
+      "pedido": "NV0328",
+      "client_unit_id": "vale-itabira",
+      "equipment_id": "eq-9",
+      "item_vendido": "VARIAX completo",
+      "quantidade": 1,
+      "valor": 3200000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-127",
+      "data_venda": "2016-03-11",
+      "pedido": "FT0382",
+      "client_unit_id": "vale-itabira",
+      "equipment_id": "eq-9",
+      "item_vendido": "Rótulas da palheta",
+      "quantidade": 1,
+      "valor": 32000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-128",
+      "data_venda": "2017-09-26",
+      "pedido": "FT0530",
+      "client_unit_id": "vale-itabira",
+      "equipment_id": "eq-9",
+      "item_vendido": "Paletas + Eixo da palheta + Acoplamento",
+      "quantidade": 1,
+      "valor": 462000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-129",
+      "data_venda": "2018-04-10",
+      "pedido": "FT0589",
+      "client_unit_id": "vale-itabira",
+      "equipment_id": "eq-9",
+      "item_vendido": "Mancal",
+      "quantidade": 1,
+      "valor": 128000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-130",
+      "data_venda": "2018-11-22",
+      "pedido": "FT0638",
+      "client_unit_id": "vale-itabira",
+      "equipment_id": "eq-9",
+      "item_vendido": "Cardan",
+      "quantidade": 1,
+      "valor": 78000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-131",
+      "data_venda": "2019-05-17",
+      "pedido": "FT0672",
+      "client_unit_id": "vale-itabira",
+      "equipment_id": "eq-9",
+      "item_vendido": "Rotor 1 + Rotor 2",
+      "quantidade": 1,
+      "valor": 840000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-132",
+      "data_venda": "2020-02-05",
+      "pedido": "FT0734",
+      "client_unit_id": "vale-itabira",
+      "equipment_id": "eq-9",
+      "item_vendido": "Rótulas da palheta",
+      "quantidade": 1,
+      "valor": 38000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-133",
+      "data_venda": "2020-09-23",
+      "pedido": "FT0807",
+      "client_unit_id": "vale-itabira",
+      "equipment_id": "eq-9",
+      "item_vendido": "Cilindro",
+      "quantidade": 1,
+      "valor": 158000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-134",
+      "data_venda": "2021-08-14",
+      "pedido": "FT0888",
+      "client_unit_id": "vale-itabira",
+      "equipment_id": "eq-9",
+      "item_vendido": "Paletas + Eixo da palheta + Acoplamento",
+      "quantidade": 1,
+      "valor": 510000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-135",
+      "data_venda": "2022-06-09",
+      "pedido": "FT1012",
+      "client_unit_id": "vale-itabira",
+      "equipment_id": "eq-9",
+      "item_vendido": "Difusor",
+      "quantidade": 1,
+      "valor": 318000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-136",
+      "data_venda": "2022-11-17",
+      "pedido": "FT1039",
+      "client_unit_id": "vale-itabira",
+      "equipment_id": "eq-9",
+      "item_vendido": "Mancal",
+      "quantidade": 1,
+      "valor": 146000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-137",
+      "data_venda": "2024-04-27",
+      "pedido": "FT1221",
+      "client_unit_id": "vale-itabira",
+      "equipment_id": "eq-9",
+      "item_vendido": "Rotor 1 + Rotor 2",
+      "quantidade": 1,
+      "valor": 990000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-138",
+      "data_venda": "2024-07-04",
+      "pedido": "FT1246",
+      "client_unit_id": "vale-itabira",
+      "equipment_id": "eq-9",
+      "item_vendido": "Rótulas da palheta",
+      "quantidade": 1,
+      "valor": 52000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-139",
+      "data_venda": "2025-09-12",
+      "pedido": "FT1395",
+      "client_unit_id": "vale-itabira",
+      "equipment_id": "eq-9",
+      "item_vendido": "Paletas + Eixo da palheta + Acoplamento",
+      "quantidade": 1,
+      "valor": 640000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-140",
+      "data_venda": "2016-08-03",
+      "pedido": "NV0401",
+      "client_unit_id": "suzano-imperatriz",
+      "equipment_id": "eq-10",
+      "item_vendido": "Ventilador centrífugo completo",
+      "quantidade": 1,
+      "valor": 1180000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-141",
+      "data_venda": "2017-12-12",
+      "pedido": "FT0548",
+      "client_unit_id": "suzano-imperatriz",
+      "equipment_id": "eq-10",
+      "item_vendido": "Mancais",
+      "quantidade": 1,
+      "valor": 76000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-142",
+      "data_venda": "2019-04-18",
+      "pedido": "FT0661",
+      "client_unit_id": "suzano-imperatriz",
+      "equipment_id": "eq-10",
+      "item_vendido": "Rotor + Eixo",
+      "quantidade": 1,
+      "valor": 388000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-143",
+      "data_venda": "2019-09-30",
+      "pedido": "FT0710",
+      "client_unit_id": "suzano-imperatriz",
+      "equipment_id": "eq-10",
+      "item_vendido": "Cone aspirante",
+      "quantidade": 1,
+      "valor": 58000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-144",
+      "data_venda": "2021-02-19",
+      "pedido": "FT0832",
+      "client_unit_id": "suzano-imperatriz",
+      "equipment_id": "eq-10",
+      "item_vendido": "Registro veneziana",
+      "quantidade": 1,
+      "valor": 88000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-145",
+      "data_venda": "2021-10-16",
+      "pedido": "FT0918",
+      "client_unit_id": "suzano-imperatriz",
+      "equipment_id": "eq-10",
+      "item_vendido": "Mancais",
+      "quantidade": 1,
+      "valor": 94000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-146",
+      "data_venda": "2022-09-02",
+      "pedido": "FT1017",
+      "client_unit_id": "suzano-imperatriz",
+      "equipment_id": "eq-10",
+      "item_vendido": "Rotor + Eixo",
+      "quantidade": 1,
+      "valor": 462000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-147",
+      "data_venda": "2023-05-08",
+      "pedido": "FT1081",
+      "client_unit_id": "suzano-imperatriz",
+      "equipment_id": "eq-10",
+      "item_vendido": "Carcaça",
+      "quantidade": 1,
+      "valor": 310000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-148",
+      "data_venda": "2024-01-26",
+      "pedido": "FT1194",
+      "client_unit_id": "suzano-imperatriz",
+      "equipment_id": "eq-10",
+      "item_vendido": "Cone aspirante",
+      "quantidade": 1,
+      "valor": 73000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-149",
+      "data_venda": "2025-05-14",
+      "pedido": "FT1344",
+      "client_unit_id": "suzano-imperatriz",
+      "equipment_id": "eq-10",
+      "item_vendido": "Mancais",
+      "quantidade": 1,
+      "valor": 116000.0,
+      "vendedor_id": "sp-3",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-150",
+      "data_venda": "2017-06-28",
+      "pedido": "NV0462",
+      "client_unit_id": "klabin-ortigueira",
+      "equipment_id": "eq-11",
+      "item_vendido": "Soprador Industrial completo",
+      "quantidade": 1,
+      "valor": 620000.0,
+      "vendedor_id": "sp-4",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-151",
+      "data_venda": "2018-03-16",
+      "pedido": "FT0580",
+      "client_unit_id": "klabin-ortigueira",
+      "equipment_id": "eq-11",
+      "item_vendido": "Vedação",
+      "quantidade": 1,
+      "valor": 42000.0,
+      "vendedor_id": "sp-4",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-152",
+      "data_venda": "2019-12-03",
+      "pedido": "FT0718",
+      "client_unit_id": "klabin-ortigueira",
+      "equipment_id": "eq-11",
+      "item_vendido": "Mancais",
+      "quantidade": 1,
+      "valor": 68000.0,
+      "vendedor_id": "sp-4",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-153",
+      "data_venda": "2020-07-21",
+      "pedido": "FT0790",
+      "client_unit_id": "klabin-ortigueira",
+      "equipment_id": "eq-11",
+      "item_vendido": "Rotor + Lóbulos",
+      "quantidade": 1,
+      "valor": 235000.0,
+      "vendedor_id": "sp-4",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-154",
+      "data_venda": "2021-11-11",
+      "pedido": "FT0921",
+      "client_unit_id": "klabin-ortigueira",
+      "equipment_id": "eq-11",
+      "item_vendido": "Engrenagens",
+      "quantidade": 1,
+      "valor": 158000.0,
+      "vendedor_id": "sp-4",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-155",
+      "data_venda": "2022-04-28",
+      "pedido": "FT0977",
+      "client_unit_id": "klabin-ortigueira",
+      "equipment_id": "eq-11",
+      "item_vendido": "Vedação",
+      "quantidade": 1,
+      "valor": 52000.0,
+      "vendedor_id": "sp-4",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-156",
+      "data_venda": "2023-09-12",
+      "pedido": "FT1139",
+      "client_unit_id": "klabin-ortigueira",
+      "equipment_id": "eq-11",
+      "item_vendido": "Mancais",
+      "quantidade": 1,
+      "valor": 82000.0,
+      "vendedor_id": "sp-4",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-157",
+      "data_venda": "2024-02-07",
+      "pedido": "FT1199",
+      "client_unit_id": "klabin-ortigueira",
+      "equipment_id": "eq-11",
+      "item_vendido": "Acoplamento",
+      "quantidade": 1,
+      "valor": 61000.0,
+      "vendedor_id": "sp-4",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-158",
+      "data_venda": "2024-12-19",
+      "pedido": "FT1308",
+      "client_unit_id": "klabin-ortigueira",
+      "equipment_id": "eq-11",
+      "item_vendido": "Rotor + Lóbulos",
+      "quantidade": 1,
+      "valor": 298000.0,
+      "vendedor_id": "sp-4",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-159",
+      "data_venda": "2014-10-09",
+      "pedido": "NV0278",
+      "client_unit_id": "usiminas-ipatinga",
+      "equipment_id": "eq-12",
+      "item_vendido": "Exaustor Industrial completo",
+      "quantidade": 1,
+      "valor": 2750000.0,
+      "vendedor_id": "sp-1",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-160",
+      "data_venda": "2016-06-19",
+      "pedido": "FT0412",
+      "client_unit_id": "usiminas-ipatinga",
+      "equipment_id": "eq-12",
+      "item_vendido": "Rotor + Eixo",
+      "quantidade": 1,
+      "valor": 790000.0,
+      "vendedor_id": "sp-1",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-161",
+      "data_venda": "2017-05-11",
+      "pedido": "FT0499",
+      "client_unit_id": "usiminas-ipatinga",
+      "equipment_id": "eq-12",
+      "item_vendido": "Mancais",
+      "quantidade": 1,
+      "valor": 185000.0,
+      "vendedor_id": "sp-1",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-162",
+      "data_venda": "2018-12-06",
+      "pedido": "FT0626",
+      "client_unit_id": "usiminas-ipatinga",
+      "equipment_id": "eq-12",
+      "item_vendido": "Difusor",
+      "quantidade": 1,
+      "valor": 330000.0,
+      "vendedor_id": "sp-1",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-163",
+      "data_venda": "2019-01-24",
+      "pedido": "FT0641",
+      "client_unit_id": "usiminas-ipatinga",
+      "equipment_id": "eq-12",
+      "item_vendido": "Acoplamento",
+      "quantidade": 1,
+      "valor": 142000.0,
+      "vendedor_id": "sp-1",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-164",
+      "data_venda": "2019-11-15",
+      "pedido": "FT0711",
+      "client_unit_id": "usiminas-ipatinga",
+      "equipment_id": "eq-12",
+      "item_vendido": "Rotor + Eixo",
+      "quantidade": 1,
+      "valor": 890000.0,
+      "vendedor_id": "sp-1",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-165",
+      "data_venda": "2020-07-22",
+      "pedido": "FT0799",
+      "client_unit_id": "usiminas-ipatinga",
+      "equipment_id": "eq-12",
+      "item_vendido": "Registro de entrada",
+      "quantidade": 1,
+      "valor": 210000.0,
+      "vendedor_id": "sp-1",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-166",
+      "data_venda": "2022-03-29",
+      "pedido": "FT0968",
+      "client_unit_id": "usiminas-ipatinga",
+      "equipment_id": "eq-12",
+      "item_vendido": "Mancais",
+      "quantidade": 1,
+      "valor": 235000.0,
+      "vendedor_id": "sp-1",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-167",
+      "data_venda": "2022-08-04",
+      "pedido": "FT1004",
+      "client_unit_id": "usiminas-ipatinga",
+      "equipment_id": "eq-12",
+      "item_vendido": "Carcaça",
+      "quantidade": 1,
+      "valor": 690000.0,
+      "vendedor_id": "sp-1",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-168",
+      "data_venda": "2023-06-13",
+      "pedido": "FT1094",
+      "client_unit_id": "usiminas-ipatinga",
+      "equipment_id": "eq-12",
+      "item_vendido": "Rotor + Eixo",
+      "quantidade": 1,
+      "valor": 1080000.0,
+      "vendedor_id": "sp-1",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-169",
+      "data_venda": "2024-10-18",
+      "pedido": "FT1273",
+      "client_unit_id": "usiminas-ipatinga",
+      "equipment_id": "eq-12",
+      "item_vendido": "Difusor",
+      "quantidade": 1,
+      "valor": 405000.0,
+      "vendedor_id": "sp-1",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-170",
+      "data_venda": "2018-01-17",
+      "pedido": "NV0506",
+      "client_unit_id": "arcelormittal-tubar-o",
+      "equipment_id": "eq-13",
+      "item_vendido": "Ventilador de Tiragem completo",
+      "quantidade": 1,
+      "valor": 1950000.0,
+      "vendedor_id": "sp-2",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-171",
+      "data_venda": "2019-10-24",
+      "pedido": "FT0702",
+      "client_unit_id": "arcelormittal-tubar-o",
+      "equipment_id": "eq-13",
+      "item_vendido": "Pás diretrizes",
+      "quantidade": 1,
+      "valor": 240000.0,
+      "vendedor_id": "sp-2",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-172",
+      "data_venda": "2020-04-09",
+      "pedido": "FT0758",
+      "client_unit_id": "arcelormittal-tubar-o",
+      "equipment_id": "eq-13",
+      "item_vendido": "Mancais",
+      "quantidade": 1,
+      "valor": 130000.0,
+      "vendedor_id": "sp-2",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-173",
+      "data_venda": "2020-08-16",
+      "pedido": "FT0796",
+      "client_unit_id": "arcelormittal-tubar-o",
+      "equipment_id": "eq-13",
+      "item_vendido": "Rotor + Eixo",
+      "quantidade": 1,
+      "valor": 650000.0,
+      "vendedor_id": "sp-2",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-174",
+      "data_venda": "2021-03-11",
+      "pedido": "FT0849",
+      "client_unit_id": "arcelormittal-tubar-o",
+      "equipment_id": "eq-13",
+      "item_vendido": "Cone de entrada",
+      "quantidade": 1,
+      "valor": 110000.0,
+      "vendedor_id": "sp-2",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-175",
+      "data_venda": "2022-09-29",
+      "pedido": "FT1018",
+      "client_unit_id": "arcelormittal-tubar-o",
+      "equipment_id": "eq-13",
+      "item_vendido": "Rotor + Eixo",
+      "quantidade": 1,
+      "valor": 740000.0,
+      "vendedor_id": "sp-2",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-176",
+      "data_venda": "2023-02-17",
+      "pedido": "FT1064",
+      "client_unit_id": "arcelormittal-tubar-o",
+      "equipment_id": "eq-13",
+      "item_vendido": "Mancais",
+      "quantidade": 1,
+      "valor": 156000.0,
+      "vendedor_id": "sp-2",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-177",
+      "data_venda": "2023-11-22",
+      "pedido": "FT1168",
+      "client_unit_id": "arcelormittal-tubar-o",
+      "equipment_id": "eq-13",
+      "item_vendido": "Carcaça",
+      "quantidade": 1,
+      "valor": 495000.0,
+      "vendedor_id": "sp-2",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-178",
+      "data_venda": "2024-05-08",
+      "pedido": "FT1219",
+      "client_unit_id": "arcelormittal-tubar-o",
+      "equipment_id": "eq-13",
+      "item_vendido": "Pás diretrizes",
+      "quantidade": 1,
+      "valor": 310000.0,
+      "vendedor_id": "sp-2",
+      "origem": "Importação Word"
+    },
+    {
+      "id": "sl-179",
+      "data_venda": "2025-02-25",
+      "pedido": "FT1329",
+      "client_unit_id": "arcelormittal-tubar-o",
+      "equipment_id": "eq-13",
+      "item_vendido": "Rotor + Eixo",
+      "quantidade": 1,
+      "valor": 865000.0,
+      "vendedor_id": "sp-2",
+      "origem": "Importação Word"
+    }
+  ],
+  "users": [
+    {
+      "id": "u-admin",
+      "nome": "Administrador Howden",
+      "email": "admin@howden.com",
+      "password": "admin123",
+      "perfil": "admin",
+      "telefone": "+55 11 90000-0000",
+      "salesperson_id": null
+    },
+    {
+      "id": "u-diretor",
+      "nome": "Diretor Comercial",
+      "email": "diretor@howden.com",
+      "password": "diretor123",
+      "perfil": "diretor",
+      "telefone": "+55 11 90000-0001",
+      "salesperson_id": null
+    },
+    {
+      "id": "u-gestor",
+      "nome": "Gestor Comercial",
+      "email": "gestor@howden.com",
+      "password": "gestor123",
+      "perfil": "gestor",
+      "telefone": "+55 11 90000-0002",
+      "salesperson_id": "sp-mgr"
+    },
+    {
+      "id": "u-carlos",
+      "nome": "Carlos Andrade",
+      "email": "carlos@howden.com",
+      "password": "vendedor123",
+      "perfil": "vendedor",
+      "telefone": "+55 11 98000-0001",
+      "salesperson_id": "sp-1"
+    },
+    {
+      "id": "u-fernanda",
+      "nome": "Fernanda Lima",
+      "email": "fernanda@howden.com",
+      "password": "vendedor123",
+      "perfil": "vendedor",
+      "telefone": "+55 21 98000-0002",
+      "salesperson_id": "sp-2"
+    },
+    {
+      "id": "u-ricardo",
+      "nome": "Ricardo Souza",
+      "email": "ricardo@howden.com",
+      "password": "vendedor123",
+      "perfil": "vendedor",
+      "telefone": "+55 98 98000-0003",
+      "salesperson_id": "sp-3"
+    },
+    {
+      "id": "u-juliana",
+      "nome": "Juliana Castro",
+      "email": "juliana@howden.com",
+      "password": "vendedor123",
+      "perfil": "vendedor",
+      "telefone": "+55 41 98000-0004",
+      "salesperson_id": "sp-4"
+    }
+  ]
+}

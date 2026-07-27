@@ -16,4 +16,11 @@
     <PackageReference Include="ClosedXML" Version="0.102.2" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Base de demonstração (mesmos dados do app original). É semeada na base
+         Parquet na primeira execução, se a pasta estiver vazia. Copiada para a
+         pasta de saída para o DbInitializer conseguir ler em runtime. -->
+    <None Update="Data\seed.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

@@ -1,7 +1,103 @@
 @page "/base-instalada"
 @attribute [Authorize]
+@rendermode InteractiveServer
+@inject InstalledBaseRepository Base
+@inject EquipmentRepository Equipamentos
+@inject ClientUnitRepository Units
+@inject SalespersonRepository Salespeople
+
 <PageTitle>Base Instalada · AFM HSA</PageTitle>
 
-<ModuleScaffold Title="Base Instalada"
-                Subtitle="Equipamentos instalados na base de clientes."
-                Icon="boxes" />
+<h1>Base Instalada</h1>
+<p class="subtitle">@Filtradas.Count equipamento(s) instalado(s) · @Filtradas.Sum(b => b.Quantidade) unidade(s)</p>
+
+<div class="toolbar">
+    <input class="cell" style="max-width:320px" placeholder="Buscar unidade, equipamento…"
+           @bind="_busca" @bind:event="oninput" />
+    <select class="cell" style="max-width:180px" @bind="_crit">
+        <option value="">Toda criticidade</option>
+        <option value="crítica">Crítica</option>
+        <option value="alta">Alta</option>
+        <option value="média">Média</option>
+        <option value="baixa">Baixa</option>
+    </select>
+</div>
+
+<div style="overflow-x:auto">
+<table class="grid">
+    <thead>
+        <tr>
+            <th>Unidade</th><th>Equipamento</th><th class="right">Qtd</th><th>Ano</th>
+            <th>Criticidade</th><th>Status</th><th>Vendedor</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var b in Filtradas)
+        {
+            <tr>
+                <td>@Unidade(b.ClientUnitId)</td>
+                <td>@Equip(b.EquipmentId)</td>
+                <td class="right">@b.Quantidade</td>
+                <td>@(b.AnoInstalacao > 0 ? b.AnoInstalacao.ToString() : "—")</td>
+                <td><span class="badge @CritClass(b.Criticidade)">@Cap(b.Criticidade)</span></td>
+                <td>@Cap(b.Status)</td>
+                <td>@Vendedor(b.VendedorId)</td>
+            </tr>
+        }
+        @if (Filtradas.Count == 0)
+        {
+            <tr><td colspan="7" class="empty">Nenhum equipamento encontrado.</td></tr>
+        }
+    </tbody>
+</table>
+</div>
+
+@code {
+    private List<InstalledBase> _all = new();
+    private Dictionary<string, string> _equip = new();
+    private Dictionary<string, string> _unit = new();
+    private Dictionary<string, string> _sp = new();
+    private string _busca = "";
+    private string _crit = "";
+
+    protected override void OnInitialized()
+    {
+        _all = Base.All();
+        _equip = Equipamentos.All().ToDictionary(e => e.Id, e => e.Nome);
+        _unit = Units.All().ToDictionary(u => u.Id, u => u.NomeUnidade);
+        _sp = Salespeople.All().ToDictionary(s => s.Id, s => s.Nome);
+    }
+
+    private string Unidade(string id) => _unit.TryGetValue(id, out var n) ? n : id;
+    private string Equip(string id) => _equip.TryGetValue(id, out var n) ? n : id;
+    private string Vendedor(string id) => _sp.TryGetValue(id, out var n) ? n : id;
+
+    private List<InstalledBase> Filtradas
+    {
+        get
+        {
+            IEnumerable<InstalledBase> q = _all;
+            if (!string.IsNullOrWhiteSpace(_crit))
+                q = q.Where(b => b.Criticidade.Equals(_crit, StringComparison.OrdinalIgnoreCase));
+            if (!string.IsNullOrWhiteSpace(_busca))
+            {
+                var s = _busca.Trim().ToLowerInvariant();
+                q = q.Where(b => (Unidade(b.ClientUnitId) + Equip(b.EquipmentId) + b.Status)
+                    .ToLowerInvariant().Contains(s));
+            }
+            return q.OrderBy(b => Unidade(b.ClientUnitId)).ToList();
+        }
+    }
+
+    private static string Cap(string s) =>
+        string.IsNullOrEmpty(s) ? "—" : char.ToUpperInvariant(s[0]) + s[1..];
+
+    private static string CritClass(string c) => c.ToLowerInvariant() switch
+    {
+        "crítica" => "st-vencida",
+        "alta" => "st-critica",
+        "média" => "st-atencao",
+        "baixa" => "st-ok",
+        _ => "st-plan",
+    };
+}

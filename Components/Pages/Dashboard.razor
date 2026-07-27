@@ -1,7 +1,77 @@
 @page "/dashboard"
 @attribute [Authorize]
+@rendermode InteractiveServer
+@inject CompanyRepository Companies
+@inject ClientUnitRepository Units
+@inject EquipmentRepository Equipamentos
+@inject InstalledBaseRepository Base
+@inject PartRepository Pecas
+@inject SalespersonRepository Salespeople
+@inject SalesRecordRepository Vendas
+
 <PageTitle>Central de Inteligência · AFM HSA</PageTitle>
 
-<ModuleScaffold Title="Central de Inteligência"
-                Subtitle="Visão geral de indicadores comerciais da base instalada."
-                Icon="dashboard" />
+<h1>Central de Inteligência</h1>
+<p class="subtitle">Visão geral da base instalada industrial e do histórico comercial.</p>
+
+<div class="kpis kpis-8">
+    <div class="kpi"><div class="kpi-label">Clientes</div><div class="kpi-value">@_companies</div></div>
+    <div class="kpi"><div class="kpi-label">Unidades</div><div class="kpi-value">@_units</div></div>
+    <div class="kpi"><div class="kpi-label">Equipamentos</div><div class="kpi-value">@_equip</div></div>
+    <div class="kpi"><div class="kpi-label">Base instalada</div><div class="kpi-value">@_base</div></div>
+    <div class="kpi"><div class="kpi-label">Peças</div><div class="kpi-value">@_parts</div></div>
+    <div class="kpi"><div class="kpi-label">Vendedores</div><div class="kpi-value">@_sp</div></div>
+    <div class="kpi"><div class="kpi-label">Vendas (hist.)</div><div class="kpi-value">@_salesCount</div></div>
+    <div class="kpi k-ren"><div class="kpi-label">Total vendido</div><div class="kpi-value" style="font-size:16px">@Fmt.Brl(_salesTotal)</div></div>
+</div>
+
+<div class="panel">
+    <div class="dash-title">Base instalada por segmento</div>
+    @if (_porSegmento.Count == 0)
+    {
+        <p class="empty">Sem dados de base instalada.</p>
+    }
+    else
+    {
+        var max = _porSegmento.Max(x => x.Value);
+        @foreach (var s in _porSegmento.OrderByDescending(x => x.Value))
+        {
+            <div class="bar-row">
+                <div class="bar-label">@s.Key</div>
+                <div class="bar-track"><div class="bar" style="width:@(Pct(s.Value, max))%"></div></div>
+                <div class="bar-value">@s.Value</div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private int _companies, _units, _equip, _base, _parts, _sp, _salesCount;
+    private decimal _salesTotal;
+    private Dictionary<string, int> _porSegmento = new();
+
+    protected override void OnInitialized()
+    {
+        var companies = Companies.All();
+        var units = Units.All();
+        var equip = Equipamentos.All();
+        var baseInst = Base.All();
+        var vendas = Vendas.All();
+
+        _companies = companies.Count;
+        _units = units.Count;
+        _equip = equip.Count;
+        _base = baseInst.Sum(b => b.Quantidade);
+        _parts = Pecas.All().Count;
+        _sp = Salespeople.All().Count(s => s.Ativo);
+        _salesCount = vendas.Count;
+        _salesTotal = vendas.Sum(v => v.Valor);
+
+        var unitSeg = units.ToDictionary(u => u.Id, u => u.Segmento);
+        _porSegmento = baseInst
+            .GroupBy(b => unitSeg.TryGetValue(b.ClientUnitId, out var seg) && !string.IsNullOrEmpty(seg) ? seg : "Outros")
+            .ToDictionary(g => g.Key, g => g.Sum(b => b.Quantidade));
+    }
+
+    private static int Pct(int v, int max) => max <= 0 ? 0 : (int)Math.Round(100.0 * v / max);
+}

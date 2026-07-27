@@ -35,8 +35,16 @@ builder.Services.AddAuthorization();
 //   \\BZVCPFIL003\proj_ramires$\DB\AFM_HSA
 var dataFolder = builder.Configuration["Data:Folder"] ?? "data";
 builder.Services.AddSingleton(new ParquetStore(dataFolder));
-// Os repositórios por entidade (scoped) entram aqui conforme cada módulo for
-// implementado, ex.: builder.Services.AddScoped<ClienteRepository>();
+
+// Repositórios por entidade (scoped) — camada de dados da base industrial.
+builder.Services.AddScoped<CompanyRepository>();
+builder.Services.AddScoped<ClientUnitRepository>();
+builder.Services.AddScoped<SalespersonRepository>();
+builder.Services.AddScoped<EquipmentRepository>();
+builder.Services.AddScoped<InstalledBaseRepository>();
+builder.Services.AddScoped<PartRepository>();
+builder.Services.AddScoped<SalesRecordRepository>();
+builder.Services.AddScoped<AppUserRepository>();
 
 var app = builder.Build();
 

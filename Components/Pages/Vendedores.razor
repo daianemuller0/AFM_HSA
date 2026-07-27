@@ -1,7 +1,76 @@
 @page "/vendedores"
 @attribute [Authorize]
+@rendermode InteractiveServer
+@inject SalespersonRepository Salespeople
+@inject ClientUnitRepository Units
+
 <PageTitle>Vendedores · AFM HSA</PageTitle>
 
-<ModuleScaffold Title="Vendedores"
-                Subtitle="Equipe de vendas e alocação de carteiras."
-                Icon="users" />
+<h1>Vendedores</h1>
+<p class="subtitle">@Filtrados.Count vendedor(es) · @Filtrados.Count(v => v.Ativo) ativo(s)</p>
+
+<div class="toolbar">
+    <input class="cell" style="max-width:320px" placeholder="Buscar vendedor, cargo, região…"
+           @bind="_busca" @bind:event="oninput" />
+</div>
+
+<div style="overflow-x:auto">
+<table class="grid">
+    <thead>
+        <tr>
+            <th>Nome</th><th>Cargo</th><th>E-mail</th><th>Telefone</th>
+            <th>Região</th><th class="right">Carteira</th><th>Situação</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var v in Filtrados)
+        {
+            <tr>
+                <td>@v.Nome</td>
+                <td>@v.Cargo</td>
+                <td>@v.Email</td>
+                <td class="nowrap">@v.Telefone</td>
+                <td>@v.Regiao</td>
+                <td class="right">@_carteira.GetValueOrDefault(v.Id)</td>
+                <td>
+                    <span class="badge @(v.Ativo ? "st-ok" : "st-vencida")">
+                        @(v.Ativo ? "Ativo" : "Inativo")
+                    </span>
+                </td>
+            </tr>
+        }
+        @if (Filtrados.Count == 0)
+        {
+            <tr><td colspan="7" class="empty">Nenhum vendedor encontrado.</td></tr>
+        }
+    </tbody>
+</table>
+</div>
+
+@code {
+    private List<Salesperson> _all = new();
+    private Dictionary<string, int> _carteira = new();
+    private string _busca = "";
+
+    protected override void OnInitialized()
+    {
+        _all = Salespeople.All();
+        _carteira = Units.All()
+            .GroupBy(u => u.VendedorId)
+            .ToDictionary(g => g.Key, g => g.Count());
+    }
+
+    private List<Salesperson> Filtrados
+    {
+        get
+        {
+            IEnumerable<Salesperson> q = _all;
+            if (!string.IsNullOrWhiteSpace(_busca))
+            {
+                var b = _busca.Trim().ToLowerInvariant();
+                q = q.Where(v => (v.Nome + v.Cargo + v.Regiao + v.Email).ToLowerInvariant().Contains(b));
+            }
+            return q.OrderBy(v => v.Nome).ToList();
+        }
+    }
+}

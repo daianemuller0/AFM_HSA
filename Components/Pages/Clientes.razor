@@ -1,7 +1,81 @@
 @page "/clientes"
 @attribute [Authorize]
+@rendermode InteractiveServer
+@inject CompanyRepository Companies
+@inject ClientUnitRepository Units
+@inject SalespersonRepository Salespeople
+
 <PageTitle>Clientes e Unidades · AFM HSA</PageTitle>
 
-<ModuleScaffold Title="Clientes e Unidades"
-                Subtitle="Cadastro de clientes e suas unidades operacionais."
-                Icon="building" />
+<h1>Clientes e Unidades</h1>
+<p class="subtitle">@Filtradas.Count cliente(s) · @_units.Count unidade(s)</p>
+
+<div class="toolbar">
+    <input class="cell" style="max-width:320px" placeholder="Buscar cliente, cidade, segmento…"
+           @bind="_busca" @bind:event="oninput" />
+</div>
+
+<div style="overflow-x:auto">
+<table class="grid">
+    <thead>
+        <tr>
+            <th>Cliente</th><th>Segmento</th><th>Cidade/UF</th><th>Região</th>
+            <th class="right">Unidades</th><th>Vendedores</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var c in Filtradas)
+        {
+            var us = _units.Where(u => u.CompanyId == c.Id).ToList();
+            <tr>
+                <td>@c.Nome</td>
+                <td>@c.Segmento</td>
+                <td class="nowrap">@c.Cidade / @c.Estado</td>
+                <td>@c.Regiao</td>
+                <td class="right">@us.Count</td>
+                <td>@Vendedores(us)</td>
+            </tr>
+        }
+        @if (Filtradas.Count == 0)
+        {
+            <tr><td colspan="6" class="empty">Nenhum cliente encontrado.</td></tr>
+        }
+    </tbody>
+</table>
+</div>
+
+@code {
+    private List<Company> _all = new();
+    private List<ClientUnit> _units = new();
+    private Dictionary<string, string> _spName = new();
+    private string _busca = "";
+
+    protected override void OnInitialized()
+    {
+        _all = Companies.All();
+        _units = Units.All();
+        _spName = Salespeople.All().ToDictionary(s => s.Id, s => s.Nome);
+    }
+
+    private List<Company> Filtradas
+    {
+        get
+        {
+            IEnumerable<Company> q = _all;
+            if (!string.IsNullOrWhiteSpace(_busca))
+            {
+                var b = _busca.Trim().ToLowerInvariant();
+                q = q.Where(c => (c.Nome + c.Segmento + c.Cidade + c.Estado + c.Regiao)
+                    .ToLowerInvariant().Contains(b));
+            }
+            return q.OrderBy(c => c.Nome).ToList();
+        }
+    }
+
+    private string Vendedores(List<ClientUnit> us)
+    {
+        var nomes = us.Select(u => _spName.TryGetValue(u.VendedorId, out var n) ? n : u.VendedorId)
+                      .Where(n => !string.IsNullOrWhiteSpace(n)).Distinct();
+        return string.Join(", ", nomes);
+    }
+}
