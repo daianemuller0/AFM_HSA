@@ -26,16 +26,25 @@
         <option value="Crítica">Crítica</option><option value="Alta">Alta</option>
         <option value="Média">Média</option><option value="Baixa">Baixa</option>
     </select>
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)">De
+        <input type="date" class="cell" @bind="_de" aria-label="Data de" /></label>
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)">Até
+        <input type="date" class="cell" @bind="_ate" aria-label="Data até" /></label>
+    @if (_de is not null || _ate is not null)
+    {
+        <button class="btn-ghost" style="padding:7px 12px" @onclick="LimparDatas">Limpar datas</button>
+    }
     <div class="ci-meta">
         <span>Base: <b>@IntelligenceService.BaseDate.ToString("dd/MM/yyyy")</b></span>
-        <span>Período: <b>Próximos 12 meses</b></span>
+        <span>Período: <b>@PeriodoLabel</b></span>
         <span>Moeda: <b>BRL (R$)</b></span>
     </div>
 </div>
 
 @{
     var open = Filtered;
-    var base12 = open.Where(o => o.DiasAteJanela >= 0 && o.DiasAteJanela <= 365).ToList();
+    var dateActive = _de is not null || _ate is not null;
+    var base12 = open.Where(o => o.DiasAteJanela >= 0 && (dateActive || o.DiasAteJanela <= 365)).ToList();
     var potencial = open.Sum(o => o.ValorEstimado);
     var receita = base12.Sum(o => o.ValorEstimado);
     var ponderada = base12.Sum(o => o.ValorEstimado * IntelligenceService.ConfFor(o.DiasAteJanela) / 100m);
@@ -175,6 +184,13 @@
     private List<string> _segOpts = new(), _cliOpts = new();
     private List<(string Id, string Nome)> _vendOpts = new();
     private string _seg = "", _cli = "", _vend = "", _crit = "", _tl = "receita";
+    private DateOnly? _de, _ate;
+
+    private string PeriodoLabel => (_de is null && _ate is null)
+        ? "Próximos 12 meses"
+        : $"{(_de?.ToString("dd/MM/yyyy") ?? "início")} — {(_ate?.ToString("dd/MM/yyyy") ?? "fim")}";
+
+    private void LimparDatas() { _de = null; _ate = null; }
 
     protected override void OnInitialized()
     {
@@ -194,6 +210,8 @@
             if (!string.IsNullOrEmpty(_cli)) q = q.Where(o => Intel.ClienteDaUnidade(o.ClientUnitId) == _cli);
             if (!string.IsNullOrEmpty(_vend)) q = q.Where(o => o.VendedorId == _vend);
             if (!string.IsNullOrEmpty(_crit)) q = q.Where(o => o.Urgencia == _crit);
+            if (_de is not null) { var d = _de.Value.ToString("yyyy-MM-dd"); q = q.Where(o => string.CompareOrdinal(o.DataPrevista, d) >= 0); }
+            if (_ate is not null) { var a = _ate.Value.ToString("yyyy-MM-dd"); q = q.Where(o => string.CompareOrdinal(o.DataPrevista, a) <= 0); }
             return q.ToList();
         }
     }
