@@ -29,6 +29,8 @@ public static class I18n
         ["Equipamentos"] = ("Equipment", "Equipos"),
         ["Regras Técnicas de Troca"] = ("Technical Replacement Rules", "Reglas Técnicas de Cambio"),
         ["Ofertas"] = ("Offers", "Ofertas"),
+        ["Gerar Proposta"] = ("Generate Proposal", "Generar Propuesta"),
+        ["Propostas"] = ("Proposals", "Propuestas"),
         ["Vendedores"] = ("Salespeople", "Vendedores"),
         ["Dados e Importação"] = ("Data & Import", "Datos e Importación"),
         ["Importar"] = ("Import", "Importar"),

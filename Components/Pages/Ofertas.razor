@@ -3,18 +3,18 @@
 @rendermode InteractiveServer
 @inject OfferRepository OffersRepo
 
-<PageTitle>Ofertas · AFM HSA</PageTitle>
+<PageTitle>Propostas · AFM HSA</PageTitle>
 
 <div class="page-head">
-    <div><h1>Ofertas</h1><p class="subtitle">@_all.Count oferta(s) · Total @Fmt.Brl0(_all.Sum(o => o.TotalAmount))</p></div>
-    <div class="page-actions"><a class="btn-primary" href="/ofertas/nova">+ Nova Oferta</a></div>
+    <div><h1>Propostas</h1><p class="subtitle">@_all.Count proposta(s) · Total @Fmt.Brl0(_all.Sum(o => o.TotalAmount))</p></div>
+    <div class="page-actions"><a class="btn-primary" href="/gerar-proposta">+ Gerar Proposta</a></div>
 </div>
 
 @if (_all.Count == 0)
 {
-    <div class="panel empty-state"><div class="empty-title">Nenhuma oferta ainda</div>
-        <p class="empty-text">Crie a primeira oferta comercial.</p>
-        <a class="btn-primary" href="/ofertas/nova" style="margin-top:12px">+ Nova Oferta</a></div>
+    <div class="panel empty-state"><div class="empty-title">Nenhuma proposta ainda</div>
+        <p class="empty-text">Gere a primeira proposta comercial.</p>
+        <a class="btn-primary" href="/gerar-proposta" style="margin-top:12px">+ Gerar Proposta</a></div>
 }
 else
 {
