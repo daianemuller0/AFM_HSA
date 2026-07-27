@@ -23,15 +23,24 @@ public class IntelligenceService
     private readonly ClientUnitRepository _unitsRepo;
     private readonly EquipmentRepository _equipRepo;
     private readonly SalespersonRepository _spRepo;
+    private readonly OppOverrideRepository _ovrRepo;
 
     public IntelligenceService(
         SalesRecordRepository sales, PartRepository parts, InstalledBaseRepository baseInst,
         CompanyRepository companies, ClientUnitRepository units, EquipmentRepository equip,
-        SalespersonRepository sp)
+        SalespersonRepository sp, OppOverrideRepository ovr)
     {
         _salesRepo = sales; _partsRepo = parts; _baseRepo = baseInst;
         _companiesRepo = companies; _unitsRepo = units; _equipRepo = equip; _spRepo = sp;
+        _ovrRepo = ovr;
     }
+
+    // Todos os status comerciais possíveis (para os seletores da UI).
+    public static readonly string[] OppStatuses =
+    {
+        "Prevista", "Próxima", "Crítica", "Em contato", "Visita agendada",
+        "Proposta enviada", "Negociação", "Ganha", "Perdida", "Sem interesse", "Reprogramada",
+    };
 
     private List<SalesRecord>? _sales;
     private List<Part>? _parts;
@@ -114,8 +123,9 @@ public class IntelligenceService
     }
 
     // ---- geração de oportunidades ----------------------------------------
-    public List<Opportunity> Opportunities()
+    public List<Opportunity> Opportunities(bool includeDeleted = false)
     {
+        var overrides = _ovrRepo.All();
         var groups = new Dictionary<string, List<SalesRecord>>();
         foreach (var s in Sales)
         {
@@ -128,13 +138,16 @@ public class IntelligenceService
         foreach (var (key, recs) in groups)
         {
             var id = "op-" + Regex.Replace(key, "[^a-z0-9]+", "-", RegexOptions.IgnoreCase).ToLowerInvariant();
+            overrides.TryGetValue(id, out var ov);
+            if (ov != null && ov.Deleted && !includeDeleted) continue;
 
             recs.Sort((a, b) => string.CompareOrdinal(a.DataVenda, b.DataVenda));
             var last = recs[^1];
             var item = last.ItemVendido;
             var (meses, partCritica) = PartCycleFor(last.EquipmentId, item);
 
-            var prevista = AddMonths(last.DataVenda, meses);
+            var reprog = ov != null && !string.IsNullOrEmpty(ov.Reprograma) ? ov.Reprograma : null;
+            var prevista = reprog ?? AddMonths(last.DataVenda, meses);
             var dias = DaysBetween(prevista);
 
             var ib = Base.FirstOrDefault(b => b.EquipmentId == last.EquipmentId);
@@ -146,7 +159,7 @@ public class IntelligenceService
 
             var temporal = TemporalFor(dias);
             var urg = UrgencyFor(dias, equipCritico);
-            var status = DefaultStatus(dias, urg);
+            var status = ov != null && !string.IsNullOrEmpty(ov.Status) ? ov.Status : DefaultStatus(dias, urg);
 
             opps.Add(new Opportunity
             {
@@ -166,11 +179,11 @@ public class IntelligenceService
                 VendedorId = last.VendedorId,
                 Justificativa = $"Última reposição/venda de \"{item}\" em {Fmt.Date(last.DataVenda)}. " +
                                 $"Ciclo técnico de troca: {meses} meses (~{(meses / 12.0).ToString("0.0", CultureInfo.InvariantCulture)} anos). " +
-                                $"Janela técnica prevista para {Fmt.Date(prevista)}.",
+                                $"{(reprog != null ? "Janela técnica reprogramada para" : "Janela técnica prevista para")} {Fmt.Date(prevista)}.",
                 ProximaAcao = RecommendedAction(dias, item, sub),
                 CriticaEquip = equipCritico,
                 SugereSubstituicao = sub,
-                Reprogramada = false,
+                Reprogramada = reprog != null,
             });
         }
 

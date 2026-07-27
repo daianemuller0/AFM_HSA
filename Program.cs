@@ -47,6 +47,7 @@ builder.Services.AddScoped<SalesRecordRepository>();
 builder.Services.AddScoped<AppUserRepository>();
 builder.Services.AddScoped<VisitRepository>();
 builder.Services.AddScoped<OfferRepository>();
+builder.Services.AddScoped<OppOverrideRepository>();
 
 // Motor de inteligência (oportunidades, alertas, lookups).
 builder.Services.AddScoped<IntelligenceService>();

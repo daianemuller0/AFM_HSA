@@ -2,6 +2,8 @@
 @attribute [Authorize]
 @rendermode InteractiveServer
 @inject IntelligenceService Intel
+@inject OppOverrideRepository Ovr
+@inject NavigationManager Nav
 
 <PageTitle>Oportunidade · AFM HSA</PageTitle>
 
@@ -9,7 +11,7 @@
 {
     <h1>Oportunidade</h1>
     <div class="panel empty-state"><div class="empty-title">Oportunidade não encontrada</div>
-        <p class="empty-text">Ela pode ter mudado com o histórico de vendas.</p>
+        <p class="empty-text">Ela pode ter sido excluída ou mudado com o histórico.</p>
         <a class="btn-ghost" href="/oportunidades">Voltar</a></div>
 }
 else
@@ -25,26 +27,134 @@ else
     <div class="kpis">
         <div class="kpi"><div class="kpi-label">Urgência</div>
             <div class="kpi-value" style="font-size:18px"><span class="badge @IntelligenceService.UrgClass(_op.Urgencia)">@_op.Urgencia</span></div></div>
-        <div class="kpi"><div class="kpi-label">Janela prevista</div><div class="kpi-value" style="font-size:18px">@Fmt.Date(_op.DataPrevista)</div></div>
+        <div class="kpi"><div class="kpi-label">Janela prevista</div><div class="kpi-value" style="font-size:18px">@Fmt.Date(_op.DataPrevista)@(_op.Reprogramada ? " *" : "")</div></div>
         <div class="kpi"><div class="kpi-label">Prazo</div><div class="kpi-value" style="font-size:18px">@(_op.DiasAteJanela < 0 ? $"vencida há {_op.DiasAtraso} d" : $"em {_op.DiasAteJanela} d")</div></div>
         <div class="kpi k-ren"><div class="kpi-label">Potencial técnico</div><div class="kpi-value" style="font-size:18px">@Fmt.Brl0(_op.ValorEstimado)</div></div>
     </div>
 
-    <div class="panel">
-        <div class="dash-title">Justificativa técnica</div>
-        <p>@_op.Justificativa</p>
-        <div class="task-next"><strong>Próxima ação:</strong> @_op.ProximaAcao</div>
-        <div class="side-item"><span>Vendedor responsável</span><span>@Intel.SalespersonName(_op.VendedorId)</span></div>
-        <div class="side-item"><span>Última venda</span><span>@Fmt.Date(_op.DataUltimaVenda)</span></div>
-        <div class="side-item"><span>Ciclo técnico</span><span>@_op.CicloMeses meses</span></div>
-        <div class="side-item"><span>Status</span><span>@_op.Status</span></div>
+    <div class="dash-grid">
+        <div class="panel">
+            <div class="dash-title">Justificativa técnica</div>
+            <p>@_op.Justificativa</p>
+            <div class="task-next"><strong>Próxima ação:</strong> @_op.ProximaAcao</div>
+            <div class="side-item"><span>Vendedor responsável</span><span>@Intel.SalespersonName(_op.VendedorId)</span></div>
+            <div class="side-item"><span>Última venda</span><span>@Fmt.Date(_op.DataUltimaVenda)</span></div>
+            <div class="side-item"><span>Ciclo técnico</span><span>@_op.CicloMeses meses</span></div>
+        </div>
+
+        <div class="panel">
+            <div class="dash-title">Gestão comercial</div>
+
+            <label style="display:block;font-size:12.5px;color:var(--muted);margin-bottom:4px">Status</label>
+            <select class="cell" style="width:100%;margin-bottom:14px" value="@_op.Status" @onchange="MudarStatus">
+                @foreach (var s in IntelligenceService.OppStatuses)
+                {
+                    <option value="@s" selected="@(s == _op.Status)">@s</option>
+                }
+            </select>
+
+            <label style="display:block;font-size:12.5px;color:var(--muted);margin-bottom:4px">Reprogramar janela</label>
+            <div style="display:flex;gap:8px;margin-bottom:14px">
+                <input type="date" class="cell" style="flex:1" @bind="_reprog" />
+                <button class="btn-ghost" @onclick="Reprogramar">Reprogramar</button>
+            </div>
+
+            <label style="display:block;font-size:12.5px;color:var(--muted);margin-bottom:4px">Excluir oportunidade</label>
+            <div style="display:flex;gap:8px">
+                <input class="cell" style="flex:1" placeholder="Motivo" @bind="_motivo" />
+                <button class="btn-ghost" style="color:#b91c1c;border-color:#fca5a5" @onclick="Excluir">Excluir</button>
+            </div>
+            @if (_msg is not null) { <div class="saved-flag" style="margin-top:10px">@_msg</div> }
+        </div>
+    </div>
+
+    <div class="panel" style="margin-top:16px">
+        <div class="dash-title">Notas comerciais (@_notes.Count)</div>
+        <div style="display:flex;gap:8px;margin-bottom:12px;align-items:flex-start">
+            <textarea class="cell" style="flex:1;min-height:60px" placeholder="Registrar contato, próximo passo…" @bind="_novaNota"></textarea>
+            <div style="display:flex;flex-direction:column;gap:8px">
+                <select class="cell" @bind="_tipoNota">
+                    <option>Observação interna</option><option>Contato</option>
+                    <option>Follow-up</option><option>Proposta</option>
+                </select>
+                <button class="btn-primary" @onclick="AdicionarNota">Adicionar</button>
+            </div>
+        </div>
+        @if (_notes.Count == 0)
+        {
+            <p class="empty">Nenhuma nota ainda.</p>
+        }
+        else
+        {
+            @foreach (var n in _notes)
+            {
+                <div class="alert-item">
+                    <span class="badge score-badge">@n.Tipo</span>
+                    <div style="flex:1">
+                        <div>@n.Texto</div>
+                        <div style="font-size:11.5px;color:var(--muted);margin-top:2px">@n.Usuario · @n.Data</div>
+                    </div>
+                </div>
+            }
+        }
     </div>
 }
 
 @code {
     [Parameter] public string? Id { get; set; }
-    private Opportunity? _op;
+    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
 
-    protected override void OnInitialized() =>
+    private Opportunity? _op;
+    private List<OppNote> _notes = new();
+    private DateOnly? _reprog;
+    private string _motivo = "", _novaNota = "", _tipoNota = "Observação interna";
+    private string? _msg;
+    private string _usuario = "Equipe Howden";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthState is not null)
+        {
+            var user = (await AuthState).User;
+            if (!string.IsNullOrEmpty(user.Identity?.Name)) _usuario = user.Identity!.Name!;
+        }
+        Carregar();
+    }
+
+    private void Carregar()
+    {
         _op = Intel.Opportunities().FirstOrDefault(o => o.Id == Id);
+        _notes = Id is null ? new() : Ovr.Notes(Id);
+    }
+
+    private void MudarStatus(ChangeEventArgs e)
+    {
+        if (Id is null) return;
+        Ovr.SetStatus(Id, e.Value?.ToString() ?? "");
+        _msg = "Status atualizado.";
+        Carregar();
+    }
+
+    private void Reprogramar()
+    {
+        if (Id is null || _reprog is null) { _msg = "Escolha uma data."; return; }
+        Ovr.Reprogram(Id, _reprog.Value.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture));
+        _msg = "Janela reprogramada.";
+        Carregar();
+    }
+
+    private void AdicionarNota()
+    {
+        if (Id is null || string.IsNullOrWhiteSpace(_novaNota)) return;
+        Ovr.AddNote(Id, _novaNota.Trim(), _tipoNota, _usuario);
+        _novaNota = "";
+        _notes = Ovr.Notes(Id);
+    }
+
+    private void Excluir()
+    {
+        if (Id is null) return;
+        Ovr.Delete(Id, _usuario, _motivo);
+        Nav.NavigateTo("/oportunidades");
+    }
 }
