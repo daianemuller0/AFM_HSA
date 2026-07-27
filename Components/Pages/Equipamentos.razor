@@ -1,7 +1,7 @@
 @page "/equipamentos"
 @attribute [Authorize]
 @rendermode InteractiveServer
-@inject EquipmentRepository Equipamentos
+@inject EquipmentRepository EquipRepo
 @inject PartRepository Pecas
 
 <PageTitle>Equipamentos · AFM HSA</PageTitle>
@@ -51,7 +51,7 @@
 
     protected override void OnInitialized()
     {
-        _all = Equipamentos.All();
+        _all = EquipRepo.All();
         _partsCount = Pecas.All()
             .GroupBy(p => p.EquipmentId)
             .ToDictionary(g => g.Key, g => g.Count());
