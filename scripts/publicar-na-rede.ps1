@@ -47,13 +47,14 @@ if (-not (Test-Path $Destino)) {
 }
 
 # --- 3) Criar o atalho de abertura ------------------------------------
-$LauncherPath = Join-Path $Publish "Abrir AFM HSA.bat"
-@"
-@echo off
-title AFM HSA — Aftermarket Intelligence
-cd /d "%~dp0"
-start "" AfmHsa.exe
-"@ | Set-Content -Path $LauncherPath -Encoding ASCII
+$LauncherPath  = Join-Path $Publish "Abrir AFM HSA.bat"
+$LauncherLines = @(
+    '@echo off',
+    'title AFM HSA - Aftermarket Intelligence',
+    'cd /d "%~dp0"',
+    'start "" AfmHsa.exe'
+)
+Set-Content -Path $LauncherPath -Value $LauncherLines -Encoding ASCII
 
 # --- 4) Copiar para a rede (espelhando) -------------------------------
 Write-Host "==> Copiando para a rede (isso pode demorar)..." -ForegroundColor Cyan
