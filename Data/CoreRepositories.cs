@@ -50,6 +50,13 @@ public class SalespersonRepository
             Ativo = r.IsDBNull(7) ? true : Fmt.Bool(Fmt.S(r, 7)),
             Perfil = Fmt.S(r, 8),
         }, orderBy: "nome");
+
+    public void Save(Salesperson s) => _s.WriteRow("salespeople", new KeyValuePair<string, object?>[]
+    {
+        new("id", s.Id), new("nome", s.Nome), new("email", s.Email), new("telefone", s.Telefone),
+        new("cargo", s.Cargo), new("regiao", s.Regiao), new("gestor_id", s.GestorId),
+        new("ativo", s.Ativo ? "true" : "false"), new("perfil", s.Perfil),
+    });
 }
 
 public class EquipmentRepository
@@ -66,6 +73,14 @@ public class EquipmentRepository
             Segmento = Fmt.S(r, 6), Fabricante = Fmt.S(r, 7),
             ValorCompleto = Fmt.Dec(Fmt.S(r, 8)),
         }, orderBy: "nome");
+
+    public void Save(Equipment e) => _s.WriteRow("equipment", new KeyValuePair<string, object?>[]
+    {
+        new("id", e.Id), new("doc_num", e.DocNum), new("tipo", e.Tipo), new("modelo", e.Modelo),
+        new("nome", e.Nome), new("aplicacao", e.Aplicacao), new("segmento", e.Segmento),
+        new("fabricante", e.Fabricante),
+        new("valor_completo", e.ValorCompleto.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+    });
 }
 
 public class InstalledBaseRepository

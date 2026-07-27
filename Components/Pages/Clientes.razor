@@ -28,7 +28,7 @@
         {
             var us = _units.Where(u => u.CompanyId == c.Id).ToList();
             <tr>
-                <td>@c.Nome</td>
+                <td><a class="btn-link" href="@($"/clientes/{c.Id}")">@c.Nome</a></td>
                 <td>@c.Segmento</td>
                 <td class="nowrap">@c.Cidade / @c.Estado</td>
                 <td>@c.Regiao</td>

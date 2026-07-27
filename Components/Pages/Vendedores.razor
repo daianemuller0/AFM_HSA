@@ -6,8 +6,10 @@
 
 <PageTitle>Vendedores · AFM HSA</PageTitle>
 
-<h1>Vendedores</h1>
-<p class="subtitle">@Filtrados.Count vendedor(es) · @Filtrados.Count(v => v.Ativo) ativo(s)</p>
+<div class="page-head">
+    <div><h1>Vendedores</h1><p class="subtitle">@Filtrados.Count vendedor(es) · @Filtrados.Count(v => v.Ativo) ativo(s)</p></div>
+    <div class="page-actions"><a class="btn-primary" href="/vendedores/novo">+ Novo Vendedor</a></div>
+</div>
 
 <div class="toolbar">
     <input class="cell" style="max-width:320px" placeholder="Buscar vendedor, cargo, região…"
@@ -26,7 +28,7 @@
         @foreach (var v in Filtrados)
         {
             <tr>
-                <td>@v.Nome</td>
+                <td><a class="btn-link" href="@($"/vendedores/{v.Id}")">@v.Nome</a></td>
                 <td>@v.Cargo</td>
                 <td>@v.Email</td>
                 <td class="nowrap">@v.Telefone</td>

@@ -6,8 +6,10 @@
 
 <PageTitle>Equipamentos · AFM HSA</PageTitle>
 
-<h1>Equipamentos</h1>
-<p class="subtitle">@Filtrados.Count equipamento(s) no catálogo</p>
+<div class="page-head">
+    <div><h1>Equipamentos</h1><p class="subtitle">@Filtrados.Count equipamento(s) no catálogo</p></div>
+    <div class="page-actions"><a class="btn-primary" href="/equipamentos/novo">+ Novo Equipamento</a></div>
+</div>
 
 <div class="toolbar">
     <input class="cell" style="max-width:320px" placeholder="Buscar equipamento, modelo, fabricante…"
@@ -27,7 +29,7 @@
         {
             <tr>
                 <td>@e.DocNum</td>
-                <td>@e.Nome</td>
+                <td><a class="btn-link" href="@($"/equipamentos/{e.Id}")">@e.Nome</a></td>
                 <td>@e.Tipo</td>
                 <td class="nowrap">@e.Modelo</td>
                 <td>@e.Segmento</td>

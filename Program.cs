@@ -73,27 +73,44 @@ app.UseAuthorization();
 // --- Endpoints de login/logout (precisam do HttpContext para gravar o cookie) ---
 // Login GERAL: uma credencial única para toda a equipe, definida no appsettings.json
 // (chaves Auth:Usuario e Auth:Senha).
-app.MapPost("/auth/login", async (HttpContext http, IConfiguration cfg) =>
+app.MapPost("/auth/login", async (HttpContext http, IConfiguration cfg, AfmHsa.Data.AppUserRepository users) =>
 {
     var form = await http.Request.ReadFormAsync();
-    var usuario = form["usuario"].ToString().Trim();
+    var email = form["usuario"].ToString().Trim();
     var senha = form["senha"].ToString();
 
+    async Task SignIn(string id, string nome, string perfil, string salespersonId)
+    {
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, id),
+            new(ClaimTypes.Name, nome),
+            new(ClaimTypes.Role, perfil),
+            new("salesperson_id", salespersonId),
+        };
+        var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+        await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity));
+    }
+
+    // 1) Usuário individual da base (tabela users) — e-mail + senha.
+    var u = users.All().FirstOrDefault(x =>
+        x.Email.Equals(email, StringComparison.OrdinalIgnoreCase) && x.Password == senha);
+    if (u != null)
+    {
+        await SignIn(u.Id, u.Nome, string.IsNullOrEmpty(u.Perfil) ? "vendedor" : u.Perfil, u.SalespersonId);
+        return Results.Redirect("/");
+    }
+
+    // 2) Fallback: credencial única da equipe (appsettings) — perfil admin.
     var cfgUsuario = cfg["Auth:Usuario"] ?? "howden";
     var cfgSenha = cfg["Auth:Senha"] ?? "howden2026";
-
-    if (!usuario.Equals(cfgUsuario, StringComparison.OrdinalIgnoreCase) || senha != cfgSenha)
-        return Results.Redirect("/login?error=1");
-
-    var claims = new List<Claim>
+    if (email.Equals(cfgUsuario, StringComparison.OrdinalIgnoreCase) && senha == cfgSenha)
     {
-        new(ClaimTypes.NameIdentifier, "equipe"),
-        new(ClaimTypes.Name, "Equipe Howden"),
-        new(ClaimTypes.Role, "admin"),
-    };
-    var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
-    await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity));
-    return Results.Redirect("/");
+        await SignIn("equipe", "Equipe Howden", "admin", "");
+        return Results.Redirect("/");
+    }
+
+    return Results.Redirect("/login?error=1");
 }).DisableAntiforgery();
 
 app.MapPost("/auth/logout", async (HttpContext http) =>

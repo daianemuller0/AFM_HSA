@@ -1,0 +1,50 @@
+@page "/vendedores/novo"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject SalespersonRepository Salespeople
+@inject NavigationManager Nav
+
+<PageTitle>Novo Vendedor · AFM HSA</PageTitle>
+
+<div class="page-head">
+    <div><h1>Novo Vendedor</h1><p class="subtitle">Cadastrar membro da equipe comercial.</p></div>
+    <div class="page-actions"><a class="btn-ghost" href="/vendedores">← Vendedores</a></div>
+</div>
+
+<div class="panel" style="max-width:640px">
+    <div class="form-grid">
+        <label>Nome <input @bind="_v.Nome" /></label>
+        <label>E-mail <input @bind="_v.Email" /></label>
+        <label>Telefone <input @bind="_v.Telefone" /></label>
+        <label>Cargo <input @bind="_v.Cargo" /></label>
+        <label>Região <input @bind="_v.Regiao" /></label>
+        <label>Perfil
+            <select @bind="_v.Perfil">
+                <option value="vendedor">Vendedor</option>
+                <option value="gestor">Gestor</option>
+                <option value="diretor">Diretor</option>
+                <option value="tecnico">Técnico</option>
+                <option value="admin">Administrador</option>
+            </select>
+        </label>
+    </div>
+    @if (_erro is not null) { <div class="alert-error" style="margin-top:12px">@_erro</div> }
+    <div class="modal-actions">
+        <a class="btn-ghost" href="/vendedores">Cancelar</a>
+        <button class="btn-primary" @onclick="Salvar">Salvar</button>
+    </div>
+</div>
+
+@code {
+    private Salesperson _v = new() { Perfil = "vendedor", Ativo = true, Cargo = "Vendedor" };
+    private string? _erro;
+
+    private void Salvar()
+    {
+        if (string.IsNullOrWhiteSpace(_v.Nome)) { _erro = "Informe o nome."; return; }
+        _v.Id = "sp-" + Guid.NewGuid().ToString("N")[..10];
+        _v.Ativo = true;
+        Salespeople.Save(_v);
+        Nav.NavigateTo("/vendedores");
+    }
+}

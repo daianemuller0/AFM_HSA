@@ -1,0 +1,47 @@
+@page "/equipamentos/novo"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@using System.Globalization
+@inject EquipmentRepository EquipRepo
+@inject NavigationManager Nav
+
+<PageTitle>Novo Equipamento · AFM HSA</PageTitle>
+
+<div class="page-head">
+    <div><h1>Novo Equipamento</h1><p class="subtitle">Cadastrar equipamento no catálogo.</p></div>
+    <div class="page-actions"><a class="btn-ghost" href="/equipamentos">← Equipamentos</a></div>
+</div>
+
+<div class="panel" style="max-width:640px">
+    <div class="form-grid">
+        <label>Tipo <input @bind="_e.Tipo" /></label>
+        <label>Modelo <input @bind="_e.Modelo" /></label>
+        <label>Aplicação <input @bind="_e.Aplicacao" /></label>
+        <label>Segmento <input @bind="_e.Segmento" /></label>
+        <label>Fabricante <input @bind="_e.Fabricante" /></label>
+        <label>Valor completo (R$) <input type="number" step="0.01" @bind="_e.ValorCompleto" /></label>
+    </div>
+    @if (_erro is not null) { <div class="alert-error" style="margin-top:12px">@_erro</div> }
+    <div class="modal-actions">
+        <a class="btn-ghost" href="/equipamentos">Cancelar</a>
+        <button class="btn-primary" @onclick="Salvar">Salvar</button>
+    </div>
+</div>
+
+@code {
+    private Equipment _e = new() { Segmento = "Indústria", Fabricante = "Howden Aftermarket Intelligence" };
+    private int _count;
+    private string? _erro;
+
+    protected override void OnInitialized() => _count = EquipRepo.All().Count;
+
+    private void Salvar()
+    {
+        if (string.IsNullOrWhiteSpace(_e.Modelo)) { _erro = "Informe o modelo."; return; }
+        _e.Id = "eq-" + Guid.NewGuid().ToString("N")[..10];
+        _e.DocNum = (_count + 1).ToString("D2", CultureInfo.InvariantCulture);
+        _e.Nome = $"{_e.Tipo} {_e.Modelo}".Trim();
+        EquipRepo.Save(_e);
+        Nav.NavigateTo("/equipamentos");
+    }
+}
