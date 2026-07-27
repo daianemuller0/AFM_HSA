@@ -2,52 +2,201 @@
 @attribute [Authorize]
 @rendermode InteractiveServer
 @using System.Globalization
+@inject ClientUnitRepository Units
+@inject EquipmentRepository Equipamentos
+@inject InstalledBaseRepository Base
+@inject PartRepository Pecas
 @inject OfferRepository OffersRepo
+@inject IntelligenceService Intel
 @inject NavigationManager Nav
 
 <PageTitle>Nova Oferta · AFM HSA</PageTitle>
 
 <div class="page-head">
-    <div><h1>Nova Oferta</h1><p class="subtitle">Registrar uma oferta comercial.</p></div>
+    <div><h1>Nova Oferta Comercial</h1><p class="subtitle">Documento no template Howden / Chart.</p></div>
     <div class="page-actions"><a class="btn-ghost" href="/ofertas">← Ofertas</a></div>
 </div>
 
-<div class="panel" style="max-width:640px">
-    <div class="form-grid">
-        <label>Cliente <input @bind="_o.ClientName" /></label>
-        <label>A/C (contato) <input @bind="_o.AttentionTo" /></label>
-        <label>Título <input @bind="_o.Title" /></label>
-        <label>Valor total (R$) <input type="number" step="0.01" @bind="_o.TotalAmount" /></label>
-        <label>Data <input type="date" @bind="_data" /></label>
-        <label>Status
-            <select @bind="_o.Status">
-                <option>Rascunho</option><option>Gerada</option><option>Enviada</option>
-                <option>Aprovada</option><option>Perdida</option><option>Cancelada</option>
-            </select>
-        </label>
+<div class="prop-grid">
+  <div>
+    <div class="panel" style="margin-bottom:16px">
+        <div class="dash-title">Cliente</div>
+        <div class="form3">
+            <label>Cliente / Unidade
+                <select class="cell" @bind="_unitId" @bind:after="UnidadeMudou">
+                    <option value="">Selecione…</option>
+                    @foreach (var u in _units) { <option value="@u.Id">@Intel.UnitLabel(u.Id)</option> }
+                </select>
+            </label>
+            <label>Equipamento
+                <select class="cell" @bind="_equipId">
+                    <option value="">—</option>
+                    @foreach (var e in EquipsDaUnidade) { <option value="@e.Id">@e.Modelo</option> }
+                </select>
+            </label>
+            <label>A/C (contato) <input class="cell" @bind="_o.AttentionTo" /></label>
+            <label>Cidade <input class="cell" @bind="_o.City" /></label>
+            <label>Nossa referência <input class="cell" @bind="_o.OurReference" /></label>
+            <label>Projeto <input class="cell" @bind="_o.Project" /></label>
+        </div>
     </div>
-    @if (_erro is not null) { <div class="alert-error" style="margin-top:12px">@_erro</div> }
-    <div class="modal-actions">
-        <a class="btn-ghost" href="/ofertas">Cancelar</a>
-        <button class="btn-primary" @onclick="Salvar">Salvar oferta</button>
+
+    <div class="panel" style="margin-bottom:16px">
+        <div class="dash-title">Itens</div>
+        @if (!string.IsNullOrEmpty(_equipId))
+        {
+            <button class="btn-ghost" style="margin-bottom:10px" @onclick="AdicionarPecas">+ Adicionar peças do equipamento</button>
+        }
+        <table class="grid" style="margin-bottom:12px">
+            <thead><tr><th>Descrição</th><th class="right">Qtd</th><th class="right">Unitário</th><th class="right">Total</th><th></th></tr></thead>
+            <tbody>
+                @for (int i = 0; i < _items.Count; i++)
+                {
+                    var it = _items[i];
+                    var idx = i;
+                    <tr>
+                        <td>@it.Description</td>
+                        <td class="right">@it.Quantity</td>
+                        <td class="right nowrap">@Fmt.Brl(it.UnitPrice)</td>
+                        <td class="right nowrap">@Fmt.Brl(it.TotalPrice)</td>
+                        <td><button class="btn-link" @onclick="() => Remover(idx)">remover</button></td>
+                    </tr>
+                }
+                @if (_items.Count == 0) { <tr><td colspan="5" class="empty">Nenhum item.</td></tr> }
+            </tbody>
+        </table>
+        <div class="item-row" style="grid-template-columns:2fr 80px 120px auto">
+            <label>Descrição <input class="cell" @bind="_desc" /></label>
+            <label>Qtd <input class="cell num" type="number" @bind="_qtd" /></label>
+            <label>Unitário (R$) <input class="cell num" type="number" step="0.01" @bind="_preco" /></label>
+            <label>&nbsp;<button class="btn-primary" @onclick="AdicionarItem">Adicionar</button></label>
+        </div>
     </div>
+
+    <div class="panel">
+        <div class="dash-title">Condições comerciais</div>
+        <div class="form-grid">
+            <label>Introdução <textarea class="cell" @bind="_o.IntroText"></textarea></label>
+            <label>Condição de pagamento
+                <select class="cell" @bind="_o.PaymentTerms">
+                    @foreach (var p in OfferDefaults.PaymentOptions) { <option value="@p">@p</option> }
+                </select>
+            </label>
+            <label>Prazo de entrega <textarea class="cell" @bind="_o.DeliveryTime"></textarea></label>
+            <label>Validade <input class="cell" @bind="_o.ValidityText" /></label>
+            <label>Observações <textarea class="cell" style="min-height:90px" @bind="_o.Observations"></textarea></label>
+            <label>Termos e condições <textarea class="cell" @bind="_o.TermsText"></textarea></label>
+        </div>
+    </div>
+  </div>
+
+  <div class="prop-side">
+    <div class="side-total">
+        <div>Total da oferta</div>
+        <div class="side-total-value">@Fmt.Brl(Total)</div>
+    </div>
+    <div class="side-note">O documento imprimível é gerado após salvar.</div>
+    @if (_erro is not null) { <div class="alert-error">@_erro</div> }
+    <button class="btn-accent btn-block" @onclick="Salvar">Salvar oferta</button>
+    <a class="btn-ghost btn-block" href="/ofertas">Cancelar</a>
+  </div>
 </div>
 
 @code {
-    private CommercialOffer _o = new() { Status = "Rascunho" };
-    private DateOnly? _data = DateOnly.FromDateTime(DateTime.Now);
+    private List<ClientUnit> _units = new();
+    private List<InstalledBase> _base = new();
+    private List<Part> _parts = new();
+    private CommercialOffer _o = new()
+    {
+        Status = "Rascunho",
+        IntroText = OfferDefaults.Intro, TaxText = OfferDefaults.Tax, PaymentTerms = OfferDefaults.Payment,
+        DeliveryTime = OfferDefaults.DeliveryTime, DeliveryConditions = OfferDefaults.DeliveryConditions,
+        ValidityText = OfferDefaults.Validity, Observations = OfferDefaults.Observations,
+        SgiText = OfferDefaults.Sgi, TermsText = OfferDefaults.Terms,
+    };
+    private List<CommercialOfferItem> _items = new();
+    private string _unitId = "", _equipId = "";
+    private string _desc = "";
+    private int _qtd = 1;
+    private decimal _preco;
     private string? _erro;
+
+    protected override void OnInitialized()
+    {
+        _units = Units.All();
+        _base = Base.All();
+        _parts = Pecas.All();
+    }
+
+    private List<Equipment> EquipsDaUnidade
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(_unitId)) return new();
+            var ids = _base.Where(b => b.ClientUnitId == _unitId).Select(b => b.EquipmentId).Distinct().ToHashSet();
+            return Equipamentos.All().Where(e => ids.Contains(e.Id)).ToList();
+        }
+    }
+
+    private void UnidadeMudou()
+    {
+        _equipId = "";
+        var u = _units.FirstOrDefault(x => x.Id == _unitId);
+        if (u != null)
+        {
+            _o.ClientName = Intel.CompanyName(u.CompanyId);
+            _o.City = u.Cidade;
+            _o.ClientUnitId = u.Id;
+        }
+    }
+
+    private void AdicionarPecas()
+    {
+        foreach (var p in _parts.Where(p => p.EquipmentId == _equipId))
+        {
+            _items.Add(new CommercialOfferItem
+            {
+                Description = string.IsNullOrEmpty(p.Descritivo) ? p.Nome : $"{p.Nome} — {p.Descritivo}",
+                Quantity = 1,
+                UnitPrice = p.ValorEstimado,
+                TotalPrice = p.ValorEstimado,
+            });
+        }
+    }
+
+    private void AdicionarItem()
+    {
+        if (string.IsNullOrWhiteSpace(_desc)) return;
+        var q = _qtd <= 0 ? 1 : _qtd;
+        _items.Add(new CommercialOfferItem { Description = _desc.Trim(), Quantity = q, UnitPrice = _preco, TotalPrice = q * _preco });
+        _desc = ""; _qtd = 1; _preco = 0;
+    }
+
+    private void Remover(int idx)
+    {
+        if (idx >= 0 && idx < _items.Count) _items.RemoveAt(idx);
+    }
+
+    private decimal Total => _items.Sum(i => i.TotalPrice);
 
     private void Salvar()
     {
-        if (string.IsNullOrWhiteSpace(_o.ClientName)) { _erro = "Informe o cliente."; return; }
+        if (string.IsNullOrWhiteSpace(_o.ClientName)) { _erro = "Selecione o cliente."; return; }
         var now = DateTime.Now;
-        var data = _data ?? DateOnly.FromDateTime(now);
         _o.Id = Guid.NewGuid().ToString("N");
         _o.OfferCode = "OF-" + now.ToString("yyyyMMdd-HHmmss");
-        _o.OfferDate = data.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-        _o.CreatedAt = now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        _o.EquipmentId = _equipId;
+        _o.OfferDate = now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        _o.CreatedAt = _o.OfferDate;
+        _o.OurReference = string.IsNullOrWhiteSpace(_o.OurReference) ? _o.OfferCode : _o.OurReference;
+        _o.TotalAmount = Total;
         OffersRepo.Save(_o);
-        Nav.NavigateTo("/ofertas");
+        foreach (var it in _items)
+        {
+            it.Id = Guid.NewGuid().ToString("N");
+            it.OfferId = _o.Id;
+            OffersRepo.SaveItem(it);
+        }
+        Nav.NavigateTo($"/ofertas/{_o.Id}");
     }
 }

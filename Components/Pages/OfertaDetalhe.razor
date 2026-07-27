@@ -1,0 +1,101 @@
+@page "/ofertas/{Id}"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject OfferRepository OffersRepo
+@inject IJSRuntime JS
+
+<PageTitle>Oferta · AFM HSA</PageTitle>
+
+@if (_o is null)
+{
+    <h1>Oferta</h1>
+    <div class="panel empty-state"><div class="empty-title">Oferta não encontrada</div>
+        <a class="btn-ghost" href="/ofertas">Voltar</a></div>
+}
+else
+{
+    <div class="page-head no-print">
+        <div><h1>Oferta @_o.OfferCode</h1><p class="subtitle">@_o.ClientName · @Fmt.Brl(_o.TotalAmount)</p></div>
+        <div class="page-actions">
+            <a class="btn-ghost" href="/ofertas">← Ofertas</a>
+            <button class="btn-primary" @onclick="Imprimir">Imprimir / PDF</button>
+        </div>
+    </div>
+
+    <div class="panel proposal-print">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid var(--primary);padding-bottom:14px;margin-bottom:16px">
+            <div>
+                <div style="font-size:22px;font-weight:700;color:var(--primary)">Howden</div>
+                <div style="font-size:12px;color:var(--muted)">Aftermarket Intelligence · Chart Industries</div>
+            </div>
+            <div style="text-align:right;font-size:12.5px">
+                <div><strong>Oferta:</strong> @_o.OfferCode</div>
+                <div><strong>Data:</strong> @Fmt.Date(_o.OfferDate)</div>
+                <div><strong>Ref.:</strong> @_o.OurReference</div>
+            </div>
+        </div>
+
+        <div class="form3" style="margin-bottom:16px">
+            <div><div class="fact-label">Cliente</div><div>@_o.ClientName</div></div>
+            <div><div class="fact-label">A/C</div><div>@Dash(_o.AttentionTo)</div></div>
+            <div><div class="fact-label">Cidade</div><div>@Dash(_o.City)</div></div>
+            <div><div class="fact-label">Projeto</div><div>@Dash(_o.Project)</div></div>
+            <div><div class="fact-label">Preparado por</div><div>@Dash(_o.PreparedBy)</div></div>
+            <div><div class="fact-label">Status</div><div>@_o.Status</div></div>
+        </div>
+
+        <p style="margin-bottom:14px">@_o.IntroText</p>
+
+        <table class="grid" style="margin-bottom:16px">
+            <thead><tr><th>Item</th><th>Descrição</th><th class="right">Qtd</th><th class="right">Unitário</th><th class="right">Total</th></tr></thead>
+            <tbody>
+                @for (int i = 0; i < _items.Count; i++)
+                {
+                    <tr>
+                        <td>@(i + 1)</td>
+                        <td>@_items[i].Description</td>
+                        <td class="right">@_items[i].Quantity</td>
+                        <td class="right nowrap">@Fmt.Brl(_items[i].UnitPrice)</td>
+                        <td class="right nowrap">@Fmt.Brl(_items[i].TotalPrice)</td>
+                    </tr>
+                }
+                @if (_items.Count == 0) { <tr><td colspan="5" class="empty">Sem itens.</td></tr> }
+                <tr class="side-item-total"><td colspan="4" class="right"><strong>Total</strong></td><td class="right nowrap"><strong>@Fmt.Brl(_o.TotalAmount)</strong></td></tr>
+            </tbody>
+        </table>
+
+        <div class="side-item"><span><strong>Pagamento</strong></span><span>@_o.PaymentTerms</span></div>
+        <p style="margin:10px 0 4px"><strong>Prazo de entrega:</strong> @_o.DeliveryTime</p>
+        <p style="margin:4px 0"><strong>Validade:</strong> @_o.ValidityText</p>
+        <p style="margin:10px 0 4px"><strong>Impostos:</strong> @_o.TaxText</p>
+
+        <div style="margin-top:12px"><strong>Observações</strong>
+            @foreach (var line in Linhas(_o.Observations))
+            {
+                <div style="font-size:12.5px;margin-top:4px">@line</div>
+            }
+        </div>
+
+        <p style="margin-top:12px;font-size:12px;color:var(--muted)">@_o.SgiText</p>
+        <p style="font-size:12px;color:var(--muted)">@_o.TermsText</p>
+    </div>
+}
+
+@code {
+    [Parameter] public string? Id { get; set; }
+    private CommercialOffer? _o;
+    private List<CommercialOfferItem> _items = new();
+
+    protected override void OnInitialized()
+    {
+        if (Id is null) return;
+        _o = OffersRepo.Get(Id);
+        _items = OffersRepo.ItemsFor(Id);
+    }
+
+    private async Task Imprimir() => await JS.InvokeVoidAsync("appPrint");
+
+    private static string Dash(string s) => string.IsNullOrWhiteSpace(s) ? "—" : s;
+    private static IEnumerable<string> Linhas(string s) =>
+        (s ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim());
+}
