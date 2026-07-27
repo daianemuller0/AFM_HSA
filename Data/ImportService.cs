@@ -143,10 +143,14 @@ public class ImportService
         return Write("salesHistory", outRows, sub);
     }
 
+    // Importa a planilha-mestre da Howden (HP Fan References, 27 colunas em
+    // inglês). Guarda todas as colunas para exibição na aba Base Instalada e
+    // deriva os campos que o motor de oportunidades precisa.
     private ImportResult ImportBase(List<IXLRow> rows, Dictionary<string, int> c, bool sub)
     {
         var unitByName = _units.All().GroupBy(u => Norm(u.NomeUnidade)).ToDictionary(g => g.Key, g => g.First().Id);
         var eqByModelo = _equip.All().ToDictionary(e => Norm(e.Modelo), e => e.Id);
+        var spByName = _sp.All().GroupBy(s => Norm(s.Nome)).ToDictionary(g => g.Key, g => g.First().Id);
 
         var novoEquip = new List<IReadOnlyList<KeyValuePair<string, object?>>>();
         var outRows = new List<IReadOnlyList<KeyValuePair<string, object?>>>();
@@ -154,37 +158,103 @@ public class ImportService
 
         foreach (var r in rows)
         {
-            var modelo = Get(r, c, "modelo", "equipamento");
-            if (string.IsNullOrWhiteSpace(modelo)) continue;
+            // Colunas da planilha (aceita variações de normalização do cabeçalho).
+            var hpId       = Get(r, c, "hpfanreferencesid", "hp_fan_reference_id", "hpfanreferenceid");
+            var plantName  = Get(r, c, "plant_name", "plantname");
+            var city       = Get(r, c, "city");
+            var state      = Get(r, c, "state");
+            var country    = Get(r, c, "country");
+            var industry   = Get(r, c, "industry");
+            var process    = Get(r, c, "process");
+            var siteUnit   = Get(r, c, "site_loc__unit", "site_loc_unit", "site_unit", "unidade");
+            var prodType   = Get(r, c, "product_type", "producttype");
+            var brand      = Get(r, c, "brand");
+            var modelFam   = Get(r, c, "model__family", "model_family", "modelfamily", "modelo", "model");
+            var designation= Get(r, c, "designation");
+            var contractNo = Get(r, c, "contract_no", "contractno");
+            var serialNo   = Get(r, c, "serial_no", "serialno");
+            var clientRef  = Get(r, c, "clientrefno", "client_ref_no");
+            var gaDrawing  = Get(r, c, "ga_drawing_no", "gadrawingno");
+            var appType    = Get(r, c, "applicationtype", "application_type");
+            var fansBoiler = Get(r, c, "fansperboiler", "fans_per_boiler");
+            var prodCo     = Get(r, c, "product_company", "productcompany");
+            var installYr  = Get(r, c, "install_year", "installyear", "ano");
+            var opStatus   = Get(r, c, "operating_status", "operatingstatus", "status");
+            var endCust    = Get(r, c, "endcustomer", "end_customer");
+            var client     = Get(r, c, "client");
+            var clientCtry = Get(r, c, "client_country", "clientcountry");
+            var projName   = Get(r, c, "projectname", "project_name");
+            var refNo      = Get(r, c, "refno", "ref_no");
+            var agent      = Get(r, c, "agent");
 
-            if (!eqByModelo.TryGetValue(Norm(modelo), out var eqId))
+            // Linha considerada válida se tiver ao menos modelo, planta ou serial.
+            if (string.IsNullOrWhiteSpace(modelFam) && string.IsNullOrWhiteSpace(plantName)
+                && string.IsNullOrWhiteSpace(serialNo)) continue;
+
+            // Equipamento: casa por modelo (família) ou cria um novo.
+            var chaveModelo = Norm(string.IsNullOrWhiteSpace(modelFam) ? designation : modelFam);
+            if (!eqByModelo.TryGetValue(chaveModelo, out var eqId))
             {
                 eqId = "eq-" + Guid.NewGuid().ToString("N")[..8];
-                eqByModelo[Norm(modelo)] = eqId;
+                eqByModelo[chaveModelo] = eqId;
                 novoDoc++;
                 novoEquip.Add(Row(
                     ("id", eqId),
                     ("doc_num", novoDoc.ToString("D2")),
-                    ("tipo", Get(r, c, "tipo", "tipo_equipamento")),
-                    ("modelo", modelo),
-                    ("nome", (Get(r, c, "tipo") + " " + modelo).Trim()),
-                    ("aplicacao", Get(r, c, "aplicacao")),
-                    ("segmento", Def(Get(r, c, "segmento"), "Indústria")),
-                    ("fabricante", "Howden Aftermarket Intelligence"),
-                    ("valor_completo", NumStr(Get(r, c, "valor_completo", "valor")))));
+                    ("tipo", prodType),
+                    ("modelo", string.IsNullOrWhiteSpace(modelFam) ? designation : modelFam),
+                    ("nome", Def($"{prodType} {modelFam}".Trim(), designation)),
+                    ("aplicacao", appType),
+                    ("segmento", Def(industry, "Indústria")),
+                    ("fabricante", Def(brand, "Howden")),
+                    ("valor_completo", "0")));
             }
 
-            var unidade = Get(r, c, "unidade", "cliente");
-            unitByName.TryGetValue(Norm(unidade), out var unitId);
+            // Unidade/cliente: resolve por nome (planta) quando existir na base.
+            var unidadeNome = Def(plantName, Def(siteUnit, client));
+            unitByName.TryGetValue(Norm(unidadeNome), out var unitId);
+
+            // Vendedor: tenta casar pelo agente.
+            spByName.TryGetValue(Norm(agent), out var spId);
+
             outRows.Add(Row(
                 ("id", "ib-" + Guid.NewGuid().ToString("N")[..8]),
-                ("client_unit_id", unitId ?? unidade),
+                // campos do motor (derivados)
+                ("client_unit_id", unitId ?? unidadeNome),
                 ("equipment_id", eqId),
-                ("quantidade", Def(Get(r, c, "quantidade", "qtd"), "1")),
-                ("ano_instalacao", Get(r, c, "ano_instalacao", "ano")),
-                ("criticidade", Def(Get(r, c, "criticidade"), "média")),
-                ("status", Def(Get(r, c, "status", "ativo_ou_nao"), "ativo")),
-                ("vendedor_id", "")));
+                ("quantidade", Def(fansBoiler, "1")),
+                ("ano_instalacao", installYr),
+                ("criticidade", "média"),
+                ("status", Def(opStatus, "ativo")),
+                ("vendedor_id", spId ?? ""),
+                // colunas da planilha (exibição)
+                ("hp_fan_reference_id", hpId),
+                ("plant_name", plantName),
+                ("city", city),
+                ("state", state),
+                ("country", country),
+                ("industry", industry),
+                ("process", process),
+                ("site_unit", siteUnit),
+                ("product_type", prodType),
+                ("brand", brand),
+                ("model_family", modelFam),
+                ("designation", designation),
+                ("contract_no", contractNo),
+                ("serial_no", serialNo),
+                ("client_ref_no", clientRef),
+                ("ga_drawing_no", gaDrawing),
+                ("application_type", appType),
+                ("fans_per_boiler", fansBoiler),
+                ("product_company", prodCo),
+                ("install_year", installYr),
+                ("operating_status", opStatus),
+                ("end_customer", endCust),
+                ("client", client),
+                ("client_country", clientCtry),
+                ("project_name", projName),
+                ("ref_no", refNo),
+                ("agent", agent)));
         }
 
         if (novoEquip.Count > 0) _store.WriteBatch("equipment", novoEquip);

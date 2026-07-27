@@ -92,12 +92,25 @@ public class InstalledBaseRepository
     public InstalledBaseRepository(ParquetStore s) => _s = s;
 
     public List<InstalledBase> All() => _s.ReadLatest("installedBase",
-        "id, client_unit_id, equipment_id, quantidade, ano_instalacao, criticidade, status, vendedor_id",
+        "id, client_unit_id, equipment_id, quantidade, ano_instalacao, criticidade, status, vendedor_id, " +
+        "hp_fan_reference_id, plant_name, city, state, country, industry, process, site_unit, product_type, " +
+        "brand, model_family, designation, contract_no, serial_no, client_ref_no, ga_drawing_no, application_type, " +
+        "fans_per_boiler, product_company, install_year, operating_status, end_customer, client, client_country, " +
+        "project_name, ref_no, agent",
         r => new InstalledBase
         {
             Id = Fmt.S(r, 0), ClientUnitId = Fmt.S(r, 1), EquipmentId = Fmt.S(r, 2),
             Quantidade = Fmt.Int(Fmt.S(r, 3)), AnoInstalacao = Fmt.Int(Fmt.S(r, 4)),
             Criticidade = Fmt.S(r, 5), Status = Fmt.S(r, 6), VendedorId = Fmt.S(r, 7),
+            HpFanReferenceId = Fmt.S(r, 8), PlantName = Fmt.S(r, 9), City = Fmt.S(r, 10),
+            State = Fmt.S(r, 11), Country = Fmt.S(r, 12), Industry = Fmt.S(r, 13),
+            Process = Fmt.S(r, 14), SiteUnit = Fmt.S(r, 15), ProductType = Fmt.S(r, 16),
+            Brand = Fmt.S(r, 17), ModelFamily = Fmt.S(r, 18), Designation = Fmt.S(r, 19),
+            ContractNo = Fmt.S(r, 20), SerialNo = Fmt.S(r, 21), ClientRefNo = Fmt.S(r, 22),
+            GaDrawingNo = Fmt.S(r, 23), ApplicationType = Fmt.S(r, 24), FansPerBoiler = Fmt.S(r, 25),
+            ProductCompany = Fmt.S(r, 26), InstallYear = Fmt.S(r, 27), OperatingStatus = Fmt.S(r, 28),
+            EndCustomer = Fmt.S(r, 29), Client = Fmt.S(r, 30), ClientCountry = Fmt.S(r, 31),
+            ProjectName = Fmt.S(r, 32), RefNo = Fmt.S(r, 33), Agent = Fmt.S(r, 34),
         });
 }
 

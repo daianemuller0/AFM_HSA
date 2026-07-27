@@ -60,6 +60,10 @@ public class Equipment
 public class InstalledBase
 {
     public string Id { get; set; } = "";
+
+    // --- Campos usados pelo motor (oportunidades, dashboards, etc.) --------
+    // Preenchidos a partir da planilha na importação; mantidos para não
+    // quebrar o restante do sistema.
     public string ClientUnitId { get; set; } = "";
     public string EquipmentId { get; set; } = "";
     public int Quantidade { get; set; }
@@ -67,6 +71,36 @@ public class InstalledBase
     public string Criticidade { get; set; } = "";
     public string Status { get; set; } = "";
     public string VendedorId { get; set; } = "";
+
+    // --- Colunas da planilha-mestre da Howden (HP Fan References) ----------
+    // Exibidas na aba Base Instalada, na mesma ordem da planilha.
+    public string HpFanReferenceId { get; set; } = "";
+    public string PlantName { get; set; } = "";
+    public string City { get; set; } = "";
+    public string State { get; set; } = "";
+    public string Country { get; set; } = "";
+    public string Industry { get; set; } = "";
+    public string Process { get; set; } = "";
+    public string SiteUnit { get; set; } = "";
+    public string ProductType { get; set; } = "";
+    public string Brand { get; set; } = "";
+    public string ModelFamily { get; set; } = "";
+    public string Designation { get; set; } = "";
+    public string ContractNo { get; set; } = "";
+    public string SerialNo { get; set; } = "";
+    public string ClientRefNo { get; set; } = "";
+    public string GaDrawingNo { get; set; } = "";
+    public string ApplicationType { get; set; } = "";
+    public string FansPerBoiler { get; set; } = "";
+    public string ProductCompany { get; set; } = "";
+    public string InstallYear { get; set; } = "";
+    public string OperatingStatus { get; set; } = "";
+    public string EndCustomer { get; set; } = "";
+    public string Client { get; set; } = "";
+    public string ClientCountry { get; set; } = "";
+    public string ProjectName { get; set; } = "";
+    public string RefNo { get; set; } = "";
+    public string Agent { get; set; } = "";
 }
 
 // parts
