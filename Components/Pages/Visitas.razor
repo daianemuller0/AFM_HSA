@@ -6,8 +6,10 @@
 
 <PageTitle>Ações em Campo · AFM HSA</PageTitle>
 
-<h1>Ações em Campo</h1>
-<p class="subtitle">@Filtradas.Count visita(s) · @Filtradas.Count(v => v.Status == "agendada") agendada(s)</p>
+<div class="page-head">
+    <div><h1>Ações em Campo</h1><p class="subtitle">@Filtradas.Count visita(s) · @Filtradas.Count(v => v.Status == "agendada") agendada(s)</p></div>
+    <div class="page-actions"><a class="btn-primary" href="/visitas/nova">+ Nova ação em campo</a></div>
+</div>
 
 <div class="toolbar">
     <input class="cell" style="max-width:300px" placeholder="Buscar cliente, notas…"

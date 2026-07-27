@@ -2,76 +2,97 @@
 @attribute [Authorize]
 @rendermode InteractiveServer
 @inject IntelligenceService Intel
+@inject ClientUnitRepository Units
+@inject VisitRepository VisitsRepo
 @inject SalespersonRepository Salespeople
 
 <PageTitle>Plano de Ação Comercial · AFM HSA</PageTitle>
 
-<h1>Plano de Ação Comercial</h1>
-<p class="subtitle">@Filtradas.Count ação(ões) priorizada(s) · Potencial @Fmt.Brl0(Total)</p>
+<div class="page-head">
+    <div><h1>Plano de Ação Comercial</h1><p class="subtitle">Unidades, janelas de reposição próximas e ações recomendadas.</p></div>
+    <div class="page-actions"><a class="btn-primary" href="/visitas/nova">Registrar ação em campo</a></div>
+</div>
 
 <div class="toolbar">
-    <select class="cell" style="max-width:240px" @bind="_vend">
+    <select class="cell" style="max-width:240px" @bind="_vend" @bind:after="Carregar">
         <option value="">Todos os vendedores</option>
-        @foreach (var s in _sps)
-        {
-            <option value="@s.Id">@s.Nome</option>
-        }
+        @foreach (var s in _sps) { <option value="@s.Id">@s.Nome</option> }
     </select>
 </div>
 
+<div class="kpis">
+    <a class="kpi click" href="/clientes"><div class="kpi-label">Clientes na carteira</div><div class="kpi-value">@_clientes</div></a>
+    <a class="kpi click k-po" href="/oportunidades"><div class="kpi-label">Janelas de reposição</div><div class="kpi-value">@_open.Count</div></a>
+    <a class="kpi click k-venc" href="/oportunidades"><div class="kpi-label">Janelas críticas</div><div class="kpi-value">@_criticas.Count</div></a>
+    <a class="kpi click k-ren" href="/oportunidades"><div class="kpi-label">Valor potencial</div><div class="kpi-value" style="font-size:15px">@Fmt.Brl0(_open.Sum(o => o.ValorEstimado))</div></a>
+</div>
+
+<div class="dash-grid">
+    <div class="panel">
+        <div class="dash-title">Janelas críticas (@_criticas.Count)</div>
+        @if (_criticas.Count == 0) { <p class="empty">Nada por aqui.</p> }
+        @foreach (var o in _criticas.Take(8)) { @Linha(o) }
+    </div>
+    <div class="panel">
+        <div class="dash-title">Janelas próximas — 90 dias (@_proximas.Count)</div>
+        @if (_proximas.Count == 0) { <p class="empty">Nada por aqui.</p> }
+        @foreach (var o in _proximas.Take(8)) { @Linha(o) }
+    </div>
+</div>
+
+<h2 style="font-size:15px;color:var(--primary);margin:22px 0 10px">Ações em campo</h2>
 <div style="overflow-x:auto">
 <table class="grid">
-    <thead>
-        <tr>
-            <th>Prioridade</th><th>Cliente / Unidade</th><th>Item</th><th>Janela</th>
-            <th>Próxima ação</th><th>Vendedor</th><th class="right">Potencial</th>
-        </tr>
-    </thead>
+    <thead><tr><th>Data</th><th>Cliente / Unidade</th><th>Tipo</th><th>Status</th><th>Próximo passo</th></tr></thead>
     <tbody>
-        @foreach (var o in Filtradas)
+        @foreach (var v in _visits)
         {
-            <tr>
-                <td><span class="badge @IntelligenceService.UrgClass(o.Urgencia)">@o.Urgencia</span></td>
-                <td>@Intel.UnitLabel(o.ClientUnitId)</td>
-                <td>@o.Item</td>
-                <td class="nowrap">@Fmt.Date(o.DataPrevista)</td>
-                <td>@o.ProximaAcao</td>
-                <td>@Intel.SalespersonName(o.VendedorId)</td>
-                <td class="right nowrap">@Fmt.Brl0(o.ValorEstimado)</td>
-            </tr>
+            <tr><td class="nowrap">@Fmt.Date(v.DataVisita)</td><td>@Intel.UnitLabel(v.ClientUnitId)</td>
+                <td>@Cap(v.TipoVisita)</td><td>@Cap(v.Status)</td><td>@v.ProximoPasso</td></tr>
         }
-        @if (Filtradas.Count == 0)
-        {
-            <tr><td colspan="7" class="empty">Nenhuma ação para este filtro.</td></tr>
-        }
+        @if (_visits.Count == 0) { <tr><td colspan="5" class="empty">Nenhuma ação registrada.</td></tr> }
     </tbody>
 </table>
 </div>
 
 @code {
-    private List<Opportunity> _all = new();
     private List<Salesperson> _sps = new();
+    private List<Opportunity> _open = new(), _criticas = new(), _proximas = new();
+    private List<Visit> _visits = new();
+    private int _clientes;
     private string _vend = "";
 
-    protected override void OnInitialized()
+    protected override void OnInitialized() => Carregar();
+
+
+    private void Carregar()
     {
-        _all = Intel.Opportunities();
         _sps = Salespeople.All();
-    }
-
-    private static int Rank(string urg) => urg switch { "Crítica" => 4, "Alta" => 3, "Média" => 2, _ => 1 };
-
-    private List<Opportunity> Filtradas
-    {
-        get
+        var open = Intel.OpenOpportunities();
+        var units = Units.All();
+        var visits = VisitsRepo.All();
+        if (!string.IsNullOrWhiteSpace(_vend))
         {
-            IEnumerable<Opportunity> q = _all;
-            if (!string.IsNullOrWhiteSpace(_vend))
-                q = q.Where(o => o.VendedorId == _vend);
-            return q.OrderByDescending(o => Rank(o.Urgencia))
-                    .ThenBy(o => o.DataPrevista, StringComparer.Ordinal).ToList();
+            open = open.Where(o => o.VendedorId == _vend).ToList();
+            units = units.Where(u => u.VendedorId == _vend).ToList();
+            visits = visits.Where(v => v.VendedorId == _vend).ToList();
         }
+        _open = open;
+        _criticas = open.Where(o => o.Urgencia == "Crítica").ToList();
+        _proximas = open.Where(o => o.DiasAteJanela >= 0 && o.DiasAteJanela <= 90).ToList();
+        _visits = visits;
+        _clientes = units.Select(u => u.CompanyId).Distinct().Count();
     }
 
-    private decimal Total => Filtradas.Sum(o => o.ValorEstimado);
+    private static string Cap(string s) => string.IsNullOrEmpty(s) ? "—" : char.ToUpperInvariant(s[0]) + s[1..];
+
+    private RenderFragment Linha(Opportunity o) => builder =>
+    {
+        builder.AddMarkupContent(0,
+            $"<a class=\"alert-item\" style=\"text-decoration:none;color:inherit\" href=\"/oportunidades/{o.Id}\">" +
+            $"<div style=\"flex:1;min-width:0\"><div style=\"font-weight:600\">{System.Net.WebUtility.HtmlEncode(Intel.UnitLabel(o.ClientUnitId))}</div>" +
+            $"<div class=\"truncate\" style=\"font-size:11.5px;color:var(--muted)\">{System.Net.WebUtility.HtmlEncode(o.Item)} · {System.Net.WebUtility.HtmlEncode(o.ProximaAcao)}</div></div>" +
+            $"<div style=\"text-align:right;white-space:nowrap\"><span class=\"badge {IntelligenceService.UrgClass(o.Urgencia)}\">{o.Urgencia}</span> " +
+            $"<span style=\"font-weight:600\">{Fmt.Brl0(o.ValorEstimado)}</span></div></a>");
+    };
 }

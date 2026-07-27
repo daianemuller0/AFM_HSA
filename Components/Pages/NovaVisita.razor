@@ -1,0 +1,83 @@
+@page "/visitas/nova"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@using System.Globalization
+@inject ClientUnitRepository Units
+@inject EquipmentRepository Equipamentos
+@inject SalespersonRepository Salespeople
+@inject VisitRepository VisitsRepo
+@inject IntelligenceService Intel
+@inject NavigationManager Nav
+
+<PageTitle>Nova ação em campo · AFM HSA</PageTitle>
+
+<div class="page-head">
+    <div><h1>Nova ação em campo</h1><p class="subtitle">Registrar uma visita / contato técnico-comercial.</p></div>
+    <div class="page-actions"><a class="btn-ghost" href="/visitas">← Visitas</a></div>
+</div>
+
+<div class="panel" style="max-width:720px">
+    <div class="form-grid">
+        <label>Cliente / Unidade
+            <select @bind="_v.ClientUnitId">
+                <option value="">Selecione…</option>
+                @foreach (var u in _units) { <option value="@u.Id">@Intel.UnitLabel(u.Id)</option> }
+            </select>
+        </label>
+        <label>Equipamento (opcional)
+            <select @bind="_v.EquipmentId">
+                <option value="">—</option>
+                @foreach (var e in _equip) { <option value="@e.Id">@e.Modelo</option> }
+            </select>
+        </label>
+        <label>Vendedor
+            <select @bind="_v.VendedorId">
+                @foreach (var s in _sps) { <option value="@s.Id">@s.Nome</option> }
+            </select>
+        </label>
+        <label>Data da visita <input type="date" @bind="_dataVisita" /></label>
+        <label>Tipo
+            <select @bind="_v.TipoVisita"><option>presencial</option><option>online</option></select>
+        </label>
+        <label>Status
+            <select @bind="_v.Status"><option>realizada</option><option>agendada</option></select>
+        </label>
+        <label>Notas <textarea style="min-height:60px" @bind="_v.Notas"></textarea></label>
+        <label>Próximo passo <input @bind="_v.ProximoPasso" /></label>
+        <label>Próximo contato <input type="date" @bind="_dataProx" /></label>
+        <label>Resultado <input @bind="_v.Resultado" /></label>
+    </div>
+    @if (_erro is not null) { <div class="alert-error" style="margin-top:12px">@_erro</div> }
+    <div class="modal-actions">
+        <a class="btn-ghost" href="/visitas">Cancelar</a>
+        <button class="btn-primary" @onclick="Salvar">Salvar</button>
+    </div>
+</div>
+
+@code {
+    private List<ClientUnit> _units = new();
+    private List<Equipment> _equip = new();
+    private List<Salesperson> _sps = new();
+    private Visit _v = new() { TipoVisita = "presencial", Status = "realizada" };
+    private DateOnly? _dataVisita = DateOnly.FromDateTime(DateTime.Now);
+    private DateOnly? _dataProx;
+    private string? _erro;
+
+    protected override void OnInitialized()
+    {
+        _units = Units.All();
+        _equip = Equipamentos.All();
+        _sps = Salespeople.All();
+        _v.VendedorId = _sps.FirstOrDefault()?.Id ?? "";
+    }
+
+    private void Salvar()
+    {
+        if (string.IsNullOrWhiteSpace(_v.ClientUnitId)) { _erro = "Selecione o cliente/unidade."; return; }
+        _v.Id = "v-" + Guid.NewGuid().ToString("N")[..10];
+        _v.DataVisita = _dataVisita?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "";
+        _v.DataProximoContato = _dataProx?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "";
+        VisitsRepo.Save(_v);
+        Nav.NavigateTo("/visitas");
+    }
+}
