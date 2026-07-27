@@ -1,77 +1,76 @@
 @page "/dashboard"
 @attribute [Authorize]
 @rendermode InteractiveServer
-@inject CompanyRepository Companies
-@inject ClientUnitRepository Units
-@inject EquipmentRepository Equipamentos
-@inject InstalledBaseRepository Base
-@inject PartRepository Pecas
-@inject SalespersonRepository Salespeople
-@inject SalesRecordRepository Vendas
+@inject IntelligenceService Intel
+@inject VisitRepository VisitsRepo
 
 <PageTitle>Central de Inteligência · AFM HSA</PageTitle>
 
 <h1>Central de Inteligência</h1>
-<p class="subtitle">Visão geral da base instalada industrial e do histórico comercial.</p>
+<p class="subtitle">Inteligência preditiva de aftermarket — base instalada, ciclos técnicos e janelas de reposição.</p>
 
 <div class="kpis kpis-8">
-    <div class="kpi"><div class="kpi-label">Clientes</div><div class="kpi-value">@_companies</div></div>
-    <div class="kpi"><div class="kpi-label">Unidades</div><div class="kpi-value">@_units</div></div>
-    <div class="kpi"><div class="kpi-label">Equipamentos</div><div class="kpi-value">@_equip</div></div>
-    <div class="kpi"><div class="kpi-label">Base instalada</div><div class="kpi-value">@_base</div></div>
-    <div class="kpi"><div class="kpi-label">Peças</div><div class="kpi-value">@_parts</div></div>
-    <div class="kpi"><div class="kpi-label">Vendedores</div><div class="kpi-value">@_sp</div></div>
-    <div class="kpi"><div class="kpi-label">Vendas (hist.)</div><div class="kpi-value">@_salesCount</div></div>
-    <div class="kpi k-ren"><div class="kpi-label">Total vendido</div><div class="kpi-value" style="font-size:16px">@Fmt.Brl(_salesTotal)</div></div>
+    <a class="kpi click k-po" href="/oportunidades"><div class="kpi-label">Janelas detectadas</div><div class="kpi-value">@_vm.OportunidadesAbertas</div></a>
+    <a class="kpi click k-ren" href="/oportunidades"><div class="kpi-label">Valor potencial</div><div class="kpi-value" style="font-size:15px">@Fmt.Brl0(_vm.ValorPotencial)</div></a>
+    <a class="kpi click k-venc" href="/oportunidades"><div class="kpi-label">Críticas / vencidas</div><div class="kpi-value">@_vm.CriticasVencidas</div></a>
+    <a class="kpi click k-aten" href="/oportunidades"><div class="kpi-label">Previstas — 30 dias</div><div class="kpi-value">@_vm.Prox30</div></a>
+    <a class="kpi click k-aten" href="/oportunidades"><div class="kpi-label">Previstas — 90 dias</div><div class="kpi-value">@_vm.Prox90</div></a>
+    <a class="kpi click k-venc" href="/base-instalada"><div class="kpi-label">Sem reposição (3a+)</div><div class="kpi-value">@_vm.SemVenda3a</div></a>
+    <a class="kpi click" href="/visitas"><div class="kpi-label">Ações em campo</div><div class="kpi-value">@_vm.VisitasAgendadas</div></a>
+    <a class="kpi click k-po" href="/pecas"><div class="kpi-label">Peças críticas</div><div class="kpi-value">@_vm.PecasCriticas</div></a>
 </div>
 
-<div class="panel">
-    <div class="dash-title">Base instalada por segmento</div>
-    @if (_porSegmento.Count == 0)
-    {
-        <p class="empty">Sem dados de base instalada.</p>
-    }
-    else
-    {
-        var max = _porSegmento.Max(x => x.Value);
-        @foreach (var s in _porSegmento.OrderByDescending(x => x.Value))
+<div class="dash-grid">
+    <div class="panel"><div class="dash-title">Janelas de reposição por mês</div>@Barras(_vm.PorMes, false)</div>
+    <div class="panel"><div class="dash-title">Histórico de aftermarket por ano</div>@Barras(_vm.SalesByYear, true)</div>
+    <div class="panel"><div class="dash-title">Potencial por cliente</div>@Barras(_vm.PorCliente, true)</div>
+    <div class="panel"><div class="dash-title">Potencial por vendedor</div>@Barras(_vm.PorVendedor, true)</div>
+    <div class="panel"><div class="dash-title">Janelas por segmento</div>@Barras(_vm.PorSegmento, false)</div>
+    <div class="panel"><div class="dash-title">Janelas por criticidade</div>@Barras(_vm.PorUrgencia, false)</div>
+    <div class="panel"><div class="dash-title">Equipamentos por tipo</div>@Barras(_vm.PorTipo, false)</div>
+    <div class="panel">
+        <div class="dash-title">Próximas janelas críticas</div>
+        @if (_vm.CriticasTop.Count == 0)
         {
-            <div class="bar-row">
-                <div class="bar-label">@s.Key</div>
-                <div class="bar-track"><div class="bar" style="width:@(Pct(s.Value, max))%"></div></div>
-                <div class="bar-value">@s.Value</div>
-            </div>
+            <p class="empty">Nenhuma janela crítica.</p>
         }
-    }
+        else
+        {
+            @foreach (var o in _vm.CriticasTop)
+            {
+                <div class="alert-item">
+                    <div style="flex:1">
+                        <div style="font-weight:600">@Intel.UnitLabel(o.ClientUnitId)</div>
+                        <div style="font-size:11.5px;color:var(--muted)">@o.Item</div>
+                    </div>
+                    <div style="text-align:right">
+                        <div style="font-weight:600">@Fmt.Brl0(o.ValorEstimado)</div>
+                        <div style="font-size:11.5px;color:#b91c1c">@(o.DiasAteJanela < 0 ? "Janela vencida" : $"{o.DiasAteJanela} dias")</div>
+                    </div>
+                </div>
+            }
+        }
+    </div>
 </div>
 
 @code {
-    private int _companies, _units, _equip, _base, _parts, _sp, _salesCount;
-    private decimal _salesTotal;
-    private Dictionary<string, int> _porSegmento = new();
+    private DashboardVM _vm = new();
 
-    protected override void OnInitialized()
+    protected override void OnInitialized() => _vm = Intel.Dashboard(VisitsRepo.All());
+
+    private RenderFragment Barras(List<ChartItem> dados, bool money) => builder =>
     {
-        var companies = Companies.All();
-        var units = Units.All();
-        var equip = Equipamentos.All();
-        var baseInst = Base.All();
-        var vendas = Vendas.All();
-
-        _companies = companies.Count;
-        _units = units.Count;
-        _equip = equip.Count;
-        _base = baseInst.Sum(b => b.Quantidade);
-        _parts = Pecas.All().Count;
-        _sp = Salespeople.All().Count(s => s.Ativo);
-        _salesCount = vendas.Count;
-        _salesTotal = vendas.Sum(v => v.Valor);
-
-        var unitSeg = units.ToDictionary(u => u.Id, u => u.Segmento);
-        _porSegmento = baseInst
-            .GroupBy(b => unitSeg.TryGetValue(b.ClientUnitId, out var seg) && !string.IsNullOrEmpty(seg) ? seg : "Outros")
-            .ToDictionary(g => g.Key, g => g.Sum(b => b.Quantidade));
-    }
-
-    private static int Pct(int v, int max) => max <= 0 ? 0 : (int)Math.Round(100.0 * v / max);
+        if (dados.Count == 0) { builder.AddMarkupContent(0, "<p class=\"empty\">Sem dados.</p>"); return; }
+        var max = dados.Max(x => x.Valor);
+        int seq = 1;
+        foreach (var d in dados)
+        {
+            var pct = max <= 0 ? 0 : (int)Math.Round(100m * d.Valor / max);
+            var val = money ? Fmt.Brl0(d.Valor) : Fmt.N0(d.Valor);
+            builder.AddMarkupContent(seq++,
+                $"<div class=\"bar-row\"><div class=\"bar-label\">{System.Net.WebUtility.HtmlEncode(d.Nome)}</div>" +
+                $"<div class=\"bar-track\"><div class=\"bar\" style=\"width:{pct}%\"></div></div>" +
+                $"<div class=\"bar-value\">{val}</div></div>");
+        }
+    };
 }

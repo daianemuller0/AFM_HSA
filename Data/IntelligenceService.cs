@@ -281,6 +281,80 @@ public class IntelligenceService
         "Crítica" => 4, "Alta" => 3, "Média" => 2, _ => 1,
     };
 
+    // ---- Central de Inteligência (dashboard) -----------------------------
+    // Status considerados "em aberto" (exclui Ganha/Perdida/Sem interesse).
+    public static readonly string[] OpenStatuses =
+    {
+        "Prevista", "Próxima", "Crítica", "Em contato", "Visita agendada",
+        "Proposta enviada", "Negociação", "Reprogramada",
+    };
+
+    public List<Opportunity> OpenOpportunities() =>
+        Opportunities().Where(o => OpenStatuses.Contains(o.Status)).ToList();
+
+    public DashboardVM Dashboard(List<Visit> visits)
+    {
+        var open = OpenOpportunities();
+        var overdue = new HashSet<string> { "vencida", "expirada", "histórica" };
+
+        // equipamentos sem venda há mais de 3 anos (relativo à data-base)
+        var lastSale = new Dictionary<string, string>();
+        foreach (var s in Sales)
+            if (!lastSale.TryGetValue(s.EquipmentId, out var cur) || string.CompareOrdinal(s.DataVenda, cur) > 0)
+                lastSale[s.EquipmentId] = s.DataVenda;
+        var semVenda3a = lastSale.Values.Count(d => DaysBetween(d) < -365 * 3);
+
+        var eqIds = Base.Select(b => b.EquipmentId).ToHashSet();
+        var pecasCriticas = Parts.Count(p => p.Critica && p.Ativo && eqIds.Contains(p.EquipmentId));
+
+        string ClienteDe(string u) => Units.TryGetValue(u, out var x) ? CompanyName(x.CompanyId) : "—";
+        string SegDe(string u) => Units.TryGetValue(u, out var x) && !string.IsNullOrEmpty(x.Segmento) ? x.Segmento : "—";
+        string TipoDe(string e) => Equipments.TryGetValue(e, out var x) && !string.IsNullOrEmpty(x.Tipo) ? x.Tipo : "—";
+
+        static List<ChartItem> Count<T>(IEnumerable<T> items, Func<T, string> key) =>
+            items.GroupBy(key).Select(g => new ChartItem(g.Key, g.Count())).OrderByDescending(c => c.Valor).ToList();
+
+        List<ChartItem> ValueBy(Func<Opportunity, string> key, int top = 8) =>
+            open.GroupBy(key).Select(g => new ChartItem(g.Key, Math.Round(g.Sum(o => o.ValorEstimado))))
+                .OrderByDescending(c => c.Valor).Take(top).ToList();
+
+        var porMes = open.Where(o => o.DataPrevista.Length >= 7)
+            .GroupBy(o => o.DataPrevista[..7])
+            .OrderBy(g => g.Key, StringComparer.Ordinal).Take(18)
+            .Select(g => new ChartItem(MesLabel(g.Key), g.Count())).ToList();
+
+        var salesByYear = Sales.Where(s => s.DataVenda.Length >= 4)
+            .GroupBy(s => s.DataVenda[..4])
+            .OrderBy(g => g.Key, StringComparer.Ordinal)
+            .Select(g => new ChartItem(g.Key, Math.Round(g.Sum(s => s.Valor)))).ToList();
+
+        return new DashboardVM
+        {
+            OportunidadesAbertas = open.Count,
+            ValorPotencial = open.Sum(o => o.ValorEstimado),
+            CriticasVencidas = open.Count(o => o.Urgencia == "Crítica" || overdue.Contains(o.StatusTemporal)),
+            Prox30 = open.Count(o => o.DiasAteJanela >= 0 && o.DiasAteJanela <= 30),
+            Prox90 = open.Count(o => o.DiasAteJanela >= 0 && o.DiasAteJanela <= 90),
+            SemVenda3a = semVenda3a,
+            VisitasAgendadas = visits.Count(v => v.Status == "agendada"),
+            PecasCriticas = pecasCriticas,
+            PorMes = porMes,
+            PorCliente = ValueBy(o => ClienteDe(o.ClientUnitId)),
+            PorVendedor = ValueBy(o => SalespersonName(o.VendedorId)),
+            PorSegmento = Count(open, o => SegDe(o.ClientUnitId)),
+            PorUrgencia = Count(open, o => o.Urgencia),
+            PorTipo = Count(Base, b => TipoDe(b.EquipmentId)),
+            SalesByYear = salesByYear,
+            CriticasTop = open.Where(o => o.Urgencia == "Crítica").Take(6).ToList(),
+        };
+    }
+
+    private static string MesLabel(string ym)
+    {
+        var p = ym.Split('-');
+        return p.Length == 2 ? $"{p[1]}/{p[0]}" : ym;
+    }
+
     // ---- helpers de data e texto -----------------------------------------
     private static string NormItem(string s) =>
         Regex.Replace(s.Trim().ToLowerInvariant(), @"\s+", " ");
@@ -307,4 +381,28 @@ public class IntelligenceService
         "Média" => "st-urgente",
         _ => "st-ok",
     };
+}
+
+// Item genérico para gráficos (nome + valor).
+public record ChartItem(string Nome, decimal Valor);
+
+// Dados prontos da Central de Inteligência.
+public class DashboardVM
+{
+    public int OportunidadesAbertas { get; set; }
+    public decimal ValorPotencial { get; set; }
+    public int CriticasVencidas { get; set; }
+    public int Prox30 { get; set; }
+    public int Prox90 { get; set; }
+    public int SemVenda3a { get; set; }
+    public int VisitasAgendadas { get; set; }
+    public int PecasCriticas { get; set; }
+    public List<ChartItem> PorMes { get; set; } = new();
+    public List<ChartItem> PorCliente { get; set; } = new();
+    public List<ChartItem> PorVendedor { get; set; } = new();
+    public List<ChartItem> PorSegmento { get; set; } = new();
+    public List<ChartItem> PorUrgencia { get; set; } = new();
+    public List<ChartItem> PorTipo { get; set; } = new();
+    public List<ChartItem> SalesByYear { get; set; } = new();
+    public List<AfmHsa.Models.Opportunity> CriticasTop { get; set; } = new();
 }
