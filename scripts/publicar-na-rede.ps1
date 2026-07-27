@@ -51,6 +51,19 @@ $LauncherLines = @(
 )
 Set-Content -Path $LauncherPath -Value $LauncherLines -Encoding ASCII
 
+# --- 3b) Criar atalho .lnk com o icone Howden -------------------------
+# Aponta para o AfmHsa.exe na rede (que ja traz o icone embutido).
+# Copie este "AFM HSA.lnk" para a Area de Trabalho dos usuarios.
+$LnkPath  = Join-Path $Publish "AFM HSA.lnk"
+$ExeOnNet = Join-Path $Destino "AfmHsa.exe"
+$ws = New-Object -ComObject WScript.Shell
+$sc = $ws.CreateShortcut($LnkPath)
+$sc.TargetPath       = $ExeOnNet
+$sc.WorkingDirectory = $Destino
+$sc.IconLocation     = "$ExeOnNet,0"
+$sc.Description       = "AFM HSA - Aftermarket Intelligence"
+$sc.Save()
+
 # --- 4) Copiar para a rede (espelhando) -------------------------------
 Write-Host "==> Copiando para a rede (isso pode demorar)..." -ForegroundColor Cyan
 robocopy "$Publish" "$Destino" /MIR /R:3 /W:5 /NP /NFL /NDL | Out-Null

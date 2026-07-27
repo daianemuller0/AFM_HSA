@@ -6,6 +6,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>AfmHsa</RootNamespace>
     <AssemblyName>AfmHsa</AssemblyName>
+    <!-- Icone do executavel (mostrado no Windows Explorer e nos atalhos).
+         Usa o logo Howden (mesmo do favicon do navegador). -->
+    <ApplicationIcon>wwwroot\favicon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
