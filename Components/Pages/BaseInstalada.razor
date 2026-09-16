@@ -11,12 +11,36 @@
 <div class="toolbar">
     <input class="cell" style="max-width:360px" placeholder="Buscar planta, cliente, modelo, serial…"
            @bind="_busca" @bind:event="oninput" />
+    <div style="flex:1"></div>
+    @if (_all.Count > 0 && !_confirmarLimpar)
+    {
+        <button class="btn-ghost" style="color:#b91c1c;border-color:#fca5a5"
+                @onclick="() => _confirmarLimpar = true">🗑 Limpar base inteira</button>
+    }
 </div>
+
+@if (_confirmarLimpar)
+{
+    <div class="alert-error" style="text-align:left;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <span style="flex:1;min-width:280px">
+            <strong>Apagar toda a base instalada?</strong>
+            Isso remove os @_all.Count registro(s) e não pode ser desfeito.
+        </span>
+        <button class="btn-primary" style="background:#b91c1c" @onclick="LimparTudo">Sim, apagar tudo</button>
+        <button class="btn-ghost" @onclick="() => _confirmarLimpar = false">Cancelar</button>
+    </div>
+}
+
+@if (_msg is not null)
+{
+    <div class="side-ok" style="margin-bottom:12px">@_msg</div>
+}
 
 <div style="overflow-x:auto">
 <table class="grid">
     <thead>
         <tr>
+            <th style="width:104px">Ações</th>
             <th>Hpfanreferencesid</th><th>Plant Name</th><th>City</th><th>State</th><th>Country</th>
             <th>Industry</th><th>Process</th><th>Site Loc./Unit</th><th>Product Type</th><th>Brand</th>
             <th>Model (Family)</th><th>Designation</th><th>Contract No</th><th>Serial No</th><th>ClientRefNo</th>
@@ -29,6 +53,20 @@
         @foreach (var b in Filtradas)
         {
             <tr>
+                <td class="nowrap">
+                    @if (_confirmarId == b.Id)
+                    {
+                        <button class="btn-link" style="color:#b91c1c;font-weight:600"
+                                @onclick="() => Excluir(b)">excluir?</button>
+                        <button class="btn-link" style="color:var(--muted)"
+                                @onclick="() => _confirmarId = null">não</button>
+                    }
+                    else
+                    {
+                        <button class="btn-link" style="color:#b91c1c"
+                                @onclick="() => _confirmarId = b.Id">excluir</button>
+                    }
+                </td>
                 <td>@Dash(b.HpFanReferenceId)</td>
                 <td class="nowrap">@Dash(b.PlantName)</td>
                 <td>@Dash(b.City)</td>
@@ -60,7 +98,7 @@
         }
         @if (Filtradas.Count == 0)
         {
-            <tr><td colspan="27" class="empty">Nenhuma referência encontrada. Importe a planilha em Dados e Importação.</td></tr>
+            <tr><td colspan="28" class="empty">Nenhuma referência encontrada. Importe a planilha em Dados e Importação.</td></tr>
         }
     </tbody>
 </table>
@@ -69,10 +107,32 @@
 @code {
     private List<InstalledBase> _all = new();
     private string _busca = "";
+    private string? _confirmarId;
+    private bool _confirmarLimpar;
+    private string? _msg;
 
     protected override void OnInitialized()
     {
         _all = Base.All();
+    }
+
+    private void Excluir(InstalledBase b)
+    {
+        Base.Delete(b.Id);
+        _confirmarId = null;
+        _all = Base.All();
+        var nome = string.IsNullOrWhiteSpace(b.PlantName) ? b.ModelFamily : b.PlantName;
+        _msg = $"Referência excluída{(string.IsNullOrWhiteSpace(nome) ? "" : $" — {nome}")}.";
+    }
+
+    private void LimparTudo()
+    {
+        var n = _all.Count;
+        Base.ClearAll();
+        _confirmarLimpar = false;
+        _confirmarId = null;
+        _all = Base.All();
+        _msg = $"Base instalada limpa — {n} registro(s) removido(s).";
     }
 
     private static string Dash(string s) => string.IsNullOrWhiteSpace(s) ? "—" : s;

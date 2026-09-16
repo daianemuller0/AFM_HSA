@@ -17,6 +17,10 @@
     <PackageReference Include="DuckDB.NET.Data.Full" Version="1.1.3" />
     <!-- Leitura de Excel (.xlsx) para as telas de importação -->
     <PackageReference Include="ClosedXML" Version="0.102.2" />
+    <!-- Leitura de Excel antigo (.xls, formato BIFF/OLE2) na importação -->
+    <PackageReference Include="ExcelDataReader" Version="3.6.0" />
+    <!-- Habilita Windows-1252 no .NET (CSV exportado pelo Excel pt-BR e .xls antigos) -->
+    <PackageReference Include="System.Text.Encoding.CodePages" Version="8.0.0" />
   </ItemGroup>
 
   <ItemGroup>

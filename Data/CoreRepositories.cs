@@ -112,6 +112,22 @@ public class InstalledBaseRepository
             EndCustomer = Fmt.S(r, 29), Client = Fmt.S(r, 30), ClientCountry = Fmt.S(r, 31),
             ProjectName = Fmt.S(r, 32), RefNo = Fmt.S(r, 33), Agent = Fmt.S(r, 34),
         });
+
+    /// <summary>Exclui uma referência da base (marcação lógica, igual aos demais cadastros).</summary>
+    public void Delete(string id) => _s.WriteRow("installedBase",
+        new KeyValuePair<string, object?>[] { new("id", id) }, deleted: true);
+
+    /// <summary>
+    /// Apaga TODA a base instalada. Depois de limpar, grava um marcador apagado para que
+    /// a entidade não fique "vazia" — senão o seed de demonstração repovoaria a base na
+    /// próxima inicialização do app. O marcador não aparece em nenhuma consulta.
+    /// </summary>
+    public void ClearAll()
+    {
+        _s.Clear("installedBase");
+        _s.WriteRow("installedBase",
+            new KeyValuePair<string, object?>[] { new("id", "__base_limpa__") }, deleted: true);
+    }
 }
 
 public class PartRepository

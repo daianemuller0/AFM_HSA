@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using ClosedXML.Excel;
+using ExcelDataReader;
 
 namespace AfmHsa.Data;
 
@@ -11,7 +12,7 @@ public class ImportResult
     public string Message { get; set; } = "";
 }
 
-// Importa planilhas .xlsx para as entidades da base (o "motor" que alimenta o
+// Importa planilhas (.xlsx, .xls e .csv) para as entidades da base (o "motor" que alimenta o
 // sistema). Mapeia por cabeçalho (tolerante a acentos/maiúsculas) e resolve
 // referências (cliente/unidade/equipamento/vendedor) por nome quando possível.
 public class ImportService
@@ -28,22 +29,30 @@ public class ImportService
         _store = store; _units = units; _equip = equip; _sp = sp; _companies = companies;
     }
 
-    public ImportResult Import(string tipo, byte[] bytes, bool substituir)
+    /// <summary>
+    /// Importa um arquivo de planilha. Aceita .xlsx/.xlsm, .xls (Excel antigo) e .csv —
+    /// o formato é detectado pelo conteúdo do arquivo (com a extensão como reforço).
+    /// </summary>
+    public ImportResult Import(string tipo, byte[] bytes, bool substituir, string fileName = "")
     {
         try
         {
-            using var ms = new MemoryStream(bytes);
-            using var wb = new XLWorkbook(ms);
-            var ws = wb.Worksheets.First();
-            var header = ws.FirstRowUsed();
-            if (header == null) return new ImportResult { Ok = false, Message = "Planilha vazia." };
+            if (bytes is null || bytes.Length == 0)
+                return new ImportResult { Ok = false, Message = "Arquivo vazio." };
 
-            // mapa cabeçalho normalizado -> número da coluna
+            var (header, dataRows) = LerPlanilha(bytes, fileName);
+            if (header.Length == 0)
+                return new ImportResult { Ok = false, Message = "Planilha vazia ou sem linha de cabeçalho." };
+
+            // mapa cabeçalho normalizado -> índice da coluna (base zero)
             var cols = new Dictionary<string, int>();
-            foreach (var cell in header.CellsUsed())
-                cols[Norm(cell.GetString())] = cell.Address.ColumnNumber;
-
-            var dataRows = ws.RowsUsed().Skip(1).ToList();
+            for (int i = 0; i < header.Length; i++)
+            {
+                var chave = Norm(header[i]);
+                if (chave.Length > 0 && !cols.ContainsKey(chave)) cols[chave] = i;
+            }
+            if (cols.Count == 0)
+                return new ImportResult { Ok = false, Message = "Não foi possível ler o cabeçalho da planilha." };
 
             return tipo switch
             {
@@ -60,8 +69,165 @@ public class ImportService
         }
     }
 
+    // ---- leitura do arquivo (xlsx / xls / csv) ----------------------------
+
+    /// <summary>Devolve (cabeçalho, linhas de dados) já como texto, qualquer que seja o formato.</summary>
+    private static (string[] Header, List<string[]> Rows) LerPlanilha(byte[] bytes, string fileName)
+    {
+        var ext = (Path.GetExtension(fileName ?? "") ?? "").ToLowerInvariant();
+        return Formato(bytes, ext) switch
+        {
+            "xlsx" => Separar(LerXlsx(bytes)),
+            "xls" => Separar(LerXls(bytes)),
+            _ => Separar(LerCsv(bytes)),
+        };
+    }
+
+    private static (string[], List<string[]>) Separar(List<string[]> todas)
+    {
+        // descarta linhas totalmente vazias (comuns no fim das planilhas)
+        todas = todas.Where(l => l.Any(c => !string.IsNullOrWhiteSpace(c))).ToList();
+        if (todas.Count == 0) return (Array.Empty<string>(), new List<string[]>());
+        return (todas[0], todas.Skip(1).ToList());
+    }
+
+    /// <summary>Detecta o formato pela assinatura do arquivo; usa a extensão como reforço.</summary>
+    private static string Formato(byte[] b, string ext)
+    {
+        // .xlsx/.xlsm são ZIP  →  "PK\x03\x04"
+        if (b.Length >= 4 && b[0] == 0x50 && b[1] == 0x4B && b[2] == 0x03 && b[3] == 0x04) return "xlsx";
+        // .xls antigo é OLE2  →  D0 CF 11 E0
+        if (b.Length >= 4 && b[0] == 0xD0 && b[1] == 0xCF && b[2] == 0x11 && b[3] == 0xE0) return "xls";
+        if (ext == ".xlsx" || ext == ".xlsm") return "xlsx";
+        if (ext == ".xls") return "xls";
+        return "csv";
+    }
+
+    private static List<string[]> LerXlsx(byte[] bytes)
+    {
+        using var ms = new MemoryStream(bytes);
+        using var wb = new XLWorkbook(ms);
+        var ws = wb.Worksheets.First();
+        var ultima = ws.LastColumnUsed();
+        int largura = ultima?.ColumnNumber() ?? 0;
+        var linhas = new List<string[]>();
+        if (largura == 0) return linhas;
+        foreach (var r in ws.RowsUsed())
+        {
+            var arr = new string[largura];
+            for (int c = 1; c <= largura; c++) arr[c - 1] = CelulaTexto(r.Cell(c));
+            linhas.Add(arr);
+        }
+        return linhas;
+    }
+
+    private static string CelulaTexto(IXLCell cell)
+    {
+        if (cell is null) return "";
+        if (cell.DataType == XLDataType.DateTime && cell.TryGetValue<DateTime>(out var dt))
+            return dt.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        return cell.GetString().Trim();
+    }
+
+    private static List<string[]> LerXls(byte[] bytes)
+    {
+        RegistrarCodePages();
+        using var ms = new MemoryStream(bytes);
+        using var reader = ExcelReaderFactory.CreateReader(ms);
+        var linhas = new List<string[]>();
+        // apenas a primeira planilha do arquivo
+        while (reader.Read())
+        {
+            var arr = new string[reader.FieldCount];
+            for (int i = 0; i < reader.FieldCount; i++) arr[i] = ValorTexto(reader.GetValue(i));
+            linhas.Add(arr);
+        }
+        return linhas;
+    }
+
+    private static string ValorTexto(object? v) => v switch
+    {
+        null => "",
+        DateTime d => d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+        double n => n.ToString("0.############", CultureInfo.InvariantCulture),
+        decimal n => n.ToString("0.############", CultureInfo.InvariantCulture),
+        bool bo => bo ? "true" : "false",
+        _ => (v.ToString() ?? "").Trim(),
+    };
+
+    private static List<string[]> LerCsv(byte[] bytes)
+    {
+        var texto = DecodificarTexto(bytes);
+        var sep = SeparadorCsv(texto);
+        var linhas = new List<string[]>();
+        var campos = new List<string>();
+        var sb = new StringBuilder();
+        bool aspas = false;
+        for (int i = 0; i < texto.Length; i++)
+        {
+            var ch = texto[i];
+            if (aspas)
+            {
+                if (ch == '"')
+                {
+                    if (i + 1 < texto.Length && texto[i + 1] == '"') { sb.Append('"'); i++; }
+                    else aspas = false;
+                }
+                else sb.Append(ch);
+            }
+            else if (ch == '"') aspas = true;
+            else if (ch == sep) { campos.Add(sb.ToString().Trim()); sb.Clear(); }
+            else if (ch == '\n')
+            {
+                campos.Add(sb.ToString().Trim()); sb.Clear();
+                linhas.Add(campos.ToArray()); campos.Clear();
+            }
+            else if (ch != '\r') sb.Append(ch);
+        }
+        if (sb.Length > 0 || campos.Count > 0)
+        {
+            campos.Add(sb.ToString().Trim());
+            linhas.Add(campos.ToArray());
+        }
+        return linhas;
+    }
+
+    /// <summary>UTF-8 (com ou sem BOM); se não for UTF-8 válido, assume Windows-1252 (Excel pt-BR).</summary>
+    private static string DecodificarTexto(byte[] b)
+    {
+        RegistrarCodePages();
+        if (b.Length >= 3 && b[0] == 0xEF && b[1] == 0xBB && b[2] == 0xBF)
+            return Encoding.UTF8.GetString(b, 3, b.Length - 3);
+        try { return new UTF8Encoding(false, true).GetString(b); }
+        catch (DecoderFallbackException)
+        {
+            try { return Encoding.GetEncoding(1252).GetString(b); }
+            catch { return Encoding.UTF8.GetString(b); }
+        }
+    }
+
+    /// <summary>Descobre o separador do CSV olhando a primeira linha (; , ou tabulação).</summary>
+    private static char SeparadorCsv(string texto)
+    {
+        var fim = texto.IndexOf('\n');
+        var primeira = fim >= 0 ? texto[..fim] : texto;
+        int pv = primeira.Count(c => c == ';');
+        int vg = primeira.Count(c => c == ',');
+        int tb = primeira.Count(c => c == '\t');
+        if (tb > pv && tb > vg) return '\t';
+        return vg > pv ? ',' : ';';
+    }
+
+    private static bool _codePagesOk;
+    private static void RegistrarCodePages()
+    {
+        if (_codePagesOk) return;
+        try { Encoding.RegisterProvider(CodePagesEncodingProvider.Instance); } catch { }
+        _codePagesOk = true;
+    }
+
     // ---- por tipo --------------------------------------------------------
-    private ImportResult ImportVendedores(List<IXLRow> rows, Dictionary<string, int> c, bool sub)
+    private ImportResult ImportVendedores(List<string[]> rows, Dictionary<string, int> c, bool sub)
     {
         var outRows = new List<IReadOnlyList<KeyValuePair<string, object?>>>();
         foreach (var r in rows)
@@ -82,7 +248,7 @@ public class ImportService
         return Write("salespeople", outRows, sub);
     }
 
-    private ImportResult ImportConstrutivos(List<IXLRow> rows, Dictionary<string, int> c, bool sub)
+    private ImportResult ImportConstrutivos(List<string[]> rows, Dictionary<string, int> c, bool sub)
     {
         var eqByModelo = _equip.All().ToDictionary(e => Norm(e.Modelo), e => e.Id);
         var outRows = new List<IReadOnlyList<KeyValuePair<string, object?>>>();
@@ -105,7 +271,7 @@ public class ImportService
         return Write("constructionData", outRows, sub);
     }
 
-    private ImportResult ImportHistorico(List<IXLRow> rows, Dictionary<string, int> c, bool sub)
+    private ImportResult ImportHistorico(List<string[]> rows, Dictionary<string, int> c, bool sub)
     {
         var unitById = _units.All();
         var unitByName = unitById.GroupBy(u => Norm(u.NomeUnidade)).ToDictionary(g => g.Key, g => g.First().Id);
@@ -146,7 +312,7 @@ public class ImportService
     // Importa a planilha-mestre da Howden (HP Fan References, 27 colunas em
     // inglês). Guarda todas as colunas para exibição na aba Base Instalada e
     // deriva os campos que o motor de oportunidades precisa.
-    private ImportResult ImportBase(List<IXLRow> rows, Dictionary<string, int> c, bool sub)
+    private ImportResult ImportBase(List<string[]> rows, Dictionary<string, int> c, bool sub)
     {
         var unitByName = _units.All().GroupBy(u => Norm(u.NomeUnidade)).ToDictionary(g => g.Key, g => g.First().Id);
         var eqByModelo = _equip.All().ToDictionary(e => Norm(e.Modelo), e => e.Id);
@@ -273,20 +439,16 @@ public class ImportService
     private static IReadOnlyList<KeyValuePair<string, object?>> Row(params (string k, object? v)[] pairs) =>
         pairs.Select(p => new KeyValuePair<string, object?>(p.k, p.v)).ToList();
 
-    private static string Get(IXLRow r, Dictionary<string, int> cols, params string[] names)
+    /// <summary>Lê a coluna pelo cabeçalho normalizado; devolve "" se não existir na linha.</summary>
+    private static string Get(string[] r, Dictionary<string, int> cols, params string[] names)
     {
         foreach (var n in names)
-            if (cols.TryGetValue(n, out var col))
-            {
-                var cell = r.Cell(col);
-                if (cell.DataType == XLDataType.DateTime && cell.TryGetValue<DateTime>(out var dt))
-                    return dt.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-                return cell.GetString().Trim();
-            }
+            if (cols.TryGetValue(n, out var i) && i >= 0 && i < r.Length)
+                return (r[i] ?? "").Trim();
         return "";
     }
 
-    private static string GetDate(IXLRow r, Dictionary<string, int> cols, params string[] names)
+    private static string GetDate(string[] r, Dictionary<string, int> cols, params string[] names)
     {
         var s = Get(r, cols, names);
         if (DateTime.TryParse(s, new CultureInfo("pt-BR"), DateTimeStyles.None, out var d) ||
