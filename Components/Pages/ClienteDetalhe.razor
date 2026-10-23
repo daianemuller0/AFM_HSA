@@ -224,98 +224,157 @@ else
         </div>
     }
 
-    <div style="overflow-x:auto">
-    <table class="grid" style="margin-bottom:20px">
-        <thead><tr><th>Tag</th><th>Nº de série</th><th style="width:90px">Ano</th>
-            <th style="width:150px">Situação</th><th style="width:140px">Criticidade</th><th style="width:230px">Ações</th></tr></thead>
-        <tbody>
-            @foreach (var grupo in Agrupados)
-            {
-                <tr>
-                    <td colspan="6" style="background:#f2f6fb;font-weight:600;color:var(--primary)">
-                        @grupo.Key
-                        <span style="font-weight:400;color:var(--muted)"> · @grupo.Count() unidade(s)</span>
-                        @if (!string.IsNullOrWhiteSpace(AplicacaoDoGrupo(grupo.Key)))
+    @foreach (var grupo in Agrupados)
+    {
+        var eq = CatalogoDe(grupo.Key);
+        var total = grupo.Count();
+        var operando = grupo.Count(EmOperacao);
+        var parados = total - operando;
+        <div class="eq-card">
+            <div class="eq-head">
+                <div class="eq-head-main">
+                    <span class="eq-tipo">@(string.IsNullOrWhiteSpace(eq.Tipo) ? "Equipamento" : eq.Tipo)</span>
+                    <div class="eq-modelo">@(string.IsNullOrWhiteSpace(eq.Modelo) ? Dash(eq.Nome) : eq.Modelo)</div>
+                    <div class="eq-meta">
+                        <b>Fabricante:</b> @Dash(eq.Fabricante)
+                        @if (!string.IsNullOrWhiteSpace(eq.Aplicacao))
                         {
-                            <span style="font-weight:400;color:var(--muted)"> · @AplicacaoDoGrupo(grupo.Key)</span>
+                            <text> &nbsp;·&nbsp; <b>Aplicação:</b> @eq.Aplicacao</text>
                         }
-                        <a class="btn-link" style="float:right" href="@($"/equipamentos/{grupo.First().EquipmentId}")">ver equipamento →</a>
-                    </td>
-                </tr>
-                @foreach (var b in grupo)
+                    </div>
+                </div>
+                <div class="eq-count">
+                    <div class="eq-count-n">@total</div>
+                    <div class="eq-count-l">@(total == 1 ? "unidade" : "unidades")</div>
+                </div>
+                <div class="eq-count">
+                    <div class="eq-count-n" style="color:#15803d">@operando</div>
+                    <div class="eq-count-l">em operação</div>
+                </div>
+                @if (parados > 0)
                 {
-                    var operando = EmOperacao(b);
-                    if (_editId == b.Id)
-                    {
-                        <tr style="background:#fffdf5">
-                            <td><input class="cell" placeholder="Tag" @bind="_eTag" /></td>
-                            <td><input class="cell" placeholder="Nº de série" @bind="_eSerial" /></td>
-                            <td><input class="cell num" type="number" @bind="_eAno" /></td>
-                            <td>
+                    <div class="eq-count">
+                        <div class="eq-count-n" style="color:#b45309">@parados</div>
+                        <div class="eq-count-l">parado@(parados == 1 ? "" : "s")</div>
+                    </div>
+                }
+                <div style="align-self:center">
+                    <a class="btn-ghost" href="@($"/equipamentos/{grupo.Key}")">Ver ficha técnica</a>
+                </div>
+            </div>
+
+            @{ var n = 0; }
+            @foreach (var b in grupo)
+            {
+                n++;
+                var ligado = EmOperacao(b);
+                if (_editId == b.Id)
+                {
+                    <div class="eq-edit">
+                        <div class="form3">
+                            <label>Tag <input class="cell" placeholder="Ex.: VE-101" @bind="_eTag" /></label>
+                            <label>Nº de série <input class="cell" @bind="_eSerial" /></label>
+                            <label>Ano de instalação <input class="cell num" type="number" @bind="_eAno" /></label>
+                            <label>Situação
                                 <select class="cell" @bind="_eOperando">
                                     <option value="true">Em operação</option>
                                     <option value="false">Parado</option>
                                 </select>
-                            </td>
-                            <td>
+                            </label>
+                            <label>Criticidade
                                 <select class="cell" @bind="_eCrit">
                                     <option value="baixa">Baixa</option>
                                     <option value="média">Média</option>
                                     <option value="alta">Alta</option>
                                     <option value="crítica">Crítica</option>
                                 </select>
-                            </td>
-                            <td class="nowrap">
-                                <button class="btn-link" style="font-weight:600" @onclick="() => SalvarEdicao(b)">salvar</button>
-                                <button class="btn-link" style="color:var(--muted)" @onclick="() => _editId = null">cancelar</button>
-                            </td>
-                        </tr>
-                    }
-                    else
-                    {
-                        <tr style="@(operando ? "" : "opacity:.6")">
-                            <td class="nowrap"><strong>@Dash(b.Tag)</strong></td>
-                            <td class="nowrap">@Dash(b.SerialNo)</td>
-                            <td>@(b.AnoInstalacao > 0 ? b.AnoInstalacao.ToString() : "—")</td>
-                            <td>
-                                <span class="badge @(operando ? "st-ok" : "st-plan")">
-                                    @(operando ? "Em operação" : "Parado")
-                                </span>
-                            </td>
-                            <td><span class="badge @CritClass(b.Criticidade)">@Cap(b.Criticidade)</span></td>
-                            <td class="nowrap">
-                                <button class="btn-link" @onclick="() => AbrirEdicao(b)">editar</button>
-                                <button class="btn-link" @onclick="() => AlternarOperacao(b)">
-                                    @(operando ? "parar" : "reativar")
-                                </button>
-                                @if (_confirmarId == b.Id)
-                                {
-                                    <button class="btn-link" style="color:#b91c1c;font-weight:600"
-                                            @onclick="() => ExcluirEquipamento(b)">excluir?</button>
-                                    <button class="btn-link" style="color:var(--muted)"
-                                            @onclick="() => _confirmarId = null">não</button>
-                                }
-                                else
-                                {
-                                    <button class="btn-link" style="color:#b91c1c"
-                                            @onclick="() => _confirmarId = b.Id">excluir</button>
-                                }
-                            </td>
-                        </tr>
-                    }
+                            </label>
+                        </div>
+                        <div class="toolbar" style="margin-top:12px;margin-bottom:0">
+                            <button class="btn-primary" @onclick="() => SalvarEdicao(b)">Salvar</button>
+                            <button class="btn-ghost" @onclick="() => _editId = null">Cancelar</button>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="eq-unit @(ligado ? "" : "parado")">
+                        <div class="eq-num">@n</div>
+
+                        @* Campos sempre na mesma posição: o olho corre na vertical e compara. *@
+                        <div class="eq-campo">
+                            <span class="rot">Tag</span>
+                            @if (string.IsNullOrWhiteSpace(b.Tag))
+                            {
+                                <span class="vazio">sem tag</span>
+                            }
+                            else
+                            {
+                                <span class="val">@b.Tag</span>
+                            }
+                        </div>
+                        <div class="eq-campo">
+                            <span class="rot">Nº de série</span>
+                            @if (string.IsNullOrWhiteSpace(b.SerialNo))
+                            {
+                                <span class="vazio">não informado</span>
+                            }
+                            else
+                            {
+                                <span class="val">@b.SerialNo</span>
+                            }
+                        </div>
+                        <div class="eq-campo curto">
+                            <span class="rot">Ano</span>
+                            @if (b.AnoInstalacao > 0)
+                            {
+                                <span class="val">@b.AnoInstalacao</span>
+                            }
+                            else
+                            {
+                                <span class="vazio">—</span>
+                            }
+                        </div>
+                        <div class="eq-campo medio">
+                            <span class="rot">Criticidade</span>
+                            <span class="val">@Cap(b.Criticidade)</span>
+                        </div>
+                        <span class="eq-sit @(ligado ? "eq-on" : "eq-off")">
+                            <span class="eq-dot"></span>@(ligado ? "Em operação" : "Parado")
+                        </span>
+
+                        <div class="eq-acoes">
+                            <button class="btn-link" @onclick="() => AbrirEdicao(b)">editar</button>
+                            <button class="btn-link" @onclick="() => AlternarOperacao(b)">
+                                @(ligado ? "parar" : "reativar")
+                            </button>
+                            @if (_confirmarId == b.Id)
+                            {
+                                <button class="btn-link" style="color:#b91c1c;font-weight:700"
+                                        @onclick="() => ExcluirEquipamento(b)">confirmar exclusão</button>
+                                <button class="btn-link" style="color:var(--muted)"
+                                        @onclick="() => _confirmarId = null">não</button>
+                            }
+                            else
+                            {
+                                <button class="btn-link" style="color:#b91c1c"
+                                        @onclick="() => _confirmarId = b.Id">excluir</button>
+                            }
+                        </div>
+                    </div>
                 }
             }
-            @if (!Agrupados.Any())
-            {
-                <tr><td colspan="6" class="empty">
-                    @(_base.Count == 0
-                        ? "Sem equipamentos instalados. Use \"Cadastrar equipamento\" para adicionar o primeiro."
-                        : "Nenhum equipamento corresponde ao filtro.")
-                </td></tr>
-            }
-        </tbody>
-    </table>
-    </div>
+        </div>
+    }
+
+    @if (!Agrupados.Any())
+    {
+        <div class="eq-card"><div class="eq-vazio">
+            @(_base.Count == 0
+                ? "Nenhum equipamento cadastrado nesta planta. Use \"+ Cadastrar equipamento\" para adicionar o primeiro."
+                : "Nenhum equipamento corresponde à busca ou ao filtro.")
+        </div></div>
+    }
 
     <div class="dash-title">Oportunidades abertas</div>
     <table class="grid">
@@ -424,25 +483,30 @@ else
             if (!string.IsNullOrWhiteSpace(_buscaEq))
             {
                 var s = _buscaEq.Trim().ToLowerInvariant();
-                q = q.Where(b => (b.Tag + " " + b.SerialNo + " " + Modelo(b.EquipmentId))
-                    .ToLowerInvariant().Contains(s));
+                q = q.Where(b =>
+                {
+                    var e = CatalogoDe(b.EquipmentId);
+                    return (b.Tag + " " + b.SerialNo + " " + e.Modelo + " " + e.Tipo + " " + e.Fabricante + " " + e.Aplicacao)
+                        .ToLowerInvariant().Contains(s);
+                });
             }
             return q.ToList();
         }
     }
 
-    /// <summary>Agrupa por modelo — equipamentos iguais aparecem juntos.</summary>
+    /// <summary>Agrupa pelo equipamento do catálogo — unidades iguais ficam no mesmo cartão.</summary>
     private IEnumerable<IGrouping<string, InstalledBase>> Agrupados =>
         Filtrados
-            .OrderBy(b => Modelo(b.EquipmentId))
+            .OrderBy(b => TipoDe(b.EquipmentId))
+            .ThenBy(b => Modelo(b.EquipmentId))
             .ThenBy(b => b.Tag, StringComparer.OrdinalIgnoreCase)
-            .GroupBy(b => Modelo(b.EquipmentId));
+            .ThenBy(b => b.SerialNo, StringComparer.OrdinalIgnoreCase)
+            .GroupBy(b => b.EquipmentId);
 
-    private string AplicacaoDoGrupo(string modelo)
-    {
-        var e = _catalogo.FirstOrDefault(x => x.Modelo == modelo);
-        return e?.Aplicacao ?? "";
-    }
+    private Equipment CatalogoDe(string equipmentId) =>
+        _equip.TryGetValue(equipmentId, out var e) ? e : new Equipment { Modelo = equipmentId };
+
+    private string TipoDe(string equipmentId) => CatalogoDe(equipmentId).Tipo ?? "";
 
     // ---- edição de uma unidade ------------------------------------------
     private void AbrirEdicao(InstalledBase b)
