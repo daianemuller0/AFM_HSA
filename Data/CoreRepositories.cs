@@ -18,6 +18,12 @@ public class CompanyRepository
             Id = Fmt.S(r, 0), Nome = Fmt.S(r, 1), Segmento = Fmt.S(r, 2),
             Cidade = Fmt.S(r, 3), Estado = Fmt.S(r, 4), Regiao = Fmt.S(r, 5),
         }, orderBy: "nome");
+
+    public void Save(Company c) => _s.WriteRow("companies", new KeyValuePair<string, object?>[]
+    {
+        new("id", c.Id), new("nome", c.Nome), new("segmento", c.Segmento),
+        new("cidade", c.Cidade), new("estado", c.Estado), new("regiao", c.Regiao),
+    });
 }
 
 public class ClientUnitRepository
@@ -33,6 +39,16 @@ public class ClientUnitRepository
             Cidade = Fmt.S(r, 3), Estado = Fmt.S(r, 4), Segmento = Fmt.S(r, 5),
             Regiao = Fmt.S(r, 6), VendedorId = Fmt.S(r, 7),
         }, orderBy: "nome_unidade");
+
+    public void Save(ClientUnit u) => _s.WriteRow("clientUnits", new KeyValuePair<string, object?>[]
+    {
+        new("id", u.Id), new("company_id", u.CompanyId), new("nome_unidade", u.NomeUnidade),
+        new("cidade", u.Cidade), new("estado", u.Estado), new("segmento", u.Segmento),
+        new("regiao", u.Regiao), new("vendedor_id", u.VendedorId),
+    });
+
+    public void Delete(string id) => _s.WriteRow("clientUnits",
+        new KeyValuePair<string, object?>[] { new("id", id) }, deleted: true);
 }
 
 public class SalespersonRepository
@@ -84,6 +100,9 @@ public class EquipmentRepository
         new("fabricante", e.Fabricante),
         new("valor_completo", e.ValorCompleto.ToString(System.Globalization.CultureInfo.InvariantCulture)),
     });
+
+    public void Delete(string id) => _s.WriteRow("equipment",
+        new KeyValuePair<string, object?>[] { new("id", id) }, deleted: true);
 }
 
 public class InstalledBaseRepository
@@ -116,6 +135,37 @@ public class InstalledBaseRepository
     /// <summary>Exclui uma referência da base (marcação lógica, igual aos demais cadastros).</summary>
     public void Delete(string id) => _s.WriteRow("installedBase",
         new KeyValuePair<string, object?>[] { new("id", id) }, deleted: true);
+
+    /// <summary>
+    /// Cadastra/atualiza um equipamento instalado numa planta. Além dos campos usados pelo
+    /// motor de oportunidades, preenche as colunas da planilha-mestre que dá para derivar
+    /// da planta e do equipamento, para o registro aparecer completo na Base Instalada.
+    /// </summary>
+    public void Save(InstalledBase b) => _s.WriteRow("installedBase", new KeyValuePair<string, object?>[]
+    {
+        new("id", b.Id),
+        new("client_unit_id", b.ClientUnitId), new("equipment_id", b.EquipmentId),
+        new("quantidade", b.Quantidade.ToString()), new("ano_instalacao", b.AnoInstalacao.ToString()),
+        new("criticidade", b.Criticidade), new("status", b.Status), new("vendedor_id", b.VendedorId),
+        new("plant_name", b.PlantName), new("city", b.City), new("state", b.State),
+        new("client", b.Client), new("industry", b.Industry), new("site_unit", b.SiteUnit),
+        new("product_type", b.ProductType), new("model_family", b.ModelFamily),
+        new("brand", b.Brand), new("application_type", b.ApplicationType),
+        new("fans_per_boiler", b.FansPerBoiler), new("install_year", b.InstallYear),
+        new("operating_status", b.OperatingStatus),
+    });
+
+    /// <summary>Exclui de uma vez todas as referências de uma planta (um único arquivo).</summary>
+    public void DeleteByUnit(string clientUnitId)
+    {
+        var ids = All().Where(b => b.ClientUnitId == clientUnitId).Select(b => b.Id).ToList();
+        if (ids.Count == 0) return;
+        var linhas = ids
+            .Select(id => (IReadOnlyList<KeyValuePair<string, object?>>)
+                new KeyValuePair<string, object?>[] { new("id", id) })
+            .ToList();
+        _s.WriteBatch("installedBase", linhas, deleted: true);
+    }
 
     /// <summary>
     /// Apaga TODA a base instalada. Depois de limpar, grava um marcador apagado para que

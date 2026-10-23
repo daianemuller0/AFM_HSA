@@ -50,6 +50,18 @@ public class IntelligenceService
     private Dictionary<string, Equipment>? _equip;
     private Dictionary<string, string>? _spName;
 
+    /// <summary>
+    /// Descarta os dados em cache. O serviço é Scoped — no Blazor Server isso significa
+    /// que ele vive o circuito inteiro (a sessão do navegador), então as telas que
+    /// cadastram ou excluem algo precisam chamar este método para as demais telas
+    /// enxergarem a mudança sem precisar recarregar a página.
+    /// </summary>
+    public void Invalidate()
+    {
+        _sales = null; _parts = null; _base = null;
+        _companyName = null; _unit = null; _equip = null; _spName = null;
+    }
+
     public List<SalesRecord> Sales => _sales ??= _salesRepo.All();
     private List<Part> Parts => _parts ??= _partsRepo.All();
     private List<InstalledBase> Base => _base ??= _baseRepo.All();

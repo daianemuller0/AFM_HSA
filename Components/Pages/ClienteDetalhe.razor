@@ -29,9 +29,90 @@ else
         <div class="kpi k-ren"><div class="kpi-label">Valor potencial em aberto</div><div class="kpi-value" style="font-size:16px">@Fmt.Brl0(_opps.Sum(o => o.ValorEstimado))</div></div>
     </div>
 
-    <div class="dash-title">Equipamentos instalados</div>
+    <div class="toolbar" style="margin-bottom:12px">
+        <div class="dash-title" style="margin:0">Equipamentos instalados</div>
+        <div style="flex:1"></div>
+        @if (!_novoAberto)
+        {
+            <button class="btn-primary" @onclick="AbrirNovo">+ Cadastrar equipamento</button>
+        }
+    </div>
+
+    @if (_msg is not null)
+    {
+        <div class="side-ok" style="margin-bottom:12px">@_msg</div>
+    }
+
+    @if (_novoAberto)
+    {
+        <div class="panel" style="margin-bottom:16px">
+            <div class="dash-title">Cadastrar equipamento nesta planta</div>
+            <div class="form3">
+                <label>Equipamento *
+                    <select class="cell" @bind="_equipId">
+                        <option value="">Selecione do catálogo…</option>
+                        @foreach (var e in _catalogo)
+                        {
+                            <option value="@e.Id">@NomeCatalogo(e)</option>
+                        }
+                        <option value="@NovoEquip">➕ Cadastrar novo equipamento…</option>
+                    </select>
+                </label>
+                @if (_equipId == NovoEquip)
+                {
+                    <label>Tipo
+                        <input class="cell" list="tipos" placeholder="Ex.: Exaustor" @bind="_novo.Tipo" />
+                    </label>
+                    <label>Modelo *
+                        <input class="cell" placeholder="Ex.: ID-Fan 2400" @bind="_novo.Modelo" />
+                    </label>
+                    <label>Aplicação
+                        <input class="cell" placeholder="Ex.: Forno de clínquer" @bind="_novo.Aplicacao" />
+                    </label>
+                    <label>Fabricante
+                        <input class="cell" @bind="_novo.Fabricante" />
+                    </label>
+                    <label>Valor completo (R$)
+                        <input class="cell num" type="number" step="0.01" @bind="_novo.ValorCompleto" />
+                    </label>
+                }
+                <label>Quantidade
+                    <input class="cell num" type="number" min="1" @bind="_qtd" />
+                </label>
+                <label>Ano de instalação
+                    <input class="cell num" type="number" placeholder="Ex.: 2013" @bind="_ano" />
+                </label>
+                <label>Criticidade
+                    <select class="cell" @bind="_criticidade">
+                        <option value="baixa">Baixa</option>
+                        <option value="média">Média</option>
+                        <option value="alta">Alta</option>
+                        <option value="crítica">Crítica</option>
+                    </select>
+                </label>
+                <label>Status
+                    <select class="cell" @bind="_status">
+                        <option value="ativo">Ativo</option>
+                        <option value="inativo">Inativo</option>
+                    </select>
+                </label>
+            </div>
+            <datalist id="tipos">
+                @foreach (var t in _tipos) { <option value="@t" /> }
+            </datalist>
+
+            @if (_erro is not null) { <div class="alert-error" style="margin-top:12px">@_erro</div> }
+
+            <div class="toolbar" style="margin-top:14px;margin-bottom:0">
+                <button class="btn-primary" @onclick="SalvarEquipamento">Salvar equipamento</button>
+                <button class="btn-ghost" @onclick="FecharNovo">Cancelar</button>
+                <span style="font-size:12px;color:var(--muted)">Os campos com * são obrigatórios.</span>
+            </div>
+        </div>
+    }
+
     <table class="grid" style="margin-bottom:20px">
-        <thead><tr><th>Equipamento</th><th>Aplicação</th><th class="right">Qtd</th><th>Ano</th><th>Criticidade</th></tr></thead>
+        <thead><tr><th>Equipamento</th><th>Aplicação</th><th class="right">Qtd</th><th>Ano</th><th>Criticidade</th><th style="width:110px">Ações</th></tr></thead>
         <tbody>
             @foreach (var b in _base)
             {
@@ -41,9 +122,23 @@ else
                     <td class="right">@b.Quantidade</td>
                     <td>@(b.AnoInstalacao > 0 ? b.AnoInstalacao.ToString() : "—")</td>
                     <td><span class="badge @CritClass(b.Criticidade)">@Cap(b.Criticidade)</span></td>
+                    <td class="nowrap">
+                        @if (_confirmarId == b.Id)
+                        {
+                            <button class="btn-link" style="color:#b91c1c;font-weight:600"
+                                    @onclick="() => ExcluirEquipamento(b)">excluir?</button>
+                            <button class="btn-link" style="color:var(--muted)"
+                                    @onclick="() => _confirmarId = null">não</button>
+                        }
+                        else
+                        {
+                            <button class="btn-link" style="color:#b91c1c"
+                                    @onclick="() => _confirmarId = b.Id">excluir</button>
+                        }
+                    </td>
                 </tr>
             }
-            @if (_base.Count == 0) { <tr><td colspan="5" class="empty">Sem equipamentos instalados.</td></tr> }
+            @if (_base.Count == 0) { <tr><td colspan="6" class="empty">Sem equipamentos instalados. Use "Cadastrar equipamento" para adicionar o primeiro.</td></tr> }
         </tbody>
     </table>
 
@@ -68,20 +163,135 @@ else
 }
 
 @code {
+    private const string NovoEquip = "__novo__";
+
     [Parameter] public string? Id { get; set; }
     private ClientUnit? _u;
     private List<InstalledBase> _base = new();
     private List<Opportunity> _opps = new();
+    private List<Equipment> _catalogo = new();
+    private List<string> _tipos = new();
     private Dictionary<string, Equipment> _equip = new();
 
-    protected override void OnInitialized()
+    private string? _confirmarId;
+    private string? _msg, _erro;
+
+    private bool _novoAberto;
+    private string _equipId = "";
+    private Equipment _novo = new();
+    private int _qtd = 1;
+    private int _ano;
+    private string _criticidade = "média";
+    private string _status = "ativo";
+
+    protected override void OnInitialized() => Carregar();
+
+    private void Carregar()
     {
         _u = Units.All().FirstOrDefault(u => u.Id == Id);
         if (_u is null) return;
         _base = Base.All().Where(b => b.ClientUnitId == _u.Id).ToList();
-        _equip = Equipamentos.All().ToDictionary(e => e.Id, e => e);
+        _catalogo = Equipamentos.All();
+        _equip = _catalogo.ToDictionary(e => e.Id, e => e);
+        _tipos = _catalogo.Select(e => e.Tipo).Where(t => !string.IsNullOrWhiteSpace(t))
+            .Distinct().OrderBy(t => t).ToList();
         _opps = Intel.OpenOpportunities().Where(o => o.ClientUnitId == _u.Id)
             .OrderBy(o => o.DataPrevista, StringComparer.Ordinal).ToList();
+    }
+
+    private static string NomeCatalogo(Equipment e)
+    {
+        var nome = string.IsNullOrWhiteSpace(e.Modelo) ? e.Nome : e.Modelo;
+        return string.IsNullOrWhiteSpace(e.Tipo) ? nome : $"{e.Tipo} · {nome}";
+    }
+
+    private void AbrirNovo()
+    {
+        _novoAberto = true;
+        _erro = null; _msg = null; _confirmarId = null;
+        _equipId = ""; _novo = new Equipment();
+        _qtd = 1; _ano = 0; _criticidade = "média"; _status = "ativo";
+    }
+
+    private void FecharNovo()
+    {
+        _novoAberto = false;
+        _erro = null;
+    }
+
+    private void SalvarEquipamento()
+    {
+        _erro = null;
+        if (_u is null) return;
+
+        if (string.IsNullOrWhiteSpace(_equipId))
+        { _erro = "Selecione o equipamento (ou cadastre um novo)."; return; }
+        if (_equipId == NovoEquip && string.IsNullOrWhiteSpace(_novo.Modelo))
+        { _erro = "Informe o modelo do novo equipamento."; return; }
+
+        var equipId = _equipId;
+        if (_equipId == NovoEquip)
+        {
+            var e = new Equipment
+            {
+                Id = "eq-" + Guid.NewGuid().ToString("N")[..8],
+                DocNum = (_catalogo.Count + 1).ToString("D2"),
+                Tipo = (_novo.Tipo ?? "").Trim(),
+                Modelo = _novo.Modelo.Trim(),
+                Nome = $"{_novo.Tipo} {_novo.Modelo}".Trim(),
+                Aplicacao = (_novo.Aplicacao ?? "").Trim(),
+                Segmento = _u.Segmento,
+                Fabricante = string.IsNullOrWhiteSpace(_novo.Fabricante) ? "Howden" : _novo.Fabricante.Trim(),
+                ValorCompleto = _novo.ValorCompleto,
+            };
+            Equipamentos.Save(e);
+            equipId = e.Id;
+            _equip[e.Id] = e;
+            _catalogo.Add(e);
+        }
+
+        var cat = _equip.TryGetValue(equipId, out var ce) ? ce : new Equipment();
+        var qtd = _qtd < 1 ? 1 : _qtd;
+
+        Base.Save(new InstalledBase
+        {
+            Id = "ib-" + Guid.NewGuid().ToString("N")[..8],
+            ClientUnitId = _u.Id,
+            EquipmentId = equipId,
+            Quantidade = qtd,
+            AnoInstalacao = _ano,
+            Criticidade = _criticidade,
+            Status = _status,
+            VendedorId = _u.VendedorId,
+            // colunas da planilha-mestre que dá para derivar da planta e do equipamento
+            PlantName = _u.NomeUnidade,
+            SiteUnit = _u.NomeUnidade,
+            City = _u.Cidade,
+            State = _u.Estado,
+            Industry = _u.Segmento,
+            Client = Intel.CompanyName(_u.CompanyId),
+            ProductType = cat.Tipo,
+            ModelFamily = cat.Modelo,
+            Brand = cat.Fabricante,
+            ApplicationType = cat.Aplicacao,
+            FansPerBoiler = qtd.ToString(),
+            InstallYear = _ano > 0 ? _ano.ToString() : "",
+            OperatingStatus = _status,
+        });
+
+        Intel.Invalidate();
+        Carregar();
+        _novoAberto = false;
+        _msg = $"Equipamento \"{NomeCatalogo(cat)}\" cadastrado nesta planta.";
+    }
+
+    private void ExcluirEquipamento(InstalledBase b)
+    {
+        Base.Delete(b.Id);
+        _confirmarId = null;
+        Intel.Invalidate();
+        Carregar();
+        _msg = $"Equipamento \"{Modelo(b.EquipmentId)}\" removido desta planta. Ele continua no catálogo.";
     }
 
     private string Modelo(string id) => _equip.TryGetValue(id, out var e) ? e.Modelo : id;

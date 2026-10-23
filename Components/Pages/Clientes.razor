@@ -2,18 +2,93 @@
 @attribute [Authorize]
 @rendermode InteractiveServer
 @inject ClientUnitRepository Units
+@inject CompanyRepository Empresas
+@inject SalespersonRepository Vendedores
 @inject InstalledBaseRepository Base
 @inject IntelligenceService Intel
 
 <PageTitle>Clientes e Unidades · AFM HSA</PageTitle>
 
 <h1>Clientes e Unidades</h1>
-<p class="subtitle">@Filtradas.Count unidades na base instalada</p>
+<p class="subtitle">@Filtradas.Count planta(s) cadastrada(s)</p>
 
 <div class="toolbar">
     <input class="cell" style="max-width:320px" placeholder="Buscar cliente, unidade, segmento…"
            @bind="_busca" @bind:event="oninput" />
+    <div style="flex:1"></div>
+    @if (!_novaAberta)
+    {
+        <button class="btn-primary" @onclick="AbrirNova">+ Cadastrar planta</button>
+    }
 </div>
+
+@if (_msg is not null)
+{
+    <div class="side-ok" style="margin-bottom:12px">@_msg</div>
+}
+
+@if (_novaAberta)
+{
+    <div class="panel" style="margin-bottom:16px">
+        <div class="dash-title">Cadastrar nova planta</div>
+        <div class="form3">
+            <label>Cliente *
+                <select class="cell" @bind="_companyId">
+                    <option value="">Selecione o cliente…</option>
+                    @foreach (var c in _empresas)
+                    {
+                        <option value="@c.Id">@c.Nome</option>
+                    }
+                    <option value="@NovoCliente">➕ Cadastrar novo cliente…</option>
+                </select>
+            </label>
+            @if (_companyId == NovoCliente)
+            {
+                <label>Nome do novo cliente *
+                    <input class="cell" placeholder="Ex.: Vale" @bind="_novoClienteNome" />
+                </label>
+            }
+            <label>Nome da planta / unidade *
+                <input class="cell" placeholder="Ex.: Itabira" @bind="_u.NomeUnidade" />
+            </label>
+            <label>Cidade
+                <input class="cell" @bind="_u.Cidade" />
+            </label>
+            <label>UF
+                <input class="cell" maxlength="2" placeholder="MG" @bind="_u.Estado" />
+            </label>
+            <label>Segmento
+                <input class="cell" list="segmentos" placeholder="Ex.: Mineração" @bind="_u.Segmento" />
+            </label>
+            <label>Região
+                <input class="cell" list="regioes" placeholder="Ex.: Sudeste" @bind="_u.Regiao" />
+            </label>
+            <label>Vendedor responsável
+                <select class="cell" @bind="_u.VendedorId">
+                    <option value="">Sem vendedor definido</option>
+                    @foreach (var v in _vendedores)
+                    {
+                        <option value="@v.Id">@v.Nome</option>
+                    }
+                </select>
+            </label>
+        </div>
+        <datalist id="segmentos">
+            @foreach (var s in _segmentos) { <option value="@s" /> }
+        </datalist>
+        <datalist id="regioes">
+            @foreach (var r in _regioes) { <option value="@r" /> }
+        </datalist>
+
+        @if (_erro is not null) { <div class="alert-error" style="margin-top:12px">@_erro</div> }
+
+        <div class="toolbar" style="margin-top:14px;margin-bottom:0">
+            <button class="btn-primary" @onclick="SalvarPlanta">Salvar planta</button>
+            <button class="btn-ghost" @onclick="FecharNova">Cancelar</button>
+            <span style="font-size:12px;color:var(--muted)">Os campos com * são obrigatórios.</span>
+        </div>
+    </div>
+}
 
 <div style="overflow-x:auto">
 <table class="grid">
@@ -21,14 +96,14 @@
         <tr>
             <th>Cliente</th><th>Unidade</th><th>Segmento</th><th>UF</th>
             <th class="right">Equipamentos</th><th class="right">Janelas abertas</th>
-            <th class="right">Valor potencial técnico</th><th>Vendedor</th><th></th>
+            <th class="right">Valor potencial técnico</th><th>Vendedor</th><th style="width:150px">Ações</th>
         </tr>
     </thead>
     <tbody>
         @foreach (var u in Filtradas)
         {
             <tr>
-                <td>@Intel.CompanyName(u.CompanyId)</td>
+                <td>@NomeCliente(u.CompanyId)</td>
                 <td>@u.NomeUnidade</td>
                 <td>@u.Segmento</td>
                 <td>@u.Estado</td>
@@ -36,30 +111,152 @@
                 <td class="right">@_oppCount.GetValueOrDefault(u.Id)</td>
                 <td class="right nowrap">@Fmt.Brl0(_oppValor.GetValueOrDefault(u.Id))</td>
                 <td>@Intel.SalespersonName(u.VendedorId)</td>
-                <td class="nowrap"><a class="btn-link" href="@($"/clientes/{u.Id}")">Abrir</a></td>
+                <td class="nowrap">
+                    <a class="btn-link" href="@($"/clientes/{u.Id}")">Abrir</a>
+                    @if (_confirmarId == u.Id)
+                    {
+                        <button class="btn-link" style="color:#b91c1c;font-weight:600"
+                                @onclick="() => ExcluirPlanta(u)">excluir?</button>
+                        <button class="btn-link" style="color:var(--muted)"
+                                @onclick="() => _confirmarId = null">não</button>
+                    }
+                    else
+                    {
+                        <button class="btn-link" style="color:#b91c1c"
+                                @onclick="() => _confirmarId = u.Id">excluir</button>
+                    }
+                </td>
             </tr>
         }
         @if (Filtradas.Count == 0)
         {
-            <tr><td colspan="9" class="empty">Nenhuma unidade encontrada.</td></tr>
+            <tr><td colspan="9" class="empty">Nenhuma planta encontrada. Use "Cadastrar planta" para criar a primeira.</td></tr>
         }
     </tbody>
 </table>
 </div>
 
+@if (_confirmarId is not null)
+{
+    <div class="alert-warn">
+        Excluir a planta remove também os <strong>@_equipCount.GetValueOrDefault(_confirmarId) equipamento(s)</strong>
+        instalados nela. Os equipamentos continuam no catálogo e podem ser usados em outras plantas.
+    </div>
+}
+
 @code {
+    private const string NovoCliente = "__novo__";
+
     private List<ClientUnit> _all = new();
+    private List<Company> _empresas = new();
+    private List<Salesperson> _vendedores = new();
+    private List<string> _segmentos = new(), _regioes = new();
+    private Dictionary<string, string> _nomeEmpresa = new();
     private Dictionary<string, int> _equipCount = new(), _oppCount = new();
     private Dictionary<string, decimal> _oppValor = new();
-    private string _busca = "";
 
-    protected override void OnInitialized()
+    private string _busca = "";
+    private string? _confirmarId;
+    private string? _msg, _erro;
+
+    private bool _novaAberta;
+    private string _companyId = "";
+    private string _novoClienteNome = "";
+    private ClientUnit _u = new();
+
+    protected override void OnInitialized() => Carregar();
+
+    private void Carregar()
     {
         _all = Units.All();
+        _empresas = Empresas.All();
+        _vendedores = Vendedores.All().Where(v => v.Ativo).ToList();
+        _nomeEmpresa = _empresas.ToDictionary(c => c.Id, c => c.Nome);
         _equipCount = Base.All().GroupBy(b => b.ClientUnitId).ToDictionary(g => g.Key, g => g.Count());
         var open = Intel.OpenOpportunities();
         _oppCount = open.GroupBy(o => o.ClientUnitId).ToDictionary(g => g.Key, g => g.Count());
         _oppValor = open.GroupBy(o => o.ClientUnitId).ToDictionary(g => g.Key, g => g.Sum(o => o.ValorEstimado));
+        _segmentos = _all.Select(u => u.Segmento).Concat(_empresas.Select(c => c.Segmento))
+            .Where(s => !string.IsNullOrWhiteSpace(s)).Distinct().OrderBy(s => s).ToList();
+        _regioes = _all.Select(u => u.Regiao).Where(s => !string.IsNullOrWhiteSpace(s))
+            .Distinct().OrderBy(s => s).ToList();
+    }
+
+    private string NomeCliente(string companyId) =>
+        _nomeEmpresa.TryGetValue(companyId, out var n) ? n : "—";
+
+    private void AbrirNova()
+    {
+        _novaAberta = true;
+        _erro = null; _msg = null; _confirmarId = null;
+        _companyId = ""; _novoClienteNome = "";
+        _u = new ClientUnit();
+    }
+
+    private void FecharNova()
+    {
+        _novaAberta = false;
+        _erro = null;
+    }
+
+    private void SalvarPlanta()
+    {
+        _erro = null;
+
+        if (string.IsNullOrWhiteSpace(_companyId))
+        { _erro = "Selecione o cliente (ou cadastre um novo)."; return; }
+        if (_companyId == NovoCliente && string.IsNullOrWhiteSpace(_novoClienteNome))
+        { _erro = "Informe o nome do novo cliente."; return; }
+        if (string.IsNullOrWhiteSpace(_u.NomeUnidade))
+        { _erro = "Informe o nome da planta / unidade."; return; }
+
+        var companyId = _companyId;
+        if (_companyId == NovoCliente)
+        {
+            var c = new Company
+            {
+                Id = "co-" + Guid.NewGuid().ToString("N")[..8],
+                Nome = _novoClienteNome.Trim(),
+                Segmento = (_u.Segmento ?? "").Trim(),
+                Cidade = (_u.Cidade ?? "").Trim(),
+                Estado = (_u.Estado ?? "").Trim().ToUpperInvariant(),
+                Regiao = (_u.Regiao ?? "").Trim(),
+            };
+            Empresas.Save(c);
+            companyId = c.Id;
+        }
+
+        var u = new ClientUnit
+        {
+            Id = "cu-" + Guid.NewGuid().ToString("N")[..8],
+            CompanyId = companyId,
+            NomeUnidade = _u.NomeUnidade.Trim(),
+            Cidade = (_u.Cidade ?? "").Trim(),
+            Estado = (_u.Estado ?? "").Trim().ToUpperInvariant(),
+            Segmento = (_u.Segmento ?? "").Trim(),
+            Regiao = (_u.Regiao ?? "").Trim(),
+            VendedorId = _u.VendedorId ?? "",
+        };
+        Units.Save(u);
+
+        Intel.Invalidate();
+        Carregar();
+        _novaAberta = false;
+        _msg = $"Planta \"{u.NomeUnidade}\" cadastrada.";
+    }
+
+    private void ExcluirPlanta(ClientUnit u)
+    {
+        var n = _equipCount.GetValueOrDefault(u.Id);
+        Base.DeleteByUnit(u.Id);
+        Units.Delete(u.Id);
+        _confirmarId = null;
+
+        Intel.Invalidate();
+        Carregar();
+        _msg = n > 0
+            ? $"Planta \"{u.NomeUnidade}\" excluída, junto com {n} equipamento(s) instalado(s)."
+            : $"Planta \"{u.NomeUnidade}\" excluída.";
     }
 
     private List<ClientUnit> Filtradas
@@ -70,10 +267,10 @@
             if (!string.IsNullOrWhiteSpace(_busca))
             {
                 var b = _busca.Trim().ToLowerInvariant();
-                q = q.Where(u => (Intel.CompanyName(u.CompanyId) + u.NomeUnidade + u.Segmento + u.Estado)
+                q = q.Where(u => (NomeCliente(u.CompanyId) + u.NomeUnidade + u.Segmento + u.Estado)
                     .ToLowerInvariant().Contains(b));
             }
-            return q.OrderBy(u => Intel.CompanyName(u.CompanyId)).ThenBy(u => u.NomeUnidade).ToList();
+            return q.OrderBy(u => NomeCliente(u.CompanyId)).ThenBy(u => u.NomeUnidade).ToList();
         }
     }
 }

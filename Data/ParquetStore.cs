@@ -99,7 +99,7 @@ public sealed class ParquetStore
     /// centenas de conexões e escrever centenas de arquivos na pasta de rede.
     /// As linhas podem ter colunas diferentes; usa-se a união (faltantes = NULL).
     /// </summary>
-    public void WriteBatch(string entity, IReadOnlyList<IReadOnlyList<KeyValuePair<string, object?>>> rows)
+    public void WriteBatch(string entity, IReadOnlyList<IReadOnlyList<KeyValuePair<string, object?>>> rows, bool deleted = false)
     {
         if (rows.Count == 0) return;
 
@@ -130,7 +130,7 @@ public sealed class ParquetStore
             cmd.CommandText = $"INSERT INTO t VALUES ({placeholders});";
             foreach (var c in cols) AddParam(cmd, map.TryGetValue(c, out var v) ? v : null);
             AddParam(cmd, ts);
-            AddParam(cmd, false);
+            AddParam(cmd, deleted);
             cmd.ExecuteNonQuery();
         }
 
