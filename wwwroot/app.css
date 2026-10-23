@@ -679,7 +679,10 @@ h1 { font-size: 24px; margin: 0 0 4px; color: var(--primary); letter-spacing: -.
 .eq-on .eq-dot { background: #22c55e; box-shadow: 0 0 0 3px rgba(34, 197, 94, .18); }
 .eq-off { color: #b45309; }
 .eq-off .eq-dot { background: #f59e0b; box-shadow: 0 0 0 3px rgba(245, 158, 11, .18); }
-.eq-acoes { display: flex; gap: 12px; align-items: center; justify-content: flex-end; width: 212px; flex: none; }
+.eq-acoes {
+    display: flex; gap: 8px 10px; align-items: center; justify-content: flex-end;
+    flex-wrap: wrap; width: 150px; flex: none;
+}
 .eq-edit { padding: 14px 18px; background: #fffdf4; border-bottom: 1px solid #f1e7c8; }
 .eq-edit .form3 { grid-template-columns: repeat(5, 1fr); }
 .eq-vazio { padding: 26px 18px; text-align: center; color: var(--muted); font-size: 14px; }
@@ -700,3 +703,24 @@ h1 { font-size: 24px; margin: 0 0 4px; color: var(--primary); letter-spacing: -.
 .form-edit { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 @media (max-width: 1280px) { .form-edit { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 860px) { .form-edit { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* ===== Botões de ícone (editar / parar / em operação / excluir) ===== */
+.ico {
+    width: 34px; height: 34px; padding: 0; flex: none;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: #fff; border: 1px solid var(--border); border-radius: 9px;
+    cursor: pointer; transition: background .15s, border-color .15s, color .15s;
+}
+.ico svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.ico svg .cheio { fill: currentColor; stroke: none; }
+.ico:hover { border-color: currentColor; }
+.ico:active { transform: translateY(1px); }
+.ico-edit { color: var(--primary); }
+.ico-edit:hover { background: #eef4fa; }
+.ico-stop { color: #b45309; }
+.ico-stop:hover { background: #fef3e2; }
+.ico-go { color: #15803d; }
+.ico-go:hover { background: #e9f8ee; }
+.ico-del { color: #b91c1c; }
+.ico-del:hover { background: #fdeaea; }
+.btn-confirma { color: #b91c1c; font-weight: 700; }

@@ -344,21 +344,49 @@ else
                         </span>
 
                         <div class="eq-acoes">
-                            <button class="btn-link" @onclick="() => AbrirEdicao(b)">editar</button>
-                            <button class="btn-link" @onclick="() => AlternarOperacao(b)">
-                                @(ligado ? "parar" : "reativar")
+                            <button class="ico ico-edit" title="Editar os dados desta unidade"
+                                    aria-label="Editar" @onclick="() => AbrirEdicao(b)">
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17v3z" />
+                                    <path d="M14.5 6.5l3 3" />
+                                </svg>
                             </button>
+                            @if (ligado)
+                            {
+                                <button class="ico ico-stop" title="Marcar como parado"
+                                        aria-label="Parar" @onclick="() => AlternarOperacao(b)">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                                        <rect x="5.5" y="5.5" width="13" height="13" rx="2.2" class="cheio" />
+                                    </svg>
+                                </button>
+                            }
+                            else
+                            {
+                                <button class="ico ico-go" title="Marcar como em operação"
+                                        aria-label="Reativar" @onclick="() => AlternarOperacao(b)">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="M7.5 5.2l11.5 6.8-11.5 6.8z" class="cheio" />
+                                    </svg>
+                                </button>
+                            }
                             @if (_confirmarId == b.Id)
                             {
-                                <button class="btn-link" style="color:#b91c1c;font-weight:700"
-                                        @onclick="() => ExcluirEquipamento(b)">confirmar exclusão</button>
+                                <button class="btn-link btn-confirma"
+                                        @onclick="() => ExcluirEquipamento(b)">confirmar</button>
                                 <button class="btn-link" style="color:var(--muted)"
                                         @onclick="() => _confirmarId = null">não</button>
                             }
                             else
                             {
-                                <button class="btn-link" style="color:#b91c1c"
-                                        @onclick="() => _confirmarId = b.Id">excluir</button>
+                                <button class="ico ico-del" title="Excluir esta unidade"
+                                        aria-label="Excluir" @onclick="() => _confirmarId = b.Id">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="M4 7h16" />
+                                        <path d="M10 4h4a1 1 0 0 1 1 1v2H9V5a1 1 0 0 1 1-1z" />
+                                        <path d="M6.5 7l.8 12a2 2 0 0 0 2 1.9h5.4a2 2 0 0 0 2-1.9l.8-12" />
+                                        <path d="M10.5 11v6M13.5 11v6" />
+                                    </svg>
+                                </button>
                             }
                         </div>
                     </div>
