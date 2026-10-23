@@ -58,6 +58,7 @@ public class ImportService
             {
                 "vendedores" => ImportVendedores(dataRows, cols, substituir),
                 "construtivos" => ImportConstrutivos(dataRows, cols, substituir),
+                "bom" => ImportBom(dataRows, cols, substituir),
                 "historico" => ImportHistorico(dataRows, cols, substituir),
                 "base" => ImportBase(dataRows, cols, substituir),
                 _ => new ImportResult { Ok = false, Message = "Tipo desconhecido." },
@@ -270,6 +271,37 @@ public class ImportService
                 ("item_model", Get(r, c, "modelo_do_item", "modelo_item"))));
         }
         return Write("constructionData", outRows, sub);
+    }
+
+    /// <summary>
+    /// Lista de materiais (BOM) por equipamento — usada na ficha técnica de todo
+    /// tipo que não seja ventilador centrífugo.
+    /// </summary>
+    private ImportResult ImportBom(List<string[]> rows, Dictionary<string, int> c, bool sub)
+    {
+        var eqByModelo = _equip.All().ToDictionary(e => Norm(e.Modelo), e => e.Id);
+        var eqByNome = _equip.All().GroupBy(e => Norm(e.Nome)).ToDictionary(g => g.Key, g => g.First().Id);
+        var outRows = new List<IReadOnlyList<KeyValuePair<string, object?>>>();
+        foreach (var r in rows)
+        {
+            var pn = Get(r, c, "partnumber", "part_number", "part_no", "codigo", "codigo_peca");
+            var desc = Get(r, c, "descricao", "description", "descricao_do_item", "item");
+            if (string.IsNullOrWhiteSpace(pn) && string.IsNullOrWhiteSpace(desc)) continue;
+
+            var modelo = Get(r, c, "modelo_do_equipamento", "equipamento", "modelo");
+            if (!eqByModelo.TryGetValue(Norm(modelo), out var eqId))
+                eqByNome.TryGetValue(Norm(modelo), out eqId);
+
+            outRows.Add(Row(
+                ("id", "bom-" + Guid.NewGuid().ToString("N")[..8]),
+                ("equipment_id", eqId ?? modelo),
+                ("part_number", pn),
+                ("quantidade", Get(r, c, "quantidade", "qtd", "qty", "quantity")),
+                ("descricao", desc),
+                ("outros", Get(r, c, "outros", "outro", "other")),
+                ("observacao", Get(r, c, "observacao", "obs", "observacoes", "remarks"))));
+        }
+        return Write("bom", outRows, sub);
     }
 
     private ImportResult ImportHistorico(List<string[]> rows, Dictionary<string, int> c, bool sub)

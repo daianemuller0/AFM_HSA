@@ -50,6 +50,7 @@ builder.Services.AddScoped<VisitRepository>();
 builder.Services.AddScoped<OfferRepository>();
 builder.Services.AddScoped<OppOverrideRepository>();
 builder.Services.AddScoped<ConstructionRepository>();
+builder.Services.AddScoped<BomRepository>();
 builder.Services.AddScoped<BrandingRepository>();
 builder.Services.AddScoped<ImportService>();
 

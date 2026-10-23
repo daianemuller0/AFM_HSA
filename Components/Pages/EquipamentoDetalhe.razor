@@ -7,6 +7,7 @@
 @inject InstalledBaseRepository Base
 @inject SalesRecordRepository Vendas
 @inject ConstructionRepository Construcao
+@inject BomRepository Bom
 @inject IntelligenceService Intel
 
 <PageTitle>Equipamento · AFM HSA</PageTitle>
@@ -95,24 +96,53 @@ else
         </tbody>
     </table>
 
-    <div class="dash-title">Dados construtivos</div>
-    <table class="grid">
-        <thead><tr><th>Item</th><th class="right">Peso (kg)</th><th>Dimensões</th><th>Material</th><th>Parte do equipamento</th><th>Modelo</th></tr></thead>
-        <tbody>
-            @foreach (var c in _constr)
-            {
-                <tr>
-                    <td>@c.ItemName</td>
-                    <td class="right">@(string.IsNullOrEmpty(c.WeightKg) ? "—" : c.WeightKg)</td>
-                    <td>@(string.IsNullOrEmpty(c.Dimensions) ? "—" : c.Dimensions)</td>
-                    <td>@(string.IsNullOrEmpty(c.Material) ? "—" : c.Material)</td>
-                    <td>@c.EquipmentPart</td>
-                    <td>@(string.IsNullOrEmpty(c.ItemModel) ? "—" : c.ItemModel)</td>
-                </tr>
-            }
-            @if (_constr.Count == 0) { <tr><td colspan="6" class="empty">Nenhum dado construtivo cadastrado.</td></tr> }
-        </tbody>
-    </table>
+    @* Ventilador centrífugo continua com os dados construtivos (peso, dimensões,
+       material). Todo outro tipo trabalha com a lista de materiais — o BOM. *@
+    @if (EhVentiladorCentrifugo)
+    {
+        <div class="dash-title">Dados construtivos</div>
+        <table class="grid">
+            <thead><tr><th>Item</th><th class="right">Peso (kg)</th><th>Dimensões</th><th>Material</th><th>Parte do equipamento</th><th>Modelo</th></tr></thead>
+            <tbody>
+                @foreach (var c in _constr)
+                {
+                    <tr>
+                        <td>@c.ItemName</td>
+                        <td class="right">@(string.IsNullOrEmpty(c.WeightKg) ? "—" : c.WeightKg)</td>
+                        <td>@(string.IsNullOrEmpty(c.Dimensions) ? "—" : c.Dimensions)</td>
+                        <td>@(string.IsNullOrEmpty(c.Material) ? "—" : c.Material)</td>
+                        <td>@c.EquipmentPart</td>
+                        <td>@(string.IsNullOrEmpty(c.ItemModel) ? "—" : c.ItemModel)</td>
+                    </tr>
+                }
+                @if (_constr.Count == 0) { <tr><td colspan="6" class="empty">Nenhum dado construtivo cadastrado.</td></tr> }
+            </tbody>
+        </table>
+    }
+    else
+    {
+        <div class="dash-title">Dados - BOM
+            <span style="margin-left:8px;font-size:12px;font-weight:600;color:var(--muted)">
+                lista de materiais de @(string.IsNullOrWhiteSpace(_e.Tipo) ? "equipamento" : _e.Tipo)
+            </span>
+        </div>
+        <table class="grid">
+            <thead><tr><th>Partnumber</th><th class="right">Quantidade</th><th>Descrição</th><th>Outros</th><th>Observação</th></tr></thead>
+            <tbody>
+                @foreach (var b in _bom)
+                {
+                    <tr>
+                        <td class="nowrap">@Txt(b.PartNumber)</td>
+                        <td class="right">@Txt(b.Quantidade)</td>
+                        <td>@Txt(b.Descricao)</td>
+                        <td>@Txt(b.Outros)</td>
+                        <td>@Txt(b.Observacao)</td>
+                    </tr>
+                }
+                @if (_bom.Count == 0) { <tr><td colspan="5" class="empty">Nenhum item de BOM cadastrado para este equipamento.</td></tr> }
+            </tbody>
+        </table>
+    }
 }
 
 @code {
@@ -121,6 +151,7 @@ else
     private List<Part> _parts = new();
     private List<InstalledBase> _base = new();
     private List<ConstructionItem> _constr = new();
+    private List<BomItem> _bom = new();
     private List<SalesRecord> _sales = new();
     private int _qtd, _pecasCriticas;
     private decimal _pot24;
@@ -132,6 +163,8 @@ else
         _parts = Pecas.All().Where(p => p.EquipmentId == _e.Id).OrderBy(p => p.Nome).ToList();
         _base = Base.All().Where(b => b.EquipmentId == _e.Id).ToList();
         _constr = Construcao.ForEquip(_e.Id);
+        _bom = Bom.ForEquip(_e.Id)
+            .OrderBy(b => b.PartNumber, StringComparer.OrdinalIgnoreCase).ToList();
         _sales = Vendas.All().Where(s => s.EquipmentId == _e.Id).ToList();
         _qtd = _base.Sum(b => b.Quantidade);
         _pecasCriticas = _parts.Count(p => p.Critica);
@@ -139,6 +172,35 @@ else
             .Where(o => o.EquipmentId == _e.Id && o.DiasAteJanela <= 730)
             .Sum(o => o.ValorEstimado);
     }
+
+    /// <summary>
+    /// Ventilador centrífugo é o único tipo que segue com os dados construtivos
+    /// (peso, dimensões, material). Para os demais (VARIAX, axial, Air Pre Heater,
+    /// soprador, exaustor…) a ficha mostra o BOM.
+    /// </summary>
+    private bool EhVentiladorCentrifugo
+    {
+        get
+        {
+            var t = SemAcento(_e?.Tipo ?? "");
+            if (string.IsNullOrWhiteSpace(t)) t = SemAcento(_e?.Nome ?? "");
+            return t.Contains("ventilador") && t.Contains("centrif");
+        }
+    }
+
+    private static string SemAcento(string s)
+    {
+        var d = s.Normalize(System.Text.NormalizationForm.FormD);
+        var sb = new System.Text.StringBuilder(d.Length);
+        foreach (var ch in d)
+        {
+            if (CharUnicodeInfo.GetUnicodeCategory(ch) != UnicodeCategory.NonSpacingMark)
+                sb.Append(char.ToLowerInvariant(ch));
+        }
+        return sb.ToString();
+    }
+
+    private static string Txt(string s) => string.IsNullOrWhiteSpace(s) ? "—" : s;
 
     private static string Freq(int meses) =>
         $"{meses} meses (~{(meses / 12.0).ToString("0.0", CultureInfo.InvariantCulture)} anos)";
