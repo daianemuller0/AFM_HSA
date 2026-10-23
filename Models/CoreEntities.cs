@@ -157,6 +157,11 @@ public class SalesRecord
     public decimal Valor { get; set; }
     public string VendedorId { get; set; } = "";
     public string Origem { get; set; } = "";
+
+    /// <summary>TAG e nº de série da unidade física atendida — permite saber em
+    /// qual dos equipamentos iguais da planta a venda foi feita.</summary>
+    public string Tag { get; set; } = "";
+    public string SerialNo { get; set; } = "";
 }
 
 // users

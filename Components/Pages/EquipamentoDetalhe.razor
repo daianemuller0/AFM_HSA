@@ -8,7 +8,11 @@
 @inject SalesRecordRepository Vendas
 @inject ConstructionRepository Construcao
 @inject BomRepository Bom
+@inject ClientUnitRepository Unidades
+@inject SalespersonRepository Vendedores
+@inject ImportService Importer
 @inject IntelligenceService Intel
+@inject IJSRuntime JS
 
 <PageTitle>Equipamento · AFM HSA</PageTitle>
 
@@ -76,23 +80,99 @@ else
             <span style="margin-left:8px;font-size:12px;font-weight:600;color:#0a7d6c;background:#e6f7f3;border-radius:20px;padding:3px 10px">@_sales.Count compra(s) · @Fmt.Brl0(_sales.Sum(s => s.Valor))</span>
         }
     </div>
+    <div class="toolbar tab-toolbar">
+        <button class="btn-ghost" @onclick="BaixarHistorico">⬇ Baixar Excel</button>
+        <label class="btn-ghost file-btn">
+            ⬆ Subir planilha
+            <InputFile OnChange="SubirHistorico" accept=".xlsx,.xlsm,.xls,.csv" />
+        </label>
+        <label class="chk-inline">
+            <input type="checkbox" @bind="_histSubstituir" /> substituir o histórico deste equipamento
+        </label>
+        <button class="btn-primary" @onclick="NovaVenda">+ Adicionar registro</button>
+    </div>
+    @if (_histMsg is not null)
+    {
+        <div class="@(_histOk ? "side-ok" : "alert-error")" style="margin-bottom:10px">@_histMsg</div>
+    }
     <table class="grid" style="margin-bottom:20px">
-        <thead><tr><th>Data</th><th>Pedido</th><th>Cliente / Unidade</th><th>Item vendido</th><th class="right">Qtd</th><th class="right">Valor</th><th>Vendedor</th><th>Origem</th></tr></thead>
+        <thead>
+            <tr>
+                <th>Data</th><th>Pedido</th><th>Cliente / Unidade</th><th>Tag</th><th>Nº de série</th>
+                <th>Item vendido</th><th class="right">Qtd</th><th class="right">Valor</th>
+                <th>Vendedor</th><th>Origem</th><th class="right">Ações</th>
+            </tr>
+        </thead>
         <tbody>
-            @foreach (var s in _sales.OrderByDescending(s => s.DataVenda))
+            @foreach (var s in _sales)
             {
-                <tr>
-                    <td class="nowrap">@Fmt.Date(s.DataVenda)</td>
-                    <td>@(string.IsNullOrEmpty(s.Pedido) ? "—" : s.Pedido)</td>
-                    <td>@Intel.ClienteDaUnidade(s.ClientUnitId) — @Intel.UnitNome(s.ClientUnitId)</td>
-                    <td>@s.ItemVendido</td>
-                    <td class="right">@s.Quantidade</td>
-                    <td class="right nowrap">@Fmt.Brl0(s.Valor)</td>
-                    <td>@Intel.SalespersonName(s.VendedorId)</td>
-                    <td>@(string.IsNullOrEmpty(s.Origem) ? "—" : s.Origem)</td>
-                </tr>
+                @if (_editVendaId == s.Id)
+                {
+                    <tr class="row-edit">
+                        <td colspan="11">
+                            <div class="form3 form-edit">
+                                <label>Data <input class="cell" type="date" @bind="_fv.DataVenda" /></label>
+                                <label>Pedido <input class="cell" @bind="_fv.Pedido" placeholder="nº do pedido" /></label>
+                                <label>Cliente / Unidade
+                                        <select class="cell" @bind="_fv.ClientUnitId">
+                                        <option value="">— selecione —</option>
+                                        @foreach (var u in _unidades)
+                                        {
+                                            <option value="@u.Id">@Intel.ClienteDaUnidade(u.Id) — @u.NomeUnidade</option>
+                                        }
+                                    </select></label>
+                                <label>Tag <input class="cell" @bind="_fv.Tag" placeholder="ex.: FD-101A" /></label>
+                                <label>Nº de série <input class="cell" @bind="_fv.SerialNo" /></label>
+                                <label>Item vendido <input class="cell" @bind="_fv.ItemVendido" /></label>
+                                <label>Quantidade <input class="cell" type="number" min="0" @bind="_fv.Quantidade" /></label>
+                                <label>Valor (R$) <input class="cell" type="number" step="0.01" min="0" @bind="_fv.Valor" /></label>
+                                <label>Vendedor
+                                        <select class="cell" @bind="_fv.VendedorId">
+                                        <option value="">— sem vendedor —</option>
+                                        @foreach (var v in _vendedores)
+                                        {
+                                            <option value="@v.Id">@v.Nome</option>
+                                        }
+                                    </select></label>
+                                <label>Origem <input class="cell" @bind="_fv.Origem" placeholder="ex.: Proposta AFM" /></label>
+                            </div>
+                            <div class="toolbar" style="margin-top:10px">
+                                <button class="btn-primary" @onclick="SalvarVenda">Salvar</button>
+                                <button class="btn-ghost" @onclick="CancelarVenda">Cancelar</button>
+                                @if (_vendaErro is not null) { <span class="alert-error" style="padding:6px 10px">@_vendaErro</span> }
+                            </div>
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    <tr>
+                        <td class="nowrap">@Fmt.Date(s.DataVenda)</td>
+                        <td>@Txt(s.Pedido)</td>
+                        <td>@Intel.ClienteDaUnidade(s.ClientUnitId) — @Intel.UnitNome(s.ClientUnitId)</td>
+                        <td class="nowrap">@Txt(s.Tag)</td>
+                        <td class="nowrap">@Txt(s.SerialNo)</td>
+                        <td>@s.ItemVendido</td>
+                        <td class="right">@s.Quantidade</td>
+                        <td class="right nowrap">@Fmt.Brl0(s.Valor)</td>
+                        <td>@Intel.SalespersonName(s.VendedorId)</td>
+                        <td>@Txt(s.Origem)</td>
+                        <td class="right nowrap">
+                            <button class="btn-link" @onclick="() => EditarVenda(s)">editar</button>
+                            @if (_confirmVendaId == s.Id)
+                            {
+                                <button class="btn-link" style="color:#b91c1c;font-weight:700" @onclick="() => ExcluirVenda(s)">confirmar</button>
+                                <button class="btn-link" style="color:var(--muted)" @onclick="() => _confirmVendaId = null">não</button>
+                            }
+                            else
+                            {
+                                <button class="btn-link" style="color:#b91c1c" @onclick="() => _confirmVendaId = s.Id">excluir</button>
+                            }
+                        </td>
+                    </tr>
+                }
             }
-            @if (_sales.Count == 0) { <tr><td colspan="8" class="empty">Sem histórico de vendas AFM para este equipamento.</td></tr> }
+            @if (_sales.Count == 0) { <tr><td colspan="11" class="empty">Sem histórico de vendas AFM para este equipamento.</td></tr> }
         </tbody>
     </table>
 
@@ -126,20 +206,78 @@ else
                 lista de materiais de @(string.IsNullOrWhiteSpace(_e.Tipo) ? "equipamento" : _e.Tipo)
             </span>
         </div>
+        <div class="toolbar tab-toolbar">
+            <button class="btn-ghost" @onclick="BaixarBom">⬇ Baixar Excel</button>
+            <label class="btn-ghost file-btn">
+                ⬆ Subir planilha
+                <InputFile OnChange="SubirBom" accept=".xlsx,.xlsm,.xls,.csv" />
+            </label>
+            <label class="chk-inline">
+                <input type="checkbox" @bind="_bomSubstituir" /> substituir o BOM deste equipamento
+            </label>
+            <button class="btn-primary" @onclick="NovoItemBom">+ Adicionar item</button>
+        </div>
+        @if (_bomMsg is not null)
+        {
+            <div class="@(_bomOk ? "side-ok" : "alert-error")" style="margin-bottom:10px">@_bomMsg</div>
+        }
         <table class="grid">
-            <thead><tr><th>Partnumber</th><th class="right">Quantidade</th><th>Descrição</th><th>Outros</th><th>Observação</th></tr></thead>
+            <thead>
+                <tr>
+                    <th>Tag</th><th>Nº de série</th><th>Partnumber</th><th class="right">Quantidade</th>
+                    <th>Descrição</th><th>Outros</th><th>Observação</th><th class="right">Ações</th>
+                </tr>
+            </thead>
             <tbody>
                 @foreach (var b in _bom)
                 {
-                    <tr>
-                        <td class="nowrap">@Txt(b.PartNumber)</td>
-                        <td class="right">@Txt(b.Quantidade)</td>
-                        <td>@Txt(b.Descricao)</td>
-                        <td>@Txt(b.Outros)</td>
-                        <td>@Txt(b.Observacao)</td>
-                    </tr>
+                    @if (_editBomId == b.Id)
+                    {
+                        <tr class="row-edit">
+                            <td colspan="8">
+                                <div class="form3 form-edit">
+                                    <label>Tag <input class="cell" @bind="_fb.Tag" placeholder="ex.: FD-101A" /></label>
+                                    <label>Nº de série <input class="cell" @bind="_fb.SerialNo" /></label>
+                                    <label>Partnumber <input class="cell" @bind="_fb.PartNumber" /></label>
+                                    <label>Quantidade <input class="cell" @bind="_fb.Quantidade" placeholder="ex.: 2 ou 1 jogo" /></label>
+                                    <label>Descrição <input class="cell" @bind="_fb.Descricao" /></label>
+                                    <label>Outros <input class="cell" @bind="_fb.Outros" /></label>
+                                    <label>Observação <input class="cell" @bind="_fb.Observacao" /></label>
+                                </div>
+                                <div class="toolbar" style="margin-top:10px">
+                                    <button class="btn-primary" @onclick="SalvarBom">Salvar</button>
+                                    <button class="btn-ghost" @onclick="CancelarBom">Cancelar</button>
+                                    @if (_bomErro is not null) { <span class="alert-error" style="padding:6px 10px">@_bomErro</span> }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        <tr>
+                            <td class="nowrap">@Txt(b.Tag)</td>
+                            <td class="nowrap">@Txt(b.SerialNo)</td>
+                            <td class="nowrap">@Txt(b.PartNumber)</td>
+                            <td class="right">@Txt(b.Quantidade)</td>
+                            <td>@Txt(b.Descricao)</td>
+                            <td>@Txt(b.Outros)</td>
+                            <td>@Txt(b.Observacao)</td>
+                            <td class="right nowrap">
+                                <button class="btn-link" @onclick="() => EditarBom(b)">editar</button>
+                                @if (_confirmBomId == b.Id)
+                                {
+                                    <button class="btn-link" style="color:#b91c1c;font-weight:700" @onclick="() => ExcluirBom(b)">confirmar</button>
+                                    <button class="btn-link" style="color:var(--muted)" @onclick="() => _confirmBomId = null">não</button>
+                                }
+                                else
+                                {
+                                    <button class="btn-link" style="color:#b91c1c" @onclick="() => _confirmBomId = b.Id">excluir</button>
+                                }
+                            </td>
+                        </tr>
+                    }
                 }
-                @if (_bom.Count == 0) { <tr><td colspan="5" class="empty">Nenhum item de BOM cadastrado para este equipamento.</td></tr> }
+                @if (_bom.Count == 0) { <tr><td colspan="8" class="empty">Nenhum item de BOM cadastrado para este equipamento.</td></tr> }
             </tbody>
         </table>
     }
@@ -153,10 +291,23 @@ else
     private List<ConstructionItem> _constr = new();
     private List<BomItem> _bom = new();
     private List<SalesRecord> _sales = new();
+    private List<ClientUnit> _unidades = new();
+    private List<Salesperson> _vendedores = new();
     private int _qtd, _pecasCriticas;
     private decimal _pot24;
 
-    protected override void OnInitialized()
+    // --- estado das edições / importações ---------------------------------
+    private string? _editBomId, _confirmBomId, _bomMsg, _bomErro;
+    private bool _bomOk, _bomSubstituir;
+    private BomItem _fb = new();
+
+    private string? _editVendaId, _confirmVendaId, _histMsg, _vendaErro;
+    private bool _histOk, _histSubstituir;
+    private SalesRecord _fv = new();
+
+    protected override void OnInitialized() => Carregar();
+
+    private void Carregar()
     {
         _e = Equipamentos.All().FirstOrDefault(e => e.Id == Id);
         if (_e is null) return;
@@ -164,13 +315,207 @@ else
         _base = Base.All().Where(b => b.EquipmentId == _e.Id).ToList();
         _constr = Construcao.ForEquip(_e.Id);
         _bom = Bom.ForEquip(_e.Id)
-            .OrderBy(b => b.PartNumber, StringComparer.OrdinalIgnoreCase).ToList();
-        _sales = Vendas.All().Where(s => s.EquipmentId == _e.Id).ToList();
+            .OrderBy(b => b.Tag, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(b => b.PartNumber, StringComparer.OrdinalIgnoreCase).ToList();
+        _sales = Vendas.ForEquip(_e.Id).OrderByDescending(s => s.DataVenda).ToList();
+        _unidades = Unidades.All().OrderBy(u => u.NomeUnidade, StringComparer.OrdinalIgnoreCase).ToList();
+        _vendedores = Vendedores.All().Where(v => v.Ativo)
+            .OrderBy(v => v.Nome, StringComparer.OrdinalIgnoreCase).ToList();
         _qtd = _base.Sum(b => b.Quantidade);
         _pecasCriticas = _parts.Count(p => p.Critica);
         _pot24 = Intel.OpenOpportunities()
             .Where(o => o.EquipmentId == _e.Id && o.DiasAteJanela <= 730)
             .Sum(o => o.ValorEstimado);
+    }
+
+    // =================== BOM ==============================================
+
+    private void NovoItemBom()
+    {
+        _fb = new BomItem { Id = "bom-" + Guid.NewGuid().ToString("N")[..8], EquipmentId = _e!.Id };
+        _editBomId = _fb.Id; _bomErro = null; _bomMsg = null;
+        _bom.Insert(0, _fb);   // linha nova aparece no topo já em edição
+    }
+
+    private void EditarBom(BomItem b)
+    {
+        _editBomId = b.Id; _bomErro = null; _bomMsg = null;
+        _fb = new BomItem
+        {
+            Id = b.Id, EquipmentId = b.EquipmentId, Tag = b.Tag, SerialNo = b.SerialNo,
+            PartNumber = b.PartNumber, Quantidade = b.Quantidade, Descricao = b.Descricao,
+            Outros = b.Outros, Observacao = b.Observacao,
+        };
+    }
+
+    private void SalvarBom()
+    {
+        if (string.IsNullOrWhiteSpace(_fb.PartNumber) && string.IsNullOrWhiteSpace(_fb.Descricao))
+        {
+            _bomErro = "Preencha ao menos o partnumber ou a descrição.";
+            return;
+        }
+        _fb.EquipmentId = _e!.Id;
+        Bom.Save(_fb);
+        _editBomId = null; _bomErro = null;
+        _bomMsg = "Item salvo."; _bomOk = true;
+        Carregar();
+    }
+
+    private void ExcluirBom(BomItem b)
+    {
+        Bom.Delete(b);
+        _confirmBomId = null; _editBomId = null;
+        _bomMsg = "Item excluído."; _bomOk = true;
+        Carregar();
+    }
+
+    private static readonly string[] BomHeader =
+        { "tag", "serial_number", "partnumber", "quantidade", "descricao", "outros", "observacao" };
+
+    private async Task BaixarBom()
+    {
+        // a linha em branco de um item ainda não salvo não vai para a planilha
+        var linhas = _bom
+            .Where(b => !string.IsNullOrWhiteSpace(b.PartNumber) || !string.IsNullOrWhiteSpace(b.Descricao))
+            .Select(b => new[] { b.Tag, b.SerialNo, b.PartNumber, b.Quantidade, b.Descricao, b.Outros, b.Observacao })
+            .ToList();
+        var bytes = Planilha.Xlsx("BOM", BomHeader, linhas);
+        await Baixar($"BOM_{Arquivo(_e!)}.xlsx", bytes);
+    }
+
+    private async Task SubirBom(InputFileChangeEventArgs e)
+    {
+        var bytes = await LerArquivo(e);
+        if (bytes is null) { _bomMsg = "Arquivo muito grande (limite de 25 MB)."; _bomOk = false; return; }
+        var res = Importer.ImportBomDoEquipamento(_e!.Id, bytes, e.File.Name, _bomSubstituir);
+        _bomMsg = res.Message; _bomOk = res.Ok;
+        if (res.Ok) { _editBomId = null; Intel.Invalidate(); Carregar(); }
+    }
+
+    // =================== Histórico Aftermarket ============================
+
+    private void NovaVenda()
+    {
+        _fv = new SalesRecord
+        {
+            Id = "sl-" + Guid.NewGuid().ToString("N")[..8],
+            EquipmentId = _e!.Id,
+            DataVenda = DateTime.Today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            Quantidade = 1,
+            Origem = "Lançamento manual",
+        };
+        _editVendaId = _fv.Id; _vendaErro = null; _histMsg = null;
+        _sales.Insert(0, _fv);
+    }
+
+    private void EditarVenda(SalesRecord s)
+    {
+        _editVendaId = s.Id; _vendaErro = null; _histMsg = null;
+        _fv = new SalesRecord
+        {
+            Id = s.Id, DataVenda = s.DataVenda, Pedido = s.Pedido, ClientUnitId = s.ClientUnitId,
+            EquipmentId = s.EquipmentId, ItemVendido = s.ItemVendido, Quantidade = s.Quantidade,
+            Valor = s.Valor, VendedorId = s.VendedorId, Origem = s.Origem,
+            Tag = s.Tag, SerialNo = s.SerialNo,
+        };
+    }
+
+    private void SalvarVenda()
+    {
+        if (string.IsNullOrWhiteSpace(_fv.ItemVendido))
+        {
+            _vendaErro = "Informe o item vendido.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(_fv.DataVenda))
+        {
+            _vendaErro = "Informe a data da venda.";
+            return;
+        }
+        _fv.EquipmentId = _e!.Id;
+        Vendas.Save(_fv);
+        _editVendaId = null; _vendaErro = null;
+        _histMsg = "Registro salvo."; _histOk = true;
+        Intel.Invalidate();
+        Carregar();
+    }
+
+    private void ExcluirVenda(SalesRecord s)
+    {
+        Vendas.Delete(s);
+        _confirmVendaId = null; _editVendaId = null;
+        _histMsg = "Registro excluído."; _histOk = true;
+        Intel.Invalidate();
+        Carregar();
+    }
+
+    private static readonly string[] HistHeader =
+        { "data_venda", "pedido", "unidade", "tag", "serial_number", "item_vendido", "quantidade", "valor", "vendedor", "origem" };
+
+    private async Task BaixarHistorico()
+    {
+        var linhas = _sales.Select(s => new[]
+        {
+            s.DataVenda,
+            s.Pedido,
+            Intel.UnitNome(s.ClientUnitId),
+            s.Tag,
+            s.SerialNo,
+            s.ItemVendido,
+            s.Quantidade.ToString(CultureInfo.InvariantCulture),
+            s.Valor.ToString("0.##", CultureInfo.InvariantCulture),
+            Vendedor(s.VendedorId),
+            s.Origem,
+        }).ToList();
+        var bytes = Planilha.Xlsx("Historico", HistHeader, linhas);
+        await Baixar($"Historico_{Arquivo(_e!)}.xlsx", bytes);
+    }
+
+    private async Task SubirHistorico(InputFileChangeEventArgs e)
+    {
+        var bytes = await LerArquivo(e);
+        if (bytes is null) { _histMsg = "Arquivo muito grande (limite de 25 MB)."; _histOk = false; return; }
+        var res = Importer.ImportHistoricoDoEquipamento(_e!.Id, bytes, e.File.Name, _histSubstituir);
+        _histMsg = res.Message; _histOk = res.Ok;
+        if (res.Ok) { _editVendaId = null; Intel.Invalidate(); Carregar(); }
+    }
+
+    // =================== utilidades =======================================
+
+    private void CancelarBom() { _editBomId = null; _bomErro = null; Carregar(); }
+    private void CancelarVenda() { _editVendaId = null; _vendaErro = null; Carregar(); }
+
+    /// <summary>Nome do vendedor para a planilha; se não achar, exporta o id —
+    /// assim a planilha volta pelo import sem perder a ligação.</summary>
+    private string Vendedor(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id)) return "";
+        var nome = Intel.SalespersonName(id);
+        return nome == "—" ? id : nome;
+    }
+
+    private static async Task<byte[]?> LerArquivo(InputFileChangeEventArgs e)
+    {
+        const long limite = 25L * 1024 * 1024;
+        if (e.File.Size > limite) return null;
+        using var ms = new MemoryStream();
+        await e.File.OpenReadStream(limite).CopyToAsync(ms);
+        return ms.ToArray();
+    }
+
+    private async Task Baixar(string nome, byte[] bytes) =>
+        await JS.InvokeVoidAsync("appDownload", nome,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            Convert.ToBase64String(bytes));
+
+    /// <summary>Nome de arquivo seguro a partir do modelo do equipamento.</summary>
+    private static string Arquivo(Equipment e)
+    {
+        var baseNome = string.IsNullOrWhiteSpace(e.Modelo) ? e.Nome : e.Modelo;
+        var limpo = new string(baseNome.Select(c => char.IsLetterOrDigit(c) ? c : '_').ToArray());
+        limpo = limpo.Trim('_');
+        return limpo.Length == 0 ? "equipamento" : limpo;
     }
 
     /// <summary>

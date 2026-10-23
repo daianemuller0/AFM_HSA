@@ -265,15 +265,46 @@ public class SalesRecordRepository
     private readonly ParquetStore _s;
     public SalesRecordRepository(ParquetStore s) => _s = s;
 
-    public List<SalesRecord> All() => _s.ReadLatest("salesHistory",
-        "id, data_venda, pedido, client_unit_id, equipment_id, item_vendido, quantidade, valor, vendedor_id, origem",
+    private const string Cols =
+        "id, data_venda, pedido, client_unit_id, equipment_id, item_vendido, quantidade, valor, vendedor_id, origem, tag, serial_no";
+
+    public List<SalesRecord> All() => _s.ReadLatest("salesHistory", Cols,
         r => new SalesRecord
         {
             Id = Fmt.S(r, 0), DataVenda = Fmt.S(r, 1), Pedido = Fmt.S(r, 2),
             ClientUnitId = Fmt.S(r, 3), EquipmentId = Fmt.S(r, 4), ItemVendido = Fmt.S(r, 5),
             Quantidade = Fmt.Int(Fmt.S(r, 6)), Valor = Fmt.Dec(Fmt.S(r, 7)),
             VendedorId = Fmt.S(r, 8), Origem = Fmt.S(r, 9),
+            Tag = Fmt.S(r, 10), SerialNo = Fmt.S(r, 11),
         }, orderBy: "data_venda DESC");
+
+    public List<SalesRecord> ForEquip(string equipmentId) =>
+        All().Where(s => s.EquipmentId == equipmentId).ToList();
+
+    public void Save(SalesRecord s) => _s.WriteRow("salesHistory", Linha(s));
+    public void Delete(SalesRecord s) => _s.WriteRow("salesHistory", Linha(s), deleted: true);
+
+    /// <summary>Apaga (soft delete) todo o histórico de um equipamento — usado
+    /// pela importação em modo "substituir" feita dentro da ficha técnica.</summary>
+    public int DeleteByEquip(string equipmentId)
+    {
+        var regs = ForEquip(equipmentId);
+        if (regs.Count == 0) return 0;
+        _s.WriteBatch("salesHistory", regs.Select(Linha).ToList(), deleted: true);
+        return regs.Count;
+    }
+
+    private static IReadOnlyList<KeyValuePair<string, object?>> Linha(SalesRecord s) =>
+        new KeyValuePair<string, object?>[]
+        {
+            new("id", s.Id), new("data_venda", s.DataVenda), new("pedido", s.Pedido),
+            new("client_unit_id", s.ClientUnitId), new("equipment_id", s.EquipmentId),
+            new("item_vendido", s.ItemVendido),
+            new("quantidade", s.Quantidade.ToString()),
+            new("valor", s.Valor.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+            new("vendedor_id", s.VendedorId), new("origem", s.Origem),
+            new("tag", s.Tag), new("serial_no", s.SerialNo),
+        };
 }
 
 public class AppUserRepository

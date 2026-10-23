@@ -683,3 +683,20 @@ h1 { font-size: 24px; margin: 0 0 4px; color: var(--primary); letter-spacing: -.
 .eq-edit { padding: 14px 18px; background: #fffdf4; border-bottom: 1px solid #f1e7c8; }
 .eq-edit .form3 { grid-template-columns: repeat(5, 1fr); }
 .eq-vazio { padding: 26px 18px; text-align: center; color: var(--muted); font-size: 14px; }
+
+/* ===== Ficha do equipamento: BOM e histórico editáveis ===== */
+.tab-toolbar { flex-wrap: wrap; gap: 10px; margin-bottom: 10px; }
+.chk-inline {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12.5px; color: var(--muted); cursor: pointer;
+}
+/* botão de upload: o <input type=file> fica escondido dentro do label */
+.file-btn { cursor: pointer; display: inline-flex; align-items: center; }
+.file-btn input[type="file"] {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+.row-edit > td { background: #fffdf4; border-top: 2px solid #f1e7c8; border-bottom: 2px solid #f1e7c8; padding: 14px 14px 16px; }
+.form-edit { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+@media (max-width: 1280px) { .form-edit { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 860px) { .form-edit { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

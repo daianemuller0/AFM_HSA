@@ -22,11 +22,15 @@ public class ImportService
     private readonly EquipmentRepository _equip;
     private readonly SalespersonRepository _sp;
     private readonly CompanyRepository _companies;
+    private readonly BomRepository _bom;
+    private readonly SalesRecordRepository _vendas;
 
     public ImportService(ParquetStore store, ClientUnitRepository units, EquipmentRepository equip,
-        SalespersonRepository sp, CompanyRepository companies)
+        SalespersonRepository sp, CompanyRepository companies, BomRepository bom,
+        SalesRecordRepository vendas)
     {
         _store = store; _units = units; _equip = equip; _sp = sp; _companies = companies;
+        _bom = bom; _vendas = vendas;
     }
 
     /// <summary>
@@ -295,6 +299,8 @@ public class ImportService
             outRows.Add(Row(
                 ("id", "bom-" + Guid.NewGuid().ToString("N")[..8]),
                 ("equipment_id", eqId ?? modelo),
+                ("tag", Get(r, c, "tag", "tag_equipamento")),
+                ("serial_no", Get(r, c, "serial_number", "serial_no", "numero_de_serie", "n_de_serie", "serie")),
                 ("part_number", pn),
                 ("quantidade", Get(r, c, "quantidade", "qtd", "qty", "quantity")),
                 ("descricao", desc),
@@ -302,6 +308,111 @@ public class ImportService
                 ("observacao", Get(r, c, "observacao", "obs", "observacoes", "remarks"))));
         }
         return Write("bom", outRows, sub);
+    }
+
+    // ---- importação dentro da ficha de um equipamento ---------------------
+    // Aqui a planilha não precisa dizer de que equipamento se trata: é sempre o
+    // equipamento aberto na tela. "substituir" apaga só o que é desse
+    // equipamento, nunca o dos outros.
+
+    public ImportResult ImportBomDoEquipamento(string equipmentId, byte[] bytes, string fileName, bool substituir)
+        => ImportarNaFicha(bytes, fileName, rows =>
+        {
+            var (c, dados) = rows;
+            var outRows = new List<IReadOnlyList<KeyValuePair<string, object?>>>();
+            foreach (var r in dados)
+            {
+                var pn = Get(r, c, "partnumber", "part_number", "part_no", "codigo", "codigo_peca");
+                var desc = Get(r, c, "descricao", "description", "item");
+                if (string.IsNullOrWhiteSpace(pn) && string.IsNullOrWhiteSpace(desc)) continue;
+                outRows.Add(Row(
+                    ("id", "bom-" + Guid.NewGuid().ToString("N")[..8]),
+                    ("equipment_id", equipmentId),
+                    ("tag", Get(r, c, "tag", "tag_equipamento")),
+                    ("serial_no", Get(r, c, "serial_number", "serial_no", "numero_de_serie", "n_de_serie", "serie")),
+                    ("part_number", pn),
+                    ("quantidade", Get(r, c, "quantidade", "qtd", "qty", "quantity")),
+                    ("descricao", desc),
+                    ("outros", Get(r, c, "outros", "outro", "other")),
+                    ("observacao", Get(r, c, "observacao", "obs", "observacoes", "remarks"))));
+            }
+            if (outRows.Count == 0) return new ImportResult { Ok = false, Message = "Nenhuma linha válida encontrada." };
+            if (substituir) _bom.DeleteByEquip(equipmentId);
+            _store.WriteBatch("bom", outRows);
+            return new ImportResult { Ok = true, Count = outRows.Count, Message = $"{outRows.Count} item(ns) de BOM importado(s)." };
+        });
+
+    public ImportResult ImportHistoricoDoEquipamento(string equipmentId, byte[] bytes, string fileName, bool substituir)
+        => ImportarNaFicha(bytes, fileName, rows =>
+        {
+            var (c, dados) = rows;
+            var unitByName = _units.All().GroupBy(u => Norm(u.NomeUnidade)).ToDictionary(g => g.Key, g => g.First().Id);
+            var unitIds = new HashSet<string>(_units.All().Select(u => u.Id), StringComparer.OrdinalIgnoreCase);
+            var spByName = _sp.All().GroupBy(s => Norm(s.Nome)).ToDictionary(g => g.Key, g => g.First().Id);
+            var spIds = new HashSet<string>(_sp.All().Select(s => s.Id), StringComparer.OrdinalIgnoreCase);
+
+            var outRows = new List<IReadOnlyList<KeyValuePair<string, object?>>>();
+            foreach (var r in dados)
+            {
+                var item = Get(r, c, "item_vendido", "item", "peca");
+                var data = GetDate(r, c, "data_venda", "data");
+                if (string.IsNullOrWhiteSpace(item) && string.IsNullOrWhiteSpace(data)) continue;
+
+                // a planilha pode trazer o nome da unidade ou o próprio id
+                var unidade = SemTraco(Get(r, c, "unidade", "cliente_unidade", "cliente"));
+                if (!unitByName.TryGetValue(Norm(unidade), out var unitId) && unitIds.Contains(unidade))
+                    unitId = unidade;
+                var vendedor = SemTraco(Get(r, c, "vendedor"));
+                if (!spByName.TryGetValue(Norm(vendedor), out var spId) && spIds.Contains(vendedor))
+                    spId = vendedor;
+
+                outRows.Add(Row(
+                    ("id", "sl-" + Guid.NewGuid().ToString("N")[..8]),
+                    ("data_venda", data),
+                    ("pedido", Get(r, c, "pedido")),
+                    ("client_unit_id", unitId ?? unidade),
+                    ("equipment_id", equipmentId),
+                    ("item_vendido", item),
+                    ("quantidade", Def(Get(r, c, "quantidade", "qtd"), "1")),
+                    ("valor", NumStr(Get(r, c, "valor"))),
+                    ("vendedor_id", spId ?? vendedor),
+                    ("origem", Def(Get(r, c, "origem"), "Importação Excel")),
+                    ("tag", Get(r, c, "tag")),
+                    ("serial_no", Get(r, c, "serial_number", "serial_no", "numero_de_serie", "n_de_serie", "serie"))));
+            }
+            if (outRows.Count == 0) return new ImportResult { Ok = false, Message = "Nenhuma linha válida encontrada." };
+            if (substituir) _vendas.DeleteByEquip(equipmentId);
+            _store.WriteBatch("salesHistory", outRows);
+            return new ImportResult { Ok = true, Count = outRows.Count, Message = $"{outRows.Count} registro(s) importado(s)." };
+        });
+
+    /// <summary>Lê a planilha, monta o mapa de colunas e entrega ao importador.</summary>
+    private static ImportResult ImportarNaFicha(byte[] bytes, string fileName,
+        Func<(Dictionary<string, int> Cols, List<string[]> Rows), ImportResult> importar)
+    {
+        try
+        {
+            if (bytes is null || bytes.Length == 0)
+                return new ImportResult { Ok = false, Message = "Arquivo vazio." };
+            var (header, dataRows) = LerPlanilha(bytes, fileName);
+            if (header.Length == 0)
+                return new ImportResult { Ok = false, Message = "Não foi possível ler o cabeçalho da planilha." };
+
+            var cols = new Dictionary<string, int>(StringComparer.Ordinal);
+            for (var i = 0; i < header.Length; i++)
+            {
+                var chave = Norm(header[i]);
+                if (chave.Length > 0 && !cols.ContainsKey(chave)) cols[chave] = i;
+            }
+            if (cols.Count == 0)
+                return new ImportResult { Ok = false, Message = "Não foi possível ler o cabeçalho da planilha." };
+
+            return importar((cols, dataRows));
+        }
+        catch (Exception ex)
+        {
+            return new ImportResult { Ok = false, Message = "Erro ao ler o arquivo: " + ex.Message };
+        }
     }
 
     private ImportResult ImportHistorico(List<string[]> rows, Dictionary<string, int> c, bool sub)
@@ -337,7 +448,9 @@ public class ImportService
                 ("quantidade", Def(Get(r, c, "quantidade", "qtd"), "1")),
                 ("valor", NumStr(Get(r, c, "valor"))),
                 ("vendedor_id", spId ?? vendedor),
-                ("origem", "Importação Excel")));
+                ("origem", "Importação Excel"),
+                ("tag", Get(r, c, "tag")),
+                ("serial_no", Get(r, c, "serial_number", "serial_no", "numero_de_serie", "n_de_serie", "serie"))));
         }
         return Write("salesHistory", outRows, sub);
     }
@@ -501,6 +614,13 @@ public class ImportService
         else if (s.Contains(',')) s = s.Replace(",", ".");
         return decimal.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out var d)
             ? d.ToString(CultureInfo.InvariantCulture) : "0";
+    }
+
+    /// <summary>A exportação escreve "—" onde não há valor; na volta isso é vazio.</summary>
+    private static string SemTraco(string s)
+    {
+        var t = (s ?? "").Trim();
+        return t == "\u2014" || t == "-" ? "" : t;
     }
 
     private static string Def(string s, string fallback) => string.IsNullOrWhiteSpace(s) ? fallback : s;
