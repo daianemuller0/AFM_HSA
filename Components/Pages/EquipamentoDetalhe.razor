@@ -111,7 +111,7 @@ else
                     <tr class="row-edit">
                         <td colspan="11">
                             <div class="form3 form-edit">
-                                <label>Data <input class="cell" type="date" @bind="_fv.DataVenda" /></label>
+                                <label>Data <input class="cell" type="date" @bind="DataDaVenda" /></label>
                                 <label>Pedido <input class="cell" @bind="_fv.Pedido" placeholder="nº do pedido" /></label>
                                 <label>Cliente / Unidade
                                         <select class="cell" @bind="_fv.ClientUnitId">
@@ -482,6 +482,17 @@ else
     }
 
     // =================== utilidades =======================================
+
+    /// <summary>
+    /// Ponte entre o campo de data do formulário e o texto ISO gravado no Parquet:
+    /// o &lt;input type="date"&gt; do Blazor só trabalha com DateOnly/DateTime.
+    /// </summary>
+    private DateOnly? DataDaVenda
+    {
+        get => DateOnly.TryParseExact(_fv.DataVenda, "yyyy-MM-dd",
+            CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) ? d : null;
+        set => _fv.DataVenda = value?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "";
+    }
 
     private void CancelarBom() { _editBomId = null; _bomErro = null; Carregar(); }
     private void CancelarVenda() { _editVendaId = null; _vendaErro = null; Carregar(); }
