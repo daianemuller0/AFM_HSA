@@ -2,6 +2,9 @@
 @attribute [Authorize]
 @rendermode InteractiveServer
 @inject ClientUnitRepository Units
+@inject CompanyRepository Empresas
+@inject SalespersonRepository Vendedores
+@inject SegmentRepository Segmentos
 @inject InstalledBaseRepository Base
 @inject EquipmentRepository Equipamentos
 @inject IntelligenceService Intel
@@ -17,19 +20,91 @@
 else
 {
     <div class="page-head">
-        <div><h1>@Intel.CompanyName(_u.CompanyId)</h1>
+        <div><h1>@NomeCliente(_u.CompanyId)</h1>
             <p class="subtitle">@_u.NomeUnidade · @_u.Cidade/@_u.Estado · @_u.Segmento@(string.IsNullOrWhiteSpace(_u.Cnpj) ? "" : $" · CNPJ {_u.Cnpj}")</p></div>
-        <div class="page-actions"><a class="btn-ghost" href="/clientes">Voltar</a></div>
+        <div class="page-actions">
+            @if (!_editPlanta)
+            {
+                <button class="btn-ghost" @onclick="AbrirEditarPlanta">✎ Editar planta</button>
+            }
+            <a class="btn-ghost" href="/clientes">Voltar</a>
+        </div>
     </div>
 
+    @if (_msg is not null)
+    {
+        <div class="side-ok" style="margin-bottom:12px">@_msg</div>
+    }
+
+    @if (_editPlanta)
+    {
+        <div class="panel" style="margin-bottom:16px">
+            <div class="dash-title">Editar dados da planta</div>
+            <div class="form3">
+                <label>Cliente *
+                    <select class="cell" @bind="_pCompanyId">
+                        <option value="">Selecione o cliente…</option>
+                        @foreach (var c in _empresas)
+                        {
+                            <option value="@c.Id">@c.Nome</option>
+                        }
+                    </select>
+                </label>
+                <label>Nome da planta / unidade *
+                    <input class="cell" @bind="_pu.NomeUnidade" />
+                </label>
+                <label>CNPJ
+                    <input class="cell" placeholder="00.000.000/0000-00" maxlength="18"
+                           @bind="_pu.Cnpj" @bind:after="FormatarCnpj" />
+                </label>
+                <label>Cidade
+                    <input class="cell" @bind="_pu.Cidade" />
+                </label>
+                <label>UF
+                    <input class="cell" maxlength="2" @bind="_pu.Estado" />
+                </label>
+                <label>Segmento *
+                    <select class="cell" @bind="_pu.Segmento" @bind:after="SegmentoPlantaMudou">
+                        <option value="">Selecione o segmento…</option>
+                        @foreach (var g in _segs)
+                        {
+                            <option value="@g.Nome">@g.Nome</option>
+                        }
+                    </select>
+                </label>
+                <label>Vendedor responsável
+                    <select class="cell" @bind="_pu.VendedorId">
+                        <option value="">Sem vendedor definido</option>
+                        @foreach (var v in _vendedores)
+                        {
+                            <option value="@v.Id">@v.Nome · @SegmentoTexto.Display(v.Segmentos)</option>
+                        }
+                    </select>
+                    @if (_dicaVendedor is not null)
+                    {
+                        <span style="font-size:11.5px;color:var(--muted)">@_dicaVendedor</span>
+                    }
+                </label>
+                <label>Região (opcional)
+                    <input class="cell" @bind="_pu.Regiao" />
+                </label>
+            </div>
+            @if (_pErro is not null) { <div class="alert-error" style="margin-top:12px">@_pErro</div> }
+            <div class="toolbar" style="margin-top:14px;margin-bottom:0">
+                <button class="btn-primary" @onclick="SalvarPlanta">Salvar alterações</button>
+                <button class="btn-ghost" @onclick="() => _editPlanta = false">Cancelar</button>
+            </div>
+        </div>
+    }
+
     <div class="kpis">
-        <div class="kpi"><div class="kpi-label">Segmento</div><div class="kpi-value" style="font-size:16px">@_u.Segmento</div></div>
-        <div class="kpi"><div class="kpi-label">Região</div><div class="kpi-value" style="font-size:16px">@_u.Regiao</div></div>
+        <div class="kpi"><div class="kpi-label">Segmento</div><div class="kpi-value" style="font-size:16px">@Dash(_u.Segmento)</div></div>
         <div class="kpi"><div class="kpi-label">Vendedor responsável</div><div class="kpi-value" style="font-size:15px">@Intel.SalespersonName(_u.VendedorId)</div></div>
+        <div class="kpi"><div class="kpi-label">Equipamentos</div><div class="kpi-value">@_base.Count</div></div>
         <div class="kpi k-ren"><div class="kpi-label">Valor potencial em aberto</div><div class="kpi-value" style="font-size:16px">@Fmt.Brl0(_opps.Sum(o => o.ValorEstimado))</div></div>
     </div>
 
-    <div class="toolbar" style="margin-bottom:12px">
+    <div class="toolbar" style="margin-bottom:10px">
         <div class="dash-title" style="margin:0">Equipamentos instalados</div>
         <div style="flex:1"></div>
         @if (!_novoAberto)
@@ -38,10 +113,19 @@ else
         }
     </div>
 
-    @if (_msg is not null)
-    {
-        <div class="side-ok" style="margin-bottom:12px">@_msg</div>
-    }
+    <div class="toolbar" style="margin-bottom:12px">
+        <span class="badge st-ok">@_base.Count(EmOperacao) em operação</span>
+        <span class="badge st-plan">@_base.Count(b => !EmOperacao(b)) parado(s)</span>
+        <span class="badge st-atencao">@_modelosCount modelo(s)</span>
+        <div style="flex:1"></div>
+        <input class="cell" style="max-width:240px" placeholder="Buscar tag, série, modelo…"
+               @bind="_buscaEq" @bind:event="oninput" />
+        <select class="cell" style="max-width:170px" @bind="_filtroSit">
+            <option value="todos">Todas as situações</option>
+            <option value="operando">Só em operação</option>
+            <option value="parados">Só parados</option>
+        </select>
+    </div>
 
     @if (_novoAberto)
     {
@@ -140,46 +224,98 @@ else
         </div>
     }
 
+    <div style="overflow-x:auto">
     <table class="grid" style="margin-bottom:20px">
-        <thead><tr><th>Equipamento</th><th>Tag</th><th>Nº de série</th><th>Ano</th>
-            <th>Situação</th><th>Criticidade</th><th style="width:170px">Ações</th></tr></thead>
+        <thead><tr><th>Tag</th><th>Nº de série</th><th style="width:90px">Ano</th>
+            <th style="width:150px">Situação</th><th style="width:140px">Criticidade</th><th style="width:230px">Ações</th></tr></thead>
         <tbody>
-            @foreach (var b in _base)
+            @foreach (var grupo in Agrupados)
             {
-                var operando = EmOperacao(b);
                 <tr>
-                    <td><a class="btn-link" href="@($"/equipamentos/{b.EquipmentId}")">@Modelo(b.EquipmentId)</a></td>
-                    <td class="nowrap">@Dash(b.Tag)</td>
-                    <td class="nowrap">@Dash(b.SerialNo)</td>
-                    <td>@(b.AnoInstalacao > 0 ? b.AnoInstalacao.ToString() : "—")</td>
-                    <td>
-                        <span class="badge @(operando ? "st-ok" : "st-plan")">
-                            @(operando ? "Em operação" : "Parado")
-                        </span>
-                    </td>
-                    <td><span class="badge @CritClass(b.Criticidade)">@Cap(b.Criticidade)</span></td>
-                    <td class="nowrap">
-                        <button class="btn-link" @onclick="() => AlternarOperacao(b)">
-                            @(operando ? "marcar parado" : "reativar")
-                        </button>
-                        @if (_confirmarId == b.Id)
+                    <td colspan="6" style="background:#f2f6fb;font-weight:600;color:var(--primary)">
+                        @grupo.Key
+                        <span style="font-weight:400;color:var(--muted)"> · @grupo.Count() unidade(s)</span>
+                        @if (!string.IsNullOrWhiteSpace(AplicacaoDoGrupo(grupo.Key)))
                         {
-                            <button class="btn-link" style="color:#b91c1c;font-weight:600"
-                                    @onclick="() => ExcluirEquipamento(b)">excluir?</button>
-                            <button class="btn-link" style="color:var(--muted)"
-                                    @onclick="() => _confirmarId = null">não</button>
+                            <span style="font-weight:400;color:var(--muted)"> · @AplicacaoDoGrupo(grupo.Key)</span>
                         }
-                        else
-                        {
-                            <button class="btn-link" style="color:#b91c1c"
-                                    @onclick="() => _confirmarId = b.Id">excluir</button>
-                        }
+                        <a class="btn-link" style="float:right" href="@($"/equipamentos/{grupo.First().EquipmentId}")">ver equipamento →</a>
                     </td>
                 </tr>
+                @foreach (var b in grupo)
+                {
+                    var operando = EmOperacao(b);
+                    if (_editId == b.Id)
+                    {
+                        <tr style="background:#fffdf5">
+                            <td><input class="cell" placeholder="Tag" @bind="_eTag" /></td>
+                            <td><input class="cell" placeholder="Nº de série" @bind="_eSerial" /></td>
+                            <td><input class="cell num" type="number" @bind="_eAno" /></td>
+                            <td>
+                                <select class="cell" @bind="_eOperando">
+                                    <option value="true">Em operação</option>
+                                    <option value="false">Parado</option>
+                                </select>
+                            </td>
+                            <td>
+                                <select class="cell" @bind="_eCrit">
+                                    <option value="baixa">Baixa</option>
+                                    <option value="média">Média</option>
+                                    <option value="alta">Alta</option>
+                                    <option value="crítica">Crítica</option>
+                                </select>
+                            </td>
+                            <td class="nowrap">
+                                <button class="btn-link" style="font-weight:600" @onclick="() => SalvarEdicao(b)">salvar</button>
+                                <button class="btn-link" style="color:var(--muted)" @onclick="() => _editId = null">cancelar</button>
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        <tr style="@(operando ? "" : "opacity:.6")">
+                            <td class="nowrap"><strong>@Dash(b.Tag)</strong></td>
+                            <td class="nowrap">@Dash(b.SerialNo)</td>
+                            <td>@(b.AnoInstalacao > 0 ? b.AnoInstalacao.ToString() : "—")</td>
+                            <td>
+                                <span class="badge @(operando ? "st-ok" : "st-plan")">
+                                    @(operando ? "Em operação" : "Parado")
+                                </span>
+                            </td>
+                            <td><span class="badge @CritClass(b.Criticidade)">@Cap(b.Criticidade)</span></td>
+                            <td class="nowrap">
+                                <button class="btn-link" @onclick="() => AbrirEdicao(b)">editar</button>
+                                <button class="btn-link" @onclick="() => AlternarOperacao(b)">
+                                    @(operando ? "parar" : "reativar")
+                                </button>
+                                @if (_confirmarId == b.Id)
+                                {
+                                    <button class="btn-link" style="color:#b91c1c;font-weight:600"
+                                            @onclick="() => ExcluirEquipamento(b)">excluir?</button>
+                                    <button class="btn-link" style="color:var(--muted)"
+                                            @onclick="() => _confirmarId = null">não</button>
+                                }
+                                else
+                                {
+                                    <button class="btn-link" style="color:#b91c1c"
+                                            @onclick="() => _confirmarId = b.Id">excluir</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                }
             }
-            @if (_base.Count == 0) { <tr><td colspan="7" class="empty">Sem equipamentos instalados. Use "Cadastrar equipamento" para adicionar o primeiro.</td></tr> }
+            @if (!Agrupados.Any())
+            {
+                <tr><td colspan="6" class="empty">
+                    @(_base.Count == 0
+                        ? "Sem equipamentos instalados. Use \"Cadastrar equipamento\" para adicionar o primeiro."
+                        : "Nenhum equipamento corresponde ao filtro.")
+                </td></tr>
+            }
         </tbody>
     </table>
+    </div>
 
     <div class="dash-title">Oportunidades abertas</div>
     <table class="grid">
@@ -209,12 +345,34 @@ else
     private List<InstalledBase> _base = new();
     private List<Opportunity> _opps = new();
     private List<Equipment> _catalogo = new();
+    private List<Company> _empresas = new();
+    private List<Salesperson> _vendedores = new();
+    private List<Segment> _segs = new();
     private List<string> _tipos = new();
     private Dictionary<string, Equipment> _equip = new();
+    private Dictionary<string, string> _nomeEmpresa = new();
+    private int _modelosCount;
 
     private string? _confirmarId;
     private string? _msg, _erro;
 
+    // filtros da lista
+    private string _buscaEq = "";
+    private string _filtroSit = "todos";
+
+    // edição de uma unidade
+    private string? _editId;
+    private string _eTag = "", _eSerial = "", _eCrit = "média";
+    private int _eAno;
+    private bool _eOperando = true;
+
+    // edição da planta
+    private bool _editPlanta;
+    private ClientUnit _pu = new();
+    private string _pCompanyId = "";
+    private string? _pErro, _dicaVendedor;
+
+    // cadastro de equipamento
     private bool _novoAberto;
     private string _equipId = "";
     private Equipment _novo = new();
@@ -240,12 +398,152 @@ else
         _base = Base.All().Where(b => b.ClientUnitId == _u.Id).ToList();
         _catalogo = Equipamentos.All();
         _equip = _catalogo.ToDictionary(e => e.Id, e => e);
+        _empresas = Empresas.All();
+        _nomeEmpresa = _empresas.ToDictionary(c => c.Id, c => c.Nome);
+        _vendedores = Vendedores.All().Where(v => v.Ativo).ToList();
+        _segs = Segmentos.All();
         _tipos = _catalogo.Select(e => e.Tipo).Where(t => !string.IsNullOrWhiteSpace(t))
             .Distinct().OrderBy(t => t).ToList();
+        _modelosCount = _base.Select(b => b.EquipmentId).Distinct().Count();
         _opps = Intel.OpenOpportunities().Where(o => o.ClientUnitId == _u.Id)
             .OrderBy(o => o.DataPrevista, StringComparer.Ordinal).ToList();
     }
 
+    private string NomeCliente(string companyId) =>
+        _nomeEmpresa.TryGetValue(companyId, out var n) ? n : "—";
+
+    // ---- lista de equipamentos ------------------------------------------
+    private List<InstalledBase> Filtrados
+    {
+        get
+        {
+            IEnumerable<InstalledBase> q = _base;
+            if (_filtroSit == "operando") q = q.Where(EmOperacao);
+            else if (_filtroSit == "parados") q = q.Where(b => !EmOperacao(b));
+
+            if (!string.IsNullOrWhiteSpace(_buscaEq))
+            {
+                var s = _buscaEq.Trim().ToLowerInvariant();
+                q = q.Where(b => (b.Tag + " " + b.SerialNo + " " + Modelo(b.EquipmentId))
+                    .ToLowerInvariant().Contains(s));
+            }
+            return q.ToList();
+        }
+    }
+
+    /// <summary>Agrupa por modelo — equipamentos iguais aparecem juntos.</summary>
+    private IEnumerable<IGrouping<string, InstalledBase>> Agrupados =>
+        Filtrados
+            .OrderBy(b => Modelo(b.EquipmentId))
+            .ThenBy(b => b.Tag, StringComparer.OrdinalIgnoreCase)
+            .GroupBy(b => Modelo(b.EquipmentId));
+
+    private string AplicacaoDoGrupo(string modelo)
+    {
+        var e = _catalogo.FirstOrDefault(x => x.Modelo == modelo);
+        return e?.Aplicacao ?? "";
+    }
+
+    // ---- edição de uma unidade ------------------------------------------
+    private void AbrirEdicao(InstalledBase b)
+    {
+        _editId = b.Id;
+        _confirmarId = null;
+        _msg = null;
+        _eTag = b.Tag;
+        _eSerial = b.SerialNo;
+        _eAno = b.AnoInstalacao;
+        _eCrit = string.IsNullOrWhiteSpace(b.Criticidade) ? "média" : b.Criticidade;
+        _eOperando = EmOperacao(b);
+    }
+
+    private void SalvarEdicao(InstalledBase b)
+    {
+        var tag = (_eTag ?? "").Trim();
+        if (tag.Length > 0 && _base.Any(x => x.Id != b.Id &&
+            string.Equals((x.Tag ?? "").Trim(), tag, StringComparison.OrdinalIgnoreCase)))
+        {
+            _msg = $"Já existe outro equipamento com a tag \"{tag}\" nesta planta.";
+            return;
+        }
+
+        b.Tag = tag;
+        b.Designation = tag;
+        b.SerialNo = (_eSerial ?? "").Trim();
+        b.AnoInstalacao = _eAno;
+        b.InstallYear = _eAno > 0 ? _eAno.ToString() : "";
+        b.Criticidade = _eCrit;
+        b.Status = _eOperando ? "ativo" : "inativo";
+        b.OperatingStatus = _eOperando ? "Em operação" : "Parado";
+        Base.Save(b);
+
+        _editId = null;
+        Intel.Invalidate();
+        Carregar();
+        _msg = $"Equipamento {(tag.Length > 0 ? tag : Modelo(b.EquipmentId))} atualizado.";
+    }
+
+    // ---- edição da planta ------------------------------------------------
+    private void AbrirEditarPlanta()
+    {
+        if (_u is null) return;
+        _editPlanta = true;
+        _pErro = null; _msg = null; _dicaVendedor = null;
+        _pCompanyId = _u.CompanyId;
+        _pu = new ClientUnit
+        {
+            Id = _u.Id, CompanyId = _u.CompanyId, NomeUnidade = _u.NomeUnidade, Cnpj = _u.Cnpj,
+            Cidade = _u.Cidade, Estado = _u.Estado, Segmento = _u.Segmento,
+            Regiao = _u.Regiao, VendedorId = _u.VendedorId,
+        };
+    }
+
+    private void FormatarCnpj() => _pu.Cnpj = Cnpj.Formatar(_pu.Cnpj);
+
+    private void SegmentoPlantaMudou()
+    {
+        var seg = (_pu.Segmento ?? "").Trim();
+        if (seg.Length == 0) { _dicaVendedor = null; return; }
+
+        var doSegmento = _vendedores.Where(v => SegmentoTexto.Contem(v.Segmentos, seg)).ToList();
+        if (doSegmento.Count == 0)
+        {
+            _dicaVendedor = $"Nenhum vendedor atende o segmento \"{seg}\". Escolha um manualmente.";
+            return;
+        }
+        if (!doSegmento.Any(v => v.Id == _pu.VendedorId)) _pu.VendedorId = doSegmento[0].Id;
+        _dicaVendedor = doSegmento.Count == 1
+            ? $"Responsável pelo segmento \"{seg}\"."
+            : $"{doSegmento.Count} vendedores atendem \"{seg}\" — confirme o responsável.";
+    }
+
+    private void SalvarPlanta()
+    {
+        _pErro = null;
+        if (string.IsNullOrWhiteSpace(_pCompanyId))
+        { _pErro = "Selecione o cliente."; return; }
+        if (string.IsNullOrWhiteSpace(_pu.NomeUnidade))
+        { _pErro = "Informe o nome da planta / unidade."; return; }
+        if (string.IsNullOrWhiteSpace(_pu.Segmento))
+        { _pErro = "Selecione o segmento da planta."; return; }
+        if (!string.IsNullOrWhiteSpace(_pu.Cnpj) && !Cnpj.Valido(_pu.Cnpj))
+        { _pErro = "CNPJ inválido. Confira os números ou deixe o campo em branco."; return; }
+
+        _pu.CompanyId = _pCompanyId;
+        _pu.NomeUnidade = _pu.NomeUnidade.Trim();
+        _pu.Cnpj = Cnpj.Formatar(_pu.Cnpj);
+        _pu.Cidade = (_pu.Cidade ?? "").Trim();
+        _pu.Estado = (_pu.Estado ?? "").Trim().ToUpperInvariant();
+        _pu.Regiao = (_pu.Regiao ?? "").Trim();
+        Units.Save(_pu);
+
+        _editPlanta = false;
+        Intel.Invalidate();
+        Carregar();
+        _msg = "Dados da planta atualizados.";
+    }
+
+    // ---- cadastro de equipamento -----------------------------------------
     private static string NomeCatalogo(Equipment e)
     {
         var nome = string.IsNullOrWhiteSpace(e.Modelo) ? e.Nome : e.Modelo;
@@ -255,7 +553,7 @@ else
     private void AbrirNovo()
     {
         _novoAberto = true;
-        _erro = null; _msg = null; _confirmarId = null;
+        _erro = null; _msg = null; _confirmarId = null; _editId = null;
         _equipId = ""; _novo = new Equipment();
         _qtd = 1; _criticidade = "média";
         _unidades = new List<UnidadeForm> { new UnidadeForm() };
@@ -354,7 +652,7 @@ else
                 City = _u.Cidade,
                 State = _u.Estado,
                 Industry = _u.Segmento,
-                Client = Intel.CompanyName(_u.CompanyId),
+                Client = NomeCliente(_u.CompanyId),
                 Designation = (un.Tag ?? "").Trim(),
                 ProductType = cat.Tipo,
                 ModelFamily = cat.Modelo,
@@ -388,22 +686,22 @@ else
         _msg = operando ? $"{quem} marcado como parado." : $"{quem} reativado.";
     }
 
-    private static bool EmOperacao(InstalledBase b) =>
-        !string.Equals(b.Status, "inativo", StringComparison.OrdinalIgnoreCase);
-
-    private static string Dash(string s) => string.IsNullOrWhiteSpace(s) ? "—" : s;
-
     private void ExcluirEquipamento(InstalledBase b)
     {
         Base.Delete(b.Id);
         _confirmarId = null;
         Intel.Invalidate();
         Carregar();
-        _msg = $"Equipamento \"{Modelo(b.EquipmentId)}\" removido desta planta. Ele continua no catálogo.";
+        var quem = string.IsNullOrWhiteSpace(b.Tag) ? Modelo(b.EquipmentId) : b.Tag;
+        _msg = $"{quem} removido desta planta. O equipamento continua no catálogo.";
     }
 
+    private static bool EmOperacao(InstalledBase b) =>
+        !string.Equals(b.Status, "inativo", StringComparison.OrdinalIgnoreCase);
+
+    private static string Dash(string s) => string.IsNullOrWhiteSpace(s) ? "—" : s;
+
     private string Modelo(string id) => _equip.TryGetValue(id, out var e) ? e.Modelo : id;
-    private string Aplicacao(string id) => _equip.TryGetValue(id, out var e) ? e.Aplicacao : "";
 
     private static string Cap(string s) => string.IsNullOrEmpty(s) ? "—" : char.ToUpperInvariant(s[0]) + s[1..];
     private static string CritClass(string c) => c.ToLowerInvariant() switch
