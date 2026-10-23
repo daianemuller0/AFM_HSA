@@ -40,8 +40,11 @@ public class Salesperson
     public string GestorId { get; set; } = "";
     public bool Ativo { get; set; } = true;
     public string Perfil { get; set; } = "";
-    /// <summary>Segmento de atuação — é por ele que o vendedor é ligado às plantas.</summary>
-    public string Segmento { get; set; } = "";
+    /// <summary>
+    /// Segmentos de atuação. Um vendedor pode cuidar de mais de um segmento, e um
+    /// segmento pode ter mais de um vendedor — a ligação com as plantas é por aqui.
+    /// </summary>
+    public List<string> Segmentos { get; set; } = new();
 }
 
 /// <summary>

@@ -70,9 +70,9 @@
             <label>Vendedor responsável
                 <select class="cell" @bind="_u.VendedorId">
                     <option value="">Sem vendedor definido</option>
-                    @foreach (var v in _vendedores)
+                    @foreach (var v in VendedoresDisponiveis)
                     {
-                        <option value="@v.Id">@v.Nome@(string.IsNullOrWhiteSpace(v.Segmento) ? "" : $" · {v.Segmento}")</option>
+                        <option value="@v.Id">@v.Nome · @SegmentoTexto.Display(v.Segmentos)</option>
                     }
                 </select>
                 @if (_dicaVendedor is not null)
@@ -199,8 +199,28 @@
     }
 
     /// <summary>
-    /// Ao escolher o segmento, puxa o vendedor que atua nele. Se houver mais de um,
-    /// assume o primeiro e avisa; se não houver nenhum, limpa e orienta o cadastro.
+    /// Vendedores oferecidos no formulário: os do segmento escolhido. Se o segmento
+    /// ainda não tem vendedor, oferece a equipe inteira para escolha manual.
+    /// </summary>
+    private List<Salesperson> VendedoresDisponiveis
+    {
+        get
+        {
+            var doSeg = VendedoresDoSegmento();
+            return doSeg.Count > 0 ? doSeg : _vendedores;
+        }
+    }
+
+    private List<Salesperson> VendedoresDoSegmento()
+    {
+        var seg = (_u.Segmento ?? "").Trim();
+        if (seg.Length == 0) return new List<Salesperson>();
+        return _vendedores.Where(v => SegmentoTexto.Contem(v.Segmentos, seg)).ToList();
+    }
+
+    /// <summary>
+    /// Ao escolher o segmento, puxa o vendedor que atua nele. Como um segmento pode
+    /// ter mais de um vendedor, com vários assume o primeiro e pede confirmação.
     /// </summary>
     private void SegmentoMudou()
     {
@@ -212,21 +232,19 @@
             return;
         }
 
-        var doSegmento = _vendedores
-            .Where(v => string.Equals(v.Segmento, seg, StringComparison.OrdinalIgnoreCase))
-            .ToList();
+        var doSegmento = VendedoresDoSegmento();
 
         if (doSegmento.Count == 0)
         {
             _u.VendedorId = "";
-            _dicaVendedor = $"Nenhum vendedor cadastrado no segmento \"{seg}\". Você pode escolher um manualmente.";
+            _dicaVendedor = $"Nenhum vendedor atende o segmento \"{seg}\". Escolha um manualmente ou ajuste os segmentos da equipe.";
             return;
         }
 
         _u.VendedorId = doSegmento[0].Id;
         _dicaVendedor = doSegmento.Count == 1
             ? $"Responsável pelo segmento \"{seg}\"."
-            : $"{doSegmento.Count} vendedores atuam em \"{seg}\" — confirme qual é o responsável.";
+            : $"{doSegmento.Count} vendedores atendem \"{seg}\" — confirme qual será o responsável por esta planta.";
     }
 
     private string NomeCliente(string companyId) =>

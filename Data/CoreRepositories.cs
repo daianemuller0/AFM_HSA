@@ -51,6 +51,40 @@ public class ClientUnitRepository
         new KeyValuePair<string, object?>[] { new("id", id) }, deleted: true);
 }
 
+/// <summary>
+/// Conversão entre a lista de segmentos de um vendedor e a coluna de texto onde ela
+/// é guardada (separada por ";"). Um valor único antigo continua válido — vira uma
+/// lista de um item só.
+/// </summary>
+public static class SegmentoTexto
+{
+    private static readonly char[] Separadores = { ';', '|' };
+
+    public static List<string> Split(string? s) => (s ?? "")
+        .Split(Separadores, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToList();
+
+    /// <summary>Formato de armazenamento.</summary>
+    public static string Join(IEnumerable<string>? segs) => string.Join("; ", Limpar(segs));
+
+    /// <summary>Formato de exibição na tela.</summary>
+    public static string Display(IEnumerable<string>? segs)
+    {
+        var lista = Limpar(segs);
+        return lista.Count == 0 ? "—" : string.Join(", ", lista);
+    }
+
+    public static bool Contem(IEnumerable<string>? segs, string nome) =>
+        segs is not null && segs.Any(s => string.Equals(s?.Trim(), nome?.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    private static List<string> Limpar(IEnumerable<string>? segs) => (segs ?? Enumerable.Empty<string>())
+        .Where(s => !string.IsNullOrWhiteSpace(s))
+        .Select(s => s.Trim())
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToList();
+}
+
 public class SalespersonRepository
 {
     private readonly ParquetStore _s;
@@ -64,7 +98,7 @@ public class SalespersonRepository
             Telefone = Fmt.S(r, 3), Cargo = Fmt.S(r, 4), Regiao = Fmt.S(r, 5),
             GestorId = Fmt.S(r, 6),
             Ativo = r.IsDBNull(7) ? true : Fmt.Bool(Fmt.S(r, 7)),
-            Perfil = Fmt.S(r, 8), Segmento = Fmt.S(r, 9),
+            Perfil = Fmt.S(r, 8), Segmentos = SegmentoTexto.Split(Fmt.S(r, 9)),
         }, orderBy: "nome");
 
     public void Save(Salesperson s) => _s.WriteRow("salespeople", new KeyValuePair<string, object?>[]
@@ -72,7 +106,7 @@ public class SalespersonRepository
         new("id", s.Id), new("nome", s.Nome), new("email", s.Email), new("telefone", s.Telefone),
         new("cargo", s.Cargo), new("regiao", s.Regiao), new("gestor_id", s.GestorId),
         new("ativo", s.Ativo ? "true" : "false"), new("perfil", s.Perfil),
-        new("segmento", s.Segmento),
+        new("segmento", SegmentoTexto.Join(s.Segmentos)),
     });
 
     public void Delete(string id) => _s.WriteRow("salespeople",

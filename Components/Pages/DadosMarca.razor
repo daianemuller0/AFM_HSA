@@ -87,6 +87,34 @@ else if (_tab == "equipe")
             <option value="ativos">Ativos</option><option value="inativos">Inativos</option><option value="todos">Todos</option>
         </select>
     </div>
+
+    @if (_vendMsg is not null) { <div class="side-ok" style="margin-bottom:12px">@_vendMsg</div> }
+
+    @if (_editVend is not null)
+    {
+        <div class="panel" style="margin-bottom:16px">
+            <div class="dash-title">Segmentos de @_editVend.Nome</div>
+            <p class="subtitle" style="margin-top:-6px">Um vendedor pode atuar em vários segmentos. Marque todos que ele atende.</p>
+            <div style="display:flex;flex-wrap:wrap;gap:10px 18px">
+                @foreach (var g in _segs)
+                {
+                    <label style="display:flex;align-items:center;gap:6px;font-size:13.5px">
+                        <input type="checkbox" checked="@_editSegs.Contains(g.Nome)"
+                               @onchange="e => AlternarSegVendedor(g.Nome, e.Value is bool b && b)" />
+                        @g.Nome
+                    </label>
+                }
+                @if (_segs.Count == 0)
+                {
+                    <span style="font-size:12.5px;color:var(--muted)">Nenhum segmento cadastrado — crie na aba Segmentos.</span>
+                }
+            </div>
+            <div class="toolbar" style="margin-top:14px;margin-bottom:0">
+                <button class="btn-primary" @onclick="SalvarSegsVendedor">Salvar segmentos</button>
+                <button class="btn-ghost" @onclick="() => _editVend = null">Cancelar</button>
+            </div>
+        </div>
+    }
     <div style="overflow-x:auto">
     <table class="grid">
         <thead><tr><th>Vendedor</th><th>Cargo</th><th>Segmento</th><th class="right">Clientes</th>
@@ -97,12 +125,13 @@ else if (_tab == "equipe")
                 <tr>
                     <td><a class="btn-link" href="@($"/vendedores/{v.Id}")">@v.Nome</a>@(v.Ativo ? "" : " (inativo)")</td>
                     <td>@v.Cargo</td>
-                    <td>@(string.IsNullOrWhiteSpace(v.Segmento) ? "—" : v.Segmento)</td>
+                    <td>@SegmentoTexto.Display(v.Segmentos)</td>
                     <td class="right">@_clientes.GetValueOrDefault(v.Id)</td>
                     <td class="right">@_oport.GetValueOrDefault(v.Id)</td>
                     <td class="right nowrap">@Fmt.Brl0(_valor.GetValueOrDefault(v.Id))</td>
                     <td class="nowrap">@v.Telefone</td>
                     <td class="nowrap">
+                        <button class="btn-link" @onclick="() => AbrirSegsVendedor(v)">Segmentos</button>
                         <button class="btn-link" @onclick="() => Alternar(v)">@(v.Ativo ? "Inativar" : "Ativar")</button>
                         <button class="btn-link" style="color:#b91c1c" @onclick="() => Excluir(v)">Excluir</button>
                     </td>
@@ -185,6 +214,10 @@ else
     private string _novoSegmento = "";
     private string? _segMsg, _segErro, _segConfirmar;
 
+    private Salesperson? _editVend;
+    private readonly HashSet<string> _editSegs = new(StringComparer.OrdinalIgnoreCase);
+    private string? _vendMsg;
+
     private record Tipo(string Key, string Label);
     private readonly Tipo[] _tipos =
     {
@@ -217,10 +250,37 @@ else
     private string VendedoresDoSegmento(string nome)
     {
         var nomes = _sps
-            .Where(s => s.Ativo && string.Equals(s.Segmento, nome, StringComparison.OrdinalIgnoreCase))
+            .Where(s => s.Ativo && SegmentoTexto.Contem(s.Segmentos, nome))
             .Select(s => s.Nome)
             .ToList();
         return nomes.Count == 0 ? "— sem vendedor definido —" : string.Join(", ", nomes);
+    }
+
+    // ---- segmentos de um vendedor ---------------------------------------
+    private void AbrirSegsVendedor(Salesperson v)
+    {
+        _editVend = v;
+        _vendMsg = null;
+        _editSegs.Clear();
+        foreach (var s in v.Segmentos) _editSegs.Add(s);
+    }
+
+    private void AlternarSegVendedor(string nome, bool marcado)
+    {
+        if (marcado) _editSegs.Add(nome);
+        else _editSegs.Remove(nome);
+    }
+
+    private void SalvarSegsVendedor()
+    {
+        if (_editVend is null) return;
+        var nome = _editVend.Nome;
+        _editVend.Segmentos = _editSegs.ToList();
+        Salespeople.Save(_editVend);
+        _editVend = null;
+        Intel.Invalidate();
+        Carregar();
+        _vendMsg = $"Segmentos de {nome} atualizados.";
     }
 
     private int PlantasDoSegmento(string nome) =>

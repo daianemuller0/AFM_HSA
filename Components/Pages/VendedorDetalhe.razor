@@ -17,7 +17,7 @@
 else
 {
     <div class="page-head">
-        <div><h1>@_v.Nome</h1><p class="subtitle">@_v.Cargo · @(string.IsNullOrWhiteSpace(_v.Segmento) ? "sem segmento" : _v.Segmento) · @_v.Email</p></div>
+        <div><h1>@_v.Nome</h1><p class="subtitle">@_v.Cargo · @SegmentoTexto.Display(_v.Segmentos) · @_v.Email</p></div>
         <div class="page-actions"><a class="btn-ghost" href="/vendedores">← Vendedores</a></div>
     </div>
 
