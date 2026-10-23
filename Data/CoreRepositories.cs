@@ -169,7 +169,7 @@ public class InstalledBaseRepository
         "hp_fan_reference_id, plant_name, city, state, country, industry, process, site_unit, product_type, " +
         "brand, model_family, designation, contract_no, serial_no, client_ref_no, ga_drawing_no, application_type, " +
         "fans_per_boiler, product_company, install_year, operating_status, end_customer, client, client_country, " +
-        "project_name, ref_no, agent",
+        "project_name, ref_no, agent, tag",
         r => new InstalledBase
         {
             Id = Fmt.S(r, 0), ClientUnitId = Fmt.S(r, 1), EquipmentId = Fmt.S(r, 2),
@@ -184,6 +184,7 @@ public class InstalledBaseRepository
             ProductCompany = Fmt.S(r, 26), InstallYear = Fmt.S(r, 27), OperatingStatus = Fmt.S(r, 28),
             EndCustomer = Fmt.S(r, 29), Client = Fmt.S(r, 30), ClientCountry = Fmt.S(r, 31),
             ProjectName = Fmt.S(r, 32), RefNo = Fmt.S(r, 33), Agent = Fmt.S(r, 34),
+            Tag = Fmt.S(r, 35),
         });
 
     /// <summary>Exclui uma referência da base (marcação lógica, igual aos demais cadastros).</summary>
@@ -191,9 +192,10 @@ public class InstalledBaseRepository
         new KeyValuePair<string, object?>[] { new("id", id) }, deleted: true);
 
     /// <summary>
-    /// Cadastra/atualiza um equipamento instalado numa planta. Além dos campos usados pelo
-    /// motor de oportunidades, preenche as colunas da planilha-mestre que dá para derivar
-    /// da planta e do equipamento, para o registro aparecer completo na Base Instalada.
+    /// Cadastra/atualiza um equipamento instalado. Grava TODAS as colunas: a leitura
+    /// consolidada pega a linha mais recente de cada id, então uma gravação parcial
+    /// apagaria os campos que ficassem de fora (ex.: ao marcar um equipamento como
+    /// parado, os dados vindos da planilha-mestre se perderiam).
     /// </summary>
     public void Save(InstalledBase b) => _s.WriteRow("installedBase", new KeyValuePair<string, object?>[]
     {
@@ -201,12 +203,18 @@ public class InstalledBaseRepository
         new("client_unit_id", b.ClientUnitId), new("equipment_id", b.EquipmentId),
         new("quantidade", b.Quantidade.ToString()), new("ano_instalacao", b.AnoInstalacao.ToString()),
         new("criticidade", b.Criticidade), new("status", b.Status), new("vendedor_id", b.VendedorId),
-        new("plant_name", b.PlantName), new("city", b.City), new("state", b.State),
-        new("client", b.Client), new("industry", b.Industry), new("site_unit", b.SiteUnit),
-        new("product_type", b.ProductType), new("model_family", b.ModelFamily),
-        new("brand", b.Brand), new("application_type", b.ApplicationType),
-        new("fans_per_boiler", b.FansPerBoiler), new("install_year", b.InstallYear),
-        new("operating_status", b.OperatingStatus),
+        new("tag", b.Tag),
+        new("hp_fan_reference_id", b.HpFanReferenceId), new("plant_name", b.PlantName),
+        new("city", b.City), new("state", b.State), new("country", b.Country),
+        new("industry", b.Industry), new("process", b.Process), new("site_unit", b.SiteUnit),
+        new("product_type", b.ProductType), new("brand", b.Brand), new("model_family", b.ModelFamily),
+        new("designation", b.Designation), new("contract_no", b.ContractNo), new("serial_no", b.SerialNo),
+        new("client_ref_no", b.ClientRefNo), new("ga_drawing_no", b.GaDrawingNo),
+        new("application_type", b.ApplicationType), new("fans_per_boiler", b.FansPerBoiler),
+        new("product_company", b.ProductCompany), new("install_year", b.InstallYear),
+        new("operating_status", b.OperatingStatus), new("end_customer", b.EndCustomer),
+        new("client", b.Client), new("client_country", b.ClientCountry),
+        new("project_name", b.ProjectName), new("ref_no", b.RefNo), new("agent", b.Agent),
     });
 
     /// <summary>Exclui de uma vez todas as referências de uma planta (um único arquivo).</summary>

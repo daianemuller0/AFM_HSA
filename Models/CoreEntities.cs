@@ -89,6 +89,13 @@ public class InstalledBase
     public string Status { get; set; } = "";
     public string VendedorId { get; set; } = "";
 
+    /// <summary>
+    /// Identificação da unidade física dentro da planta (TAG). Equipamentos iguais
+    /// se distinguem pela tag, pelo número de série e pelo ano de instalação —
+    /// por isso cada unidade é um registro próprio, e não uma linha com quantidade.
+    /// </summary>
+    public string Tag { get; set; } = "";
+
     // --- Colunas da planilha-mestre da Howden (HP Fan References) ----------
     // Exibidas na aba Base Instalada, na mesma ordem da planilha.
     public string HpFanReferenceId { get; set; } = "";

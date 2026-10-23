@@ -353,6 +353,7 @@ public class ImportService
             var projName   = Get(r, c, "projectname", "project_name");
             var refNo      = Get(r, c, "refno", "ref_no");
             var agent      = Get(r, c, "agent");
+            var tag        = Get(r, c, "tag", "tag_do_equipamento", "etiqueta");
 
             // Linha considerada válida se tiver ao menos modelo, planta ou serial.
             if (string.IsNullOrWhiteSpace(modelFam) && string.IsNullOrWhiteSpace(plantName)
@@ -421,7 +422,8 @@ public class ImportService
                 ("client_country", clientCtry),
                 ("project_name", projName),
                 ("ref_no", refNo),
-                ("agent", agent)));
+                ("agent", agent),
+                ("tag", tag)));
         }
 
         if (novoEquip.Count > 0) _store.WriteBatch("equipment", novoEquip);

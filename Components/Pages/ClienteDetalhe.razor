@@ -76,12 +76,6 @@ else
                         <input class="cell num" type="number" step="0.01" @bind="_novo.ValorCompleto" />
                     </label>
                 }
-                <label>Quantidade
-                    <input class="cell num" type="number" min="1" @bind="_qtd" />
-                </label>
-                <label>Ano de instalação
-                    <input class="cell num" type="number" placeholder="Ex.: 2013" @bind="_ano" />
-                </label>
                 <label>Criticidade
                     <select class="cell" @bind="_criticidade">
                         <option value="baixa">Baixa</option>
@@ -90,16 +84,51 @@ else
                         <option value="crítica">Crítica</option>
                     </select>
                 </label>
-                <label>Status
-                    <select class="cell" @bind="_status">
-                        <option value="ativo">Ativo</option>
-                        <option value="inativo">Inativo</option>
-                    </select>
+                <label>Quantas unidades deste modelo?
+                    <input class="cell num" type="number" min="1" max="50"
+                           @bind="_qtd" @bind:after="AjustarUnidades" />
                 </label>
             </div>
             <datalist id="tipos">
                 @foreach (var t in _tipos) { <option value="@t" /> }
             </datalist>
+
+            <div class="dash-title" style="margin-top:18px">Identificação de cada unidade</div>
+            <p class="subtitle" style="margin-top:-8px">
+                Equipamentos iguais se distinguem pela tag, pelo número de série e pelo ano —
+                e cada um pode estar em operação ou parado.
+            </p>
+            <table class="grid" style="margin-bottom:10px">
+                <thead><tr><th style="width:44px">#</th><th>Tag</th><th>Nº de série</th>
+                    <th style="width:110px">Ano</th><th style="width:190px">Situação</th><th style="width:90px"></th></tr></thead>
+                <tbody>
+                    @for (var i = 0; i < _unidades.Count; i++)
+                    {
+                        var idx = i;
+                        var un = _unidades[i];
+                        <tr>
+                            <td>@(idx + 1)</td>
+                            <td><input class="cell" placeholder="Ex.: VE-101" @bind="un.Tag" /></td>
+                            <td><input class="cell" placeholder="Ex.: SN-48213" @bind="un.Serial" /></td>
+                            <td><input class="cell num" type="number" placeholder="2013" @bind="un.Ano" /></td>
+                            <td>
+                                <select class="cell" @bind="un.EmOperacao">
+                                    <option value="true">Em operação</option>
+                                    <option value="false">Parado</option>
+                                </select>
+                            </td>
+                            <td class="nowrap">
+                                @if (_unidades.Count > 1)
+                                {
+                                    <button class="btn-link" style="color:#b91c1c"
+                                            @onclick="() => RemoverUnidade(idx)">remover</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            <button class="btn-ghost" @onclick="AdicionarUnidade">+ Adicionar unidade</button>
 
             @if (_erro is not null) { <div class="alert-error" style="margin-top:12px">@_erro</div> }
 
@@ -112,17 +141,27 @@ else
     }
 
     <table class="grid" style="margin-bottom:20px">
-        <thead><tr><th>Equipamento</th><th>Aplicação</th><th class="right">Qtd</th><th>Ano</th><th>Criticidade</th><th style="width:110px">Ações</th></tr></thead>
+        <thead><tr><th>Equipamento</th><th>Tag</th><th>Nº de série</th><th>Ano</th>
+            <th>Situação</th><th>Criticidade</th><th style="width:170px">Ações</th></tr></thead>
         <tbody>
             @foreach (var b in _base)
             {
+                var operando = EmOperacao(b);
                 <tr>
                     <td><a class="btn-link" href="@($"/equipamentos/{b.EquipmentId}")">@Modelo(b.EquipmentId)</a></td>
-                    <td>@Aplicacao(b.EquipmentId)</td>
-                    <td class="right">@b.Quantidade</td>
+                    <td class="nowrap">@Dash(b.Tag)</td>
+                    <td class="nowrap">@Dash(b.SerialNo)</td>
                     <td>@(b.AnoInstalacao > 0 ? b.AnoInstalacao.ToString() : "—")</td>
+                    <td>
+                        <span class="badge @(operando ? "st-ok" : "st-plan")">
+                            @(operando ? "Em operação" : "Parado")
+                        </span>
+                    </td>
                     <td><span class="badge @CritClass(b.Criticidade)">@Cap(b.Criticidade)</span></td>
                     <td class="nowrap">
+                        <button class="btn-link" @onclick="() => AlternarOperacao(b)">
+                            @(operando ? "marcar parado" : "reativar")
+                        </button>
                         @if (_confirmarId == b.Id)
                         {
                             <button class="btn-link" style="color:#b91c1c;font-weight:600"
@@ -138,7 +177,7 @@ else
                     </td>
                 </tr>
             }
-            @if (_base.Count == 0) { <tr><td colspan="6" class="empty">Sem equipamentos instalados. Use "Cadastrar equipamento" para adicionar o primeiro.</td></tr> }
+            @if (_base.Count == 0) { <tr><td colspan="7" class="empty">Sem equipamentos instalados. Use "Cadastrar equipamento" para adicionar o primeiro.</td></tr> }
         </tbody>
     </table>
 
@@ -180,9 +219,17 @@ else
     private string _equipId = "";
     private Equipment _novo = new();
     private int _qtd = 1;
-    private int _ano;
     private string _criticidade = "média";
-    private string _status = "ativo";
+
+    /// <summary>Uma linha do formulário = uma unidade física do equipamento.</summary>
+    private class UnidadeForm
+    {
+        public string Tag { get; set; } = "";
+        public string Serial { get; set; } = "";
+        public int Ano { get; set; }
+        public bool EmOperacao { get; set; } = true;
+    }
+    private List<UnidadeForm> _unidades = new() { new UnidadeForm() };
 
     protected override void OnInitialized() => Carregar();
 
@@ -210,13 +257,36 @@ else
         _novoAberto = true;
         _erro = null; _msg = null; _confirmarId = null;
         _equipId = ""; _novo = new Equipment();
-        _qtd = 1; _ano = 0; _criticidade = "média"; _status = "ativo";
+        _qtd = 1; _criticidade = "média";
+        _unidades = new List<UnidadeForm> { new UnidadeForm() };
     }
 
     private void FecharNovo()
     {
         _novoAberto = false;
         _erro = null;
+    }
+
+    /// <summary>Cresce ou encolhe a lista de unidades conforme a quantidade informada.</summary>
+    private void AjustarUnidades()
+    {
+        if (_qtd < 1) _qtd = 1;
+        if (_qtd > 50) _qtd = 50;
+        while (_unidades.Count < _qtd) _unidades.Add(new UnidadeForm());
+        while (_unidades.Count > _qtd) _unidades.RemoveAt(_unidades.Count - 1);
+    }
+
+    private void AdicionarUnidade()
+    {
+        _unidades.Add(new UnidadeForm());
+        _qtd = _unidades.Count;
+    }
+
+    private void RemoverUnidade(int idx)
+    {
+        if (idx < 0 || idx >= _unidades.Count || _unidades.Count == 1) return;
+        _unidades.RemoveAt(idx);
+        _qtd = _unidades.Count;
     }
 
     private void SalvarEquipamento()
@@ -251,39 +321,77 @@ else
         }
 
         var cat = _equip.TryGetValue(equipId, out var ce) ? ce : new Equipment();
-        var qtd = _qtd < 1 ? 1 : _qtd;
 
-        Base.Save(new InstalledBase
+        // tags repetidas atrapalham o controle — bloqueia antes de gravar
+        var tags = _unidades.Select(u => (u.Tag ?? "").Trim())
+            .Where(t => t.Length > 0).ToList();
+        var dupInterna = tags.GroupBy(t => t, StringComparer.OrdinalIgnoreCase).FirstOrDefault(g => g.Count() > 1);
+        if (dupInterna is not null)
+        { _erro = $"A tag \"{dupInterna.Key}\" está repetida entre as unidades."; return; }
+        var jaExiste = tags.FirstOrDefault(t =>
+            _base.Any(b => string.Equals((b.Tag ?? "").Trim(), t, StringComparison.OrdinalIgnoreCase)));
+        if (jaExiste is not null)
+        { _erro = $"Já existe um equipamento com a tag \"{jaExiste}\" nesta planta."; return; }
+
+        foreach (var un in _unidades)
         {
-            Id = "ib-" + Guid.NewGuid().ToString("N")[..8],
-            ClientUnitId = _u.Id,
-            EquipmentId = equipId,
-            Quantidade = qtd,
-            AnoInstalacao = _ano,
-            Criticidade = _criticidade,
-            Status = _status,
-            VendedorId = _u.VendedorId,
-            // colunas da planilha-mestre que dá para derivar da planta e do equipamento
-            PlantName = _u.NomeUnidade,
-            SiteUnit = _u.NomeUnidade,
-            City = _u.Cidade,
-            State = _u.Estado,
-            Industry = _u.Segmento,
-            Client = Intel.CompanyName(_u.CompanyId),
-            ProductType = cat.Tipo,
-            ModelFamily = cat.Modelo,
-            Brand = cat.Fabricante,
-            ApplicationType = cat.Aplicacao,
-            FansPerBoiler = qtd.ToString(),
-            InstallYear = _ano > 0 ? _ano.ToString() : "",
-            OperatingStatus = _status,
-        });
+            var operando = un.EmOperacao;
+            Base.Save(new InstalledBase
+            {
+                Id = "ib-" + Guid.NewGuid().ToString("N")[..8],
+                ClientUnitId = _u.Id,
+                EquipmentId = equipId,
+                Quantidade = 1,
+                AnoInstalacao = un.Ano,
+                Criticidade = _criticidade,
+                Status = operando ? "ativo" : "inativo",
+                VendedorId = _u.VendedorId,
+                Tag = (un.Tag ?? "").Trim(),
+                SerialNo = (un.Serial ?? "").Trim(),
+                // colunas da planilha-mestre que dá para derivar da planta e do equipamento
+                PlantName = _u.NomeUnidade,
+                SiteUnit = _u.NomeUnidade,
+                City = _u.Cidade,
+                State = _u.Estado,
+                Industry = _u.Segmento,
+                Client = Intel.CompanyName(_u.CompanyId),
+                Designation = (un.Tag ?? "").Trim(),
+                ProductType = cat.Tipo,
+                ModelFamily = cat.Modelo,
+                Brand = cat.Fabricante,
+                ApplicationType = cat.Aplicacao,
+                FansPerBoiler = "1",
+                InstallYear = un.Ano > 0 ? un.Ano.ToString() : "",
+                OperatingStatus = operando ? "Em operação" : "Parado",
+            });
+        }
 
+        var n = _unidades.Count;
         Intel.Invalidate();
         Carregar();
         _novoAberto = false;
-        _msg = $"Equipamento \"{NomeCatalogo(cat)}\" cadastrado nesta planta.";
+        _msg = n == 1
+            ? $"Equipamento \"{NomeCatalogo(cat)}\" cadastrado nesta planta."
+            : $"{n} unidades de \"{NomeCatalogo(cat)}\" cadastradas nesta planta.";
     }
+
+    /// <summary>Marca a unidade como parada ou de volta em operação.</summary>
+    private void AlternarOperacao(InstalledBase b)
+    {
+        var operando = EmOperacao(b);
+        b.Status = operando ? "inativo" : "ativo";
+        b.OperatingStatus = operando ? "Parado" : "Em operação";
+        Base.Save(b);
+        Intel.Invalidate();
+        Carregar();
+        var quem = string.IsNullOrWhiteSpace(b.Tag) ? Modelo(b.EquipmentId) : b.Tag;
+        _msg = operando ? $"{quem} marcado como parado." : $"{quem} reativado.";
+    }
+
+    private static bool EmOperacao(InstalledBase b) =>
+        !string.Equals(b.Status, "inativo", StringComparison.OrdinalIgnoreCase);
+
+    private static string Dash(string s) => string.IsNullOrWhiteSpace(s) ? "—" : s;
 
     private void ExcluirEquipamento(InstalledBase b)
     {

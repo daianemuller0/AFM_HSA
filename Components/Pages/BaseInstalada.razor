@@ -41,6 +41,7 @@
     <thead>
         <tr>
             <th style="width:104px">Ações</th>
+            <th>Tag</th>
             <th>Hpfanreferencesid</th><th>Plant Name</th><th>City</th><th>State</th><th>Country</th>
             <th>Industry</th><th>Process</th><th>Site Loc./Unit</th><th>Product Type</th><th>Brand</th>
             <th>Model (Family)</th><th>Designation</th><th>Contract No</th><th>Serial No</th><th>ClientRefNo</th>
@@ -67,6 +68,7 @@
                                 @onclick="() => _confirmarId = b.Id">excluir</button>
                     }
                 </td>
+                <td class="nowrap">@Dash(b.Tag)</td>
                 <td>@Dash(b.HpFanReferenceId)</td>
                 <td class="nowrap">@Dash(b.PlantName)</td>
                 <td>@Dash(b.City)</td>
@@ -98,7 +100,7 @@
         }
         @if (Filtradas.Count == 0)
         {
-            <tr><td colspan="28" class="empty">Nenhuma referência encontrada. Importe a planilha em Dados e Importação.</td></tr>
+            <tr><td colspan="29" class="empty">Nenhuma referência encontrada. Importe a planilha em Dados e Importação.</td></tr>
         }
     </tbody>
 </table>
@@ -145,7 +147,7 @@
             if (!string.IsNullOrWhiteSpace(_busca))
             {
                 var s = _busca.Trim().ToLowerInvariant();
-                q = q.Where(b => (b.PlantName + " " + b.Client + " " + b.EndCustomer + " " + b.ModelFamily + " "
+                q = q.Where(b => (b.Tag + " " + b.PlantName + " " + b.Client + " " + b.EndCustomer + " " + b.ModelFamily + " "
                     + b.Designation + " " + b.SerialNo + " " + b.City + " " + b.ProjectName + " " + b.Agent)
                     .ToLowerInvariant().Contains(s));
             }
