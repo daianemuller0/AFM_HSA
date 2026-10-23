@@ -4,6 +4,7 @@
 @inject ClientUnitRepository Units
 @inject CompanyRepository Empresas
 @inject SalespersonRepository Vendedores
+@inject SegmentRepository Segmentos
 @inject InstalledBaseRepository Base
 @inject IntelligenceService Intel
 
@@ -57,28 +58,43 @@
             <label>UF
                 <input class="cell" maxlength="2" placeholder="MG" @bind="_u.Estado" />
             </label>
-            <label>Segmento
-                <input class="cell" list="segmentos" placeholder="Ex.: Mineração" @bind="_u.Segmento" />
-            </label>
-            <label>Região
-                <input class="cell" list="regioes" placeholder="Ex.: Sudeste" @bind="_u.Regiao" />
+            <label>Segmento *
+                <select class="cell" @bind="_u.Segmento" @bind:after="SegmentoMudou">
+                    <option value="">Selecione o segmento…</option>
+                    @foreach (var g in _segs)
+                    {
+                        <option value="@g.Nome">@g.Nome</option>
+                    }
+                </select>
             </label>
             <label>Vendedor responsável
                 <select class="cell" @bind="_u.VendedorId">
                     <option value="">Sem vendedor definido</option>
                     @foreach (var v in _vendedores)
                     {
-                        <option value="@v.Id">@v.Nome</option>
+                        <option value="@v.Id">@v.Nome@(string.IsNullOrWhiteSpace(v.Segmento) ? "" : $" · {v.Segmento}")</option>
                     }
                 </select>
+                @if (_dicaVendedor is not null)
+                {
+                    <span style="font-size:11.5px;color:var(--muted)">@_dicaVendedor</span>
+                }
+            </label>
+            <label>Região (opcional)
+                <input class="cell" list="regioes" placeholder="Ex.: Sudeste" @bind="_u.Regiao" />
             </label>
         </div>
-        <datalist id="segmentos">
-            @foreach (var s in _segmentos) { <option value="@s" /> }
-        </datalist>
         <datalist id="regioes">
             @foreach (var r in _regioes) { <option value="@r" /> }
         </datalist>
+
+        @if (_segs.Count == 0)
+        {
+            <div class="alert-warn" style="margin-top:12px">
+                Nenhum segmento cadastrado ainda. Cadastre os segmentos na aba <strong>Segmentos</strong>
+                de <a href="/dados-marca">Dados e Importação</a> — é por eles que o vendedor responsável é definido.
+            </div>
+        }
 
         @if (_erro is not null) { <div class="alert-error" style="margin-top:12px">@_erro</div> }
 
@@ -150,14 +166,15 @@
     private List<ClientUnit> _all = new();
     private List<Company> _empresas = new();
     private List<Salesperson> _vendedores = new();
-    private List<string> _segmentos = new(), _regioes = new();
+    private List<Segment> _segs = new();
+    private List<string> _regioes = new();
     private Dictionary<string, string> _nomeEmpresa = new();
     private Dictionary<string, int> _equipCount = new(), _oppCount = new();
     private Dictionary<string, decimal> _oppValor = new();
 
     private string _busca = "";
     private string? _confirmarId;
-    private string? _msg, _erro;
+    private string? _msg, _erro, _dicaVendedor;
 
     private bool _novaAberta;
     private string _companyId = "";
@@ -170,16 +187,46 @@
     {
         _all = Units.All();
         _empresas = Empresas.All();
+        _segs = Segmentos.All();
         _vendedores = Vendedores.All().Where(v => v.Ativo).ToList();
         _nomeEmpresa = _empresas.ToDictionary(c => c.Id, c => c.Nome);
         _equipCount = Base.All().GroupBy(b => b.ClientUnitId).ToDictionary(g => g.Key, g => g.Count());
         var open = Intel.OpenOpportunities();
         _oppCount = open.GroupBy(o => o.ClientUnitId).ToDictionary(g => g.Key, g => g.Count());
         _oppValor = open.GroupBy(o => o.ClientUnitId).ToDictionary(g => g.Key, g => g.Sum(o => o.ValorEstimado));
-        _segmentos = _all.Select(u => u.Segmento).Concat(_empresas.Select(c => c.Segmento))
-            .Where(s => !string.IsNullOrWhiteSpace(s)).Distinct().OrderBy(s => s).ToList();
         _regioes = _all.Select(u => u.Regiao).Where(s => !string.IsNullOrWhiteSpace(s))
             .Distinct().OrderBy(s => s).ToList();
+    }
+
+    /// <summary>
+    /// Ao escolher o segmento, puxa o vendedor que atua nele. Se houver mais de um,
+    /// assume o primeiro e avisa; se não houver nenhum, limpa e orienta o cadastro.
+    /// </summary>
+    private void SegmentoMudou()
+    {
+        var seg = (_u.Segmento ?? "").Trim();
+        if (seg.Length == 0)
+        {
+            _u.VendedorId = "";
+            _dicaVendedor = null;
+            return;
+        }
+
+        var doSegmento = _vendedores
+            .Where(v => string.Equals(v.Segmento, seg, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (doSegmento.Count == 0)
+        {
+            _u.VendedorId = "";
+            _dicaVendedor = $"Nenhum vendedor cadastrado no segmento \"{seg}\". Você pode escolher um manualmente.";
+            return;
+        }
+
+        _u.VendedorId = doSegmento[0].Id;
+        _dicaVendedor = doSegmento.Count == 1
+            ? $"Responsável pelo segmento \"{seg}\"."
+            : $"{doSegmento.Count} vendedores atuam em \"{seg}\" — confirme qual é o responsável.";
     }
 
     private string NomeCliente(string companyId) =>
@@ -188,7 +235,7 @@
     private void AbrirNova()
     {
         _novaAberta = true;
-        _erro = null; _msg = null; _confirmarId = null;
+        _erro = null; _msg = null; _confirmarId = null; _dicaVendedor = null;
         _companyId = ""; _novoClienteNome = "";
         _u = new ClientUnit();
     }
@@ -209,6 +256,8 @@
         { _erro = "Informe o nome do novo cliente."; return; }
         if (string.IsNullOrWhiteSpace(_u.NomeUnidade))
         { _erro = "Informe o nome da planta / unidade."; return; }
+        if (string.IsNullOrWhiteSpace(_u.Segmento))
+        { _erro = "Selecione o segmento da planta — é ele que define o vendedor responsável."; return; }
 
         var companyId = _companyId;
         if (_companyId == NovoCliente)

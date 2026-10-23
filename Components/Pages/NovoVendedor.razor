@@ -2,22 +2,31 @@
 @attribute [Authorize]
 @rendermode InteractiveServer
 @inject SalespersonRepository Salespeople
+@inject SegmentRepository Segmentos
 @inject NavigationManager Nav
 
 <PageTitle>Novo Vendedor · AFM HSA</PageTitle>
 
 <div class="page-head">
     <div><h1>Novo Vendedor</h1><p class="subtitle">Cadastrar membro da equipe comercial.</p></div>
-    <div class="page-actions"><a class="btn-ghost" href="/vendedores">← Vendedores</a></div>
+    <div class="page-actions"><a class="btn-ghost" href="/dados-marca">← Dados e Importação</a></div>
 </div>
 
 <div class="panel" style="max-width:640px">
     <div class="form-grid">
-        <label>Nome <input @bind="_v.Nome" /></label>
+        <label>Nome * <input @bind="_v.Nome" /></label>
+        <label>Segmento de atuação *
+            <select class="cell" @bind="_v.Segmento">
+                <option value="">Selecione o segmento…</option>
+                @foreach (var g in _segs)
+                {
+                    <option value="@g.Nome">@g.Nome</option>
+                }
+            </select>
+        </label>
         <label>E-mail <input @bind="_v.Email" /></label>
         <label>Telefone <input @bind="_v.Telefone" /></label>
         <label>Cargo <input @bind="_v.Cargo" /></label>
-        <label>Região <input @bind="_v.Regiao" /></label>
         <label>Perfil
             <select @bind="_v.Perfil">
                 <option value="vendedor">Vendedor</option>
@@ -28,23 +37,34 @@
             </select>
         </label>
     </div>
+    @if (_segs.Count == 0)
+    {
+        <div class="alert-warn" style="margin-top:12px">
+            Nenhum segmento cadastrado ainda. Cadastre os segmentos na aba
+            <strong>Segmentos</strong> de Dados e Importação antes de criar o vendedor.
+        </div>
+    }
     @if (_erro is not null) { <div class="alert-error" style="margin-top:12px">@_erro</div> }
     <div class="modal-actions">
-        <a class="btn-ghost" href="/vendedores">Cancelar</a>
+        <a class="btn-ghost" href="/dados-marca">Cancelar</a>
         <button class="btn-primary" @onclick="Salvar">Salvar</button>
     </div>
 </div>
 
 @code {
     private Salesperson _v = new() { Perfil = "vendedor", Ativo = true, Cargo = "Vendedor" };
+    private List<Segment> _segs = new();
     private string? _erro;
+
+    protected override void OnInitialized() => _segs = Segmentos.All();
 
     private void Salvar()
     {
         if (string.IsNullOrWhiteSpace(_v.Nome)) { _erro = "Informe o nome."; return; }
+        if (string.IsNullOrWhiteSpace(_v.Segmento)) { _erro = "Selecione o segmento de atuação do vendedor."; return; }
         _v.Id = "sp-" + Guid.NewGuid().ToString("N")[..10];
         _v.Ativo = true;
         Salespeople.Save(_v);
-        Nav.NavigateTo("/vendedores");
+        Nav.NavigateTo("/dados-marca");
     }
 }

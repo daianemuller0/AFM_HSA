@@ -57,14 +57,14 @@ public class SalespersonRepository
     public SalespersonRepository(ParquetStore s) => _s = s;
 
     public List<Salesperson> All() => _s.ReadLatest("salespeople",
-        "id, nome, email, telefone, cargo, regiao, gestor_id, ativo, perfil",
+        "id, nome, email, telefone, cargo, regiao, gestor_id, ativo, perfil, segmento",
         r => new Salesperson
         {
             Id = Fmt.S(r, 0), Nome = Fmt.S(r, 1), Email = Fmt.S(r, 2),
             Telefone = Fmt.S(r, 3), Cargo = Fmt.S(r, 4), Regiao = Fmt.S(r, 5),
             GestorId = Fmt.S(r, 6),
             Ativo = r.IsDBNull(7) ? true : Fmt.Bool(Fmt.S(r, 7)),
-            Perfil = Fmt.S(r, 8),
+            Perfil = Fmt.S(r, 8), Segmento = Fmt.S(r, 9),
         }, orderBy: "nome");
 
     public void Save(Salesperson s) => _s.WriteRow("salespeople", new KeyValuePair<string, object?>[]
@@ -72,9 +72,29 @@ public class SalespersonRepository
         new("id", s.Id), new("nome", s.Nome), new("email", s.Email), new("telefone", s.Telefone),
         new("cargo", s.Cargo), new("regiao", s.Regiao), new("gestor_id", s.GestorId),
         new("ativo", s.Ativo ? "true" : "false"), new("perfil", s.Perfil),
+        new("segmento", s.Segmento),
     });
 
     public void Delete(string id) => _s.WriteRow("salespeople",
+        new KeyValuePair<string, object?>[] { new("id", id) }, deleted: true);
+}
+
+/// <summary>Lista de segmentos de mercado — o eixo da divisão comercial.</summary>
+public class SegmentRepository
+{
+    private readonly ParquetStore _s;
+    public SegmentRepository(ParquetStore s) => _s = s;
+
+    public List<Segment> All() => _s.ReadLatest("segments",
+        "id, nome",
+        r => new Segment { Id = Fmt.S(r, 0), Nome = Fmt.S(r, 1) }, orderBy: "nome");
+
+    public void Save(Segment g) => _s.WriteRow("segments", new KeyValuePair<string, object?>[]
+    {
+        new("id", g.Id), new("nome", g.Nome),
+    });
+
+    public void Delete(string id) => _s.WriteRow("segments",
         new KeyValuePair<string, object?>[] { new("id", id) }, deleted: true);
 }
 

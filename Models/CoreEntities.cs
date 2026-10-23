@@ -40,6 +40,19 @@ public class Salesperson
     public string GestorId { get; set; } = "";
     public bool Ativo { get; set; } = true;
     public string Perfil { get; set; } = "";
+    /// <summary>Segmento de atuação — é por ele que o vendedor é ligado às plantas.</summary>
+    public string Segmento { get; set; } = "";
+}
+
+/// <summary>
+/// Segmento de mercado (cimento, mineração, siderurgia…). É o eixo de divisão
+/// comercial: cada vendedor atua num segmento e cada planta pertence a um,
+/// o que define o responsável pela planta.
+/// </summary>
+public class Segment
+{
+    public string Id { get; set; } = "";
+    public string Nome { get; set; } = "";
 }
 
 // equipment

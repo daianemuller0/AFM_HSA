@@ -3,6 +3,7 @@
 @rendermode InteractiveServer
 @using System.Globalization
 @inject SalespersonRepository Salespeople
+@inject SegmentRepository Segmentos
 @inject ClientUnitRepository Units
 @inject IntelligenceService Intel
 @inject ImportService Importer
@@ -12,15 +13,72 @@
 <PageTitle>Dados e Importação · AFM HSA</PageTitle>
 
 <h1>Dados e Importação</h1>
-<p class="subtitle">Equipe comercial, importação de dados e logo / marca em um só lugar.</p>
+<p class="subtitle">Segmentos, equipe comercial, importação de dados e logo / marca em um só lugar.</p>
 
 <div class="views">
+    <button class="view @(_tab == "segmentos" ? "active" : "")" @onclick='() => _tab = "segmentos"'>Segmentos</button>
     <button class="view @(_tab == "equipe" ? "active" : "")" @onclick='() => _tab = "equipe"'>Equipe Comercial</button>
     <button class="view @(_tab == "import" ? "active" : "")" @onclick='() => _tab = "import"'>Importação de Dados</button>
     <button class="view @(_tab == "logo" ? "active" : "")" @onclick='() => _tab = "logo"'>Logo / Marca</button>
 </div>
 
-@if (_tab == "equipe")
+@if (_tab == "segmentos")
+{
+    <p class="subtitle">O segmento é o eixo da divisão comercial: cada vendedor atua num segmento, e a planta puxa o vendedor pelo segmento dela.</p>
+
+    <div class="panel" style="margin-bottom:16px;max-width:680px">
+        <div class="dash-title">Cadastrar segmento</div>
+        <div class="toolbar" style="margin-bottom:0">
+            <input class="cell" style="max-width:320px" placeholder="Ex.: Cimento, Mineração, Siderurgia…"
+                   @bind="_novoSegmento" @bind:event="oninput" />
+            <button class="btn-primary" @onclick="AdicionarSegmento">+ Adicionar</button>
+        </div>
+        @if (_segErro is not null) { <div class="alert-error" style="margin-top:12px">@_segErro</div> }
+        @if (_segMsg is not null) { <div class="side-ok" style="margin-top:12px">@_segMsg</div> }
+    </div>
+
+    <table class="grid">
+        <thead><tr><th>Segmento</th><th>Vendedor(es) responsável(is)</th>
+            <th class="right">Plantas</th><th style="width:120px">Ações</th></tr></thead>
+        <tbody>
+            @foreach (var g in _segs)
+            {
+                <tr>
+                    <td><strong>@g.Nome</strong></td>
+                    <td>@VendedoresDoSegmento(g.Nome)</td>
+                    <td class="right">@PlantasDoSegmento(g.Nome)</td>
+                    <td class="nowrap">
+                        @if (_segConfirmar == g.Id)
+                        {
+                            <button class="btn-link" style="color:#b91c1c;font-weight:600"
+                                    @onclick="() => ExcluirSegmento(g)">excluir?</button>
+                            <button class="btn-link" style="color:var(--muted)"
+                                    @onclick="() => _segConfirmar = null">não</button>
+                        }
+                        else
+                        {
+                            <button class="btn-link" style="color:#b91c1c"
+                                    @onclick="() => _segConfirmar = g.Id">excluir</button>
+                        }
+                    </td>
+                </tr>
+            }
+            @if (_segs.Count == 0)
+            {
+                <tr><td colspan="4" class="empty">Nenhum segmento cadastrado. Adicione o primeiro acima.</td></tr>
+            }
+        </tbody>
+    </table>
+
+    @if (_segConfirmar is not null)
+    {
+        <div class="alert-warn">
+            Excluir o segmento <strong>não</strong> altera os vendedores nem as plantas que já usam esse nome —
+            ele apenas deixa de aparecer nas listas de seleção.
+        </div>
+    }
+}
+else if (_tab == "equipe")
 {
     <p class="subtitle">@_sps.Count(s => s.Ativo) ativos · @_sps.Count(s => !s.Ativo) inativos · @_sps.Count no total</p>
     <div class="toolbar">
@@ -39,7 +97,7 @@
                 <tr>
                     <td><a class="btn-link" href="@($"/vendedores/{v.Id}")">@v.Nome</a>@(v.Ativo ? "" : " (inativo)")</td>
                     <td>@v.Cargo</td>
-                    <td>@_segmentos.GetValueOrDefault(v.Id, "—")</td>
+                    <td>@(string.IsNullOrWhiteSpace(v.Segmento) ? "—" : v.Segmento)</td>
                     <td class="right">@_clientes.GetValueOrDefault(v.Id)</td>
                     <td class="right">@_oport.GetValueOrDefault(v.Id)</td>
                     <td class="right nowrap">@Fmt.Brl0(_valor.GetValueOrDefault(v.Id))</td>
@@ -116,12 +174,16 @@ else
 }
 
 @code {
-    private string _tab = "equipe";
+    private string _tab = "segmentos";
     private List<Salesperson> _sps = new();
-    private Dictionary<string, string> _segmentos = new();
+    private List<Segment> _segs = new();
+    private List<ClientUnit> _units = new();
     private Dictionary<string, int> _clientes = new(), _oport = new();
     private Dictionary<string, decimal> _valor = new();
     private string _filtro = "ativos";
+
+    private string _novoSegmento = "";
+    private string? _segMsg, _segErro, _segConfirmar;
 
     private record Tipo(string Key, string Label);
     private readonly Tipo[] _tipos =
@@ -137,17 +199,56 @@ else
     private Branding _brand = new();
     private string? _logoMsg;
 
-    protected override void OnInitialized()
+    protected override void OnInitialized() => Carregar();
+
+    private void Carregar()
     {
         _sps = Salespeople.All();
-        var units = Units.All();
+        _segs = Segmentos.All();
+        _units = Units.All();
         var open = Intel.OpenOpportunities();
-        _clientes = units.GroupBy(u => u.VendedorId).ToDictionary(g => g.Key, g => g.Select(u => u.CompanyId).Distinct().Count());
-        _segmentos = units.GroupBy(u => u.VendedorId)
-            .ToDictionary(g => g.Key, g => string.Join(", ", g.Select(u => u.Segmento).Where(s => !string.IsNullOrEmpty(s)).Distinct()));
+        _clientes = _units.GroupBy(u => u.VendedorId).ToDictionary(g => g.Key, g => g.Select(u => u.CompanyId).Distinct().Count());
         _oport = open.GroupBy(o => o.VendedorId).ToDictionary(g => g.Key, g => g.Count());
         _valor = open.GroupBy(o => o.VendedorId).ToDictionary(g => g.Key, g => g.Sum(o => o.ValorEstimado));
         _brand = Brand.Get();
+    }
+
+    // ---- segmentos -------------------------------------------------------
+    private string VendedoresDoSegmento(string nome)
+    {
+        var nomes = _sps
+            .Where(s => s.Ativo && string.Equals(s.Segmento, nome, StringComparison.OrdinalIgnoreCase))
+            .Select(s => s.Nome)
+            .ToList();
+        return nomes.Count == 0 ? "— sem vendedor definido —" : string.Join(", ", nomes);
+    }
+
+    private int PlantasDoSegmento(string nome) =>
+        _units.Count(u => string.Equals(u.Segmento, nome, StringComparison.OrdinalIgnoreCase));
+
+    private void AdicionarSegmento()
+    {
+        _segErro = null; _segMsg = null;
+        var nome = (_novoSegmento ?? "").Trim();
+        if (nome.Length == 0) { _segErro = "Informe o nome do segmento."; return; }
+        if (_segs.Any(g => string.Equals(g.Nome, nome, StringComparison.OrdinalIgnoreCase)))
+        { _segErro = $"O segmento \"{nome}\" já está cadastrado."; return; }
+
+        Segmentos.Save(new Segment { Id = "sg-" + Guid.NewGuid().ToString("N")[..8], Nome = nome });
+        _novoSegmento = "";
+        Intel.Invalidate();
+        Carregar();
+        _segMsg = $"Segmento \"{nome}\" cadastrado.";
+    }
+
+    private void ExcluirSegmento(Segment g)
+    {
+        Segmentos.Delete(g.Id);
+        _segConfirmar = null;
+        _segErro = null;
+        Intel.Invalidate();
+        Carregar();
+        _segMsg = $"Segmento \"{g.Nome}\" excluído da lista.";
     }
 
     private List<Salesperson> EquipeFiltrada => _filtro switch
@@ -157,8 +258,8 @@ else
         _ => _sps,
     };
 
-    private void Alternar(Salesperson v) { v.Ativo = !v.Ativo; Salespeople.Save(v); }
-    private void Excluir(Salesperson v) { Salespeople.Delete(v.Id); _sps = Salespeople.All(); }
+    private void Alternar(Salesperson v) { v.Ativo = !v.Ativo; Salespeople.Save(v); Intel.Invalidate(); Carregar(); }
+    private void Excluir(Salesperson v) { Salespeople.Delete(v.Id); Intel.Invalidate(); Carregar(); }
 
     private string Colunas(string tipo) => tipo switch
     {

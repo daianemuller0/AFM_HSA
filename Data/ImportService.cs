@@ -243,6 +243,7 @@ public class ImportService
                 ("regiao", Get(r, c, "regiao", "regiao_geografica")),
                 ("gestor_id", ""),
                 ("ativo", "true"),
+                ("segmento", Get(r, c, "segmento", "segmento_de_atuacao")),
                 ("perfil", Def(Get(r, c, "perfil"), "vendedor"))));
         }
         return Write("salespeople", outRows, sub);

@@ -45,6 +45,34 @@ public static class DbInitializer
 
         SeedVisits(store);
         SeedConstruction(store);
+        SeedSegments(store);
+    }
+
+    /// <summary>
+    /// Na primeira execução, cria a lista de segmentos a partir dos que já estão
+    /// em uso nas plantas — assim a base de segmentos não nasce vazia. Depois disso
+    /// a lista é mantida pela tela de Dados e Importação.
+    /// </summary>
+    private static void SeedSegments(ParquetStore store)
+    {
+        if (!store.IsEmpty("segments")) return;
+
+        var nomes = store.ReadLatest("clientUnits", "segmento", r => Fmt.S(r, 0))
+            .Select(s => (s ?? "").Trim())
+            .Where(s => s.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(s => s, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (nomes.Count == 0) return;
+
+        var rows = nomes
+            .Select((n, i) => (IReadOnlyList<KeyValuePair<string, object?>>)new KeyValuePair<string, object?>[]
+            {
+                new("id", "sg-" + (i + 1).ToString("D2")),
+                new("nome", n),
+            })
+            .ToList();
+        store.WriteBatch("segments", rows);
     }
 
     // Dados construtivos de exemplo do Ventilador CT 1024.00.00 SBL6T (eq-1),

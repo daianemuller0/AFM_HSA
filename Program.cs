@@ -40,6 +40,7 @@ builder.Services.AddSingleton(new ParquetStore(dataFolder));
 builder.Services.AddScoped<CompanyRepository>();
 builder.Services.AddScoped<ClientUnitRepository>();
 builder.Services.AddScoped<SalespersonRepository>();
+builder.Services.AddScoped<SegmentRepository>();
 builder.Services.AddScoped<EquipmentRepository>();
 builder.Services.AddScoped<InstalledBaseRepository>();
 builder.Services.AddScoped<PartRepository>();
