@@ -32,19 +32,19 @@ public class ClientUnitRepository
     public ClientUnitRepository(ParquetStore s) => _s = s;
 
     public List<ClientUnit> All() => _s.ReadLatest("clientUnits",
-        "id, company_id, nome_unidade, cidade, estado, segmento, regiao, vendedor_id",
+        "id, company_id, nome_unidade, cidade, estado, segmento, regiao, vendedor_id, cnpj",
         r => new ClientUnit
         {
             Id = Fmt.S(r, 0), CompanyId = Fmt.S(r, 1), NomeUnidade = Fmt.S(r, 2),
             Cidade = Fmt.S(r, 3), Estado = Fmt.S(r, 4), Segmento = Fmt.S(r, 5),
-            Regiao = Fmt.S(r, 6), VendedorId = Fmt.S(r, 7),
+            Regiao = Fmt.S(r, 6), VendedorId = Fmt.S(r, 7), Cnpj = Fmt.S(r, 8),
         }, orderBy: "nome_unidade");
 
     public void Save(ClientUnit u) => _s.WriteRow("clientUnits", new KeyValuePair<string, object?>[]
     {
         new("id", u.Id), new("company_id", u.CompanyId), new("nome_unidade", u.NomeUnidade),
         new("cidade", u.Cidade), new("estado", u.Estado), new("segmento", u.Segmento),
-        new("regiao", u.Regiao), new("vendedor_id", u.VendedorId),
+        new("regiao", u.Regiao), new("vendedor_id", u.VendedorId), new("cnpj", u.Cnpj),
     });
 
     public void Delete(string id) => _s.WriteRow("clientUnits",

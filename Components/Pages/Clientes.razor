@@ -14,7 +14,7 @@
 <p class="subtitle">@Filtradas.Count planta(s) cadastrada(s)</p>
 
 <div class="toolbar">
-    <input class="cell" style="max-width:320px" placeholder="Buscar cliente, unidade, segmento…"
+    <input class="cell" style="max-width:320px" placeholder="Buscar cliente, unidade, CNPJ, segmento…"
            @bind="_busca" @bind:event="oninput" />
     <div style="flex:1"></div>
     @if (!_novaAberta)
@@ -51,6 +51,10 @@
             }
             <label>Nome da planta / unidade *
                 <input class="cell" placeholder="Ex.: Itabira" @bind="_u.NomeUnidade" />
+            </label>
+            <label>CNPJ
+                <input class="cell" placeholder="00.000.000/0000-00" maxlength="18"
+                       @bind="_u.Cnpj" @bind:after="FormatarCnpj" />
             </label>
             <label>Cidade
                 <input class="cell" @bind="_u.Cidade" />
@@ -110,7 +114,7 @@
 <table class="grid">
     <thead>
         <tr>
-            <th>Cliente</th><th>Unidade</th><th>Segmento</th><th>UF</th>
+            <th>Cliente</th><th>Unidade</th><th>CNPJ</th><th>Segmento</th><th>UF</th>
             <th class="right">Equipamentos</th><th class="right">Janelas abertas</th>
             <th class="right">Valor potencial técnico</th><th>Vendedor</th><th style="width:150px">Ações</th>
         </tr>
@@ -121,6 +125,7 @@
             <tr>
                 <td>@NomeCliente(u.CompanyId)</td>
                 <td>@u.NomeUnidade</td>
+                <td class="nowrap">@(string.IsNullOrWhiteSpace(u.Cnpj) ? "—" : u.Cnpj)</td>
                 <td>@u.Segmento</td>
                 <td>@u.Estado</td>
                 <td class="right">@_equipCount.GetValueOrDefault(u.Id)</td>
@@ -146,7 +151,7 @@
         }
         @if (Filtradas.Count == 0)
         {
-            <tr><td colspan="9" class="empty">Nenhuma planta encontrada. Use "Cadastrar planta" para criar a primeira.</td></tr>
+            <tr><td colspan="10" class="empty">Nenhuma planta encontrada. Use "Cadastrar planta" para criar a primeira.</td></tr>
         }
     </tbody>
 </table>
@@ -197,6 +202,9 @@
         _regioes = _all.Select(u => u.Regiao).Where(s => !string.IsNullOrWhiteSpace(s))
             .Distinct().OrderBy(s => s).ToList();
     }
+
+    /// <summary>Formata o CNPJ assim que o campo perde o foco, se já estiver completo.</summary>
+    private void FormatarCnpj() => _u.Cnpj = Cnpj.Formatar(_u.Cnpj);
 
     /// <summary>
     /// Vendedores oferecidos no formulário: os do segmento escolhido. Se o segmento
@@ -276,6 +284,8 @@
         { _erro = "Informe o nome da planta / unidade."; return; }
         if (string.IsNullOrWhiteSpace(_u.Segmento))
         { _erro = "Selecione o segmento da planta — é ele que define o vendedor responsável."; return; }
+        if (!string.IsNullOrWhiteSpace(_u.Cnpj) && !Cnpj.Valido(_u.Cnpj))
+        { _erro = "CNPJ inválido. Confira os números ou deixe o campo em branco."; return; }
 
         var companyId = _companyId;
         if (_companyId == NovoCliente)
@@ -298,6 +308,7 @@
             Id = "cu-" + Guid.NewGuid().ToString("N")[..8],
             CompanyId = companyId,
             NomeUnidade = _u.NomeUnidade.Trim(),
+            Cnpj = Cnpj.Formatar(_u.Cnpj),
             Cidade = (_u.Cidade ?? "").Trim(),
             Estado = (_u.Estado ?? "").Trim().ToUpperInvariant(),
             Segmento = (_u.Segmento ?? "").Trim(),
@@ -334,8 +345,11 @@
             if (!string.IsNullOrWhiteSpace(_busca))
             {
                 var b = _busca.Trim().ToLowerInvariant();
-                q = q.Where(u => (NomeCliente(u.CompanyId) + u.NomeUnidade + u.Segmento + u.Estado)
-                    .ToLowerInvariant().Contains(b));
+                var digitos = Cnpj.Digitos(b);
+                q = q.Where(u =>
+                    (NomeCliente(u.CompanyId) + u.NomeUnidade + u.Segmento + u.Estado + u.Cnpj)
+                        .ToLowerInvariant().Contains(b)
+                    || (digitos.Length > 0 && Cnpj.Digitos(u.Cnpj).Contains(digitos)));
             }
             return q.OrderBy(u => NomeCliente(u.CompanyId)).ThenBy(u => u.NomeUnidade).ToList();
         }

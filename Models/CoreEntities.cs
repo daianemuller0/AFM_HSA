@@ -21,6 +21,7 @@ public class ClientUnit
     public string Id { get; set; } = "";
     public string CompanyId { get; set; } = "";
     public string NomeUnidade { get; set; } = "";
+    public string Cnpj { get; set; } = "";
     public string Cidade { get; set; } = "";
     public string Estado { get; set; } = "";
     public string Segmento { get; set; } = "";

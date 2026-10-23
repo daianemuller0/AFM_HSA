@@ -18,7 +18,7 @@ else
 {
     <div class="page-head">
         <div><h1>@Intel.CompanyName(_u.CompanyId)</h1>
-            <p class="subtitle">@_u.NomeUnidade · @_u.Cidade/@_u.Estado · @_u.Segmento</p></div>
+            <p class="subtitle">@_u.NomeUnidade · @_u.Cidade/@_u.Estado · @_u.Segmento@(string.IsNullOrWhiteSpace(_u.Cnpj) ? "" : $" · CNPJ {_u.Cnpj}")</p></div>
         <div class="page-actions"><a class="btn-ghost" href="/clientes">Voltar</a></div>
     </div>
 
