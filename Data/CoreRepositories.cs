@@ -266,16 +266,27 @@ public class SalesRecordRepository
     public SalesRecordRepository(ParquetStore s) => _s = s;
 
     private const string Cols =
-        "id, data_venda, pedido, client_unit_id, equipment_id, item_vendido, quantidade, valor, vendedor_id, origem, tag, serial_no";
+        "id, data_venda, pedido, client_unit_id, equipment_id, item_vendido, quantidade, valor, vendedor_id, origem, " +
+        "tag, serial_no, part_number, valor_unitario, observacao";
 
     public List<SalesRecord> All() => _s.ReadLatest("salesHistory", Cols,
-        r => new SalesRecord
+        r =>
         {
-            Id = Fmt.S(r, 0), DataVenda = Fmt.S(r, 1), Pedido = Fmt.S(r, 2),
-            ClientUnitId = Fmt.S(r, 3), EquipmentId = Fmt.S(r, 4), ItemVendido = Fmt.S(r, 5),
-            Quantidade = Fmt.Int(Fmt.S(r, 6)), Valor = Fmt.Dec(Fmt.S(r, 7)),
-            VendedorId = Fmt.S(r, 8), Origem = Fmt.S(r, 9),
-            Tag = Fmt.S(r, 10), SerialNo = Fmt.S(r, 11),
+            var qtd = Fmt.Int(Fmt.S(r, 6));
+            var total = Fmt.Dec(Fmt.S(r, 7));
+            var unit = Fmt.Dec(Fmt.S(r, 13));
+            // registros antigos só tinham o total: o unitário sai dele
+            if (unit == 0m && total != 0m && qtd > 0) unit = total / qtd;
+
+            return new SalesRecord
+            {
+                Id = Fmt.S(r, 0), DataVenda = Fmt.S(r, 1), Pedido = Fmt.S(r, 2),
+                ClientUnitId = Fmt.S(r, 3), EquipmentId = Fmt.S(r, 4), ItemVendido = Fmt.S(r, 5),
+                Quantidade = qtd, Valor = total, ValorUnitario = unit,
+                VendedorId = Fmt.S(r, 8), Origem = Fmt.S(r, 9),
+                Tag = Fmt.S(r, 10), SerialNo = Fmt.S(r, 11),
+                PartNumber = Fmt.S(r, 12), Observacao = Fmt.S(r, 14),
+            };
         }, orderBy: "data_venda DESC");
 
     public List<SalesRecord> ForEquip(string equipmentId) =>
@@ -304,6 +315,9 @@ public class SalesRecordRepository
             new("valor", s.Valor.ToString(System.Globalization.CultureInfo.InvariantCulture)),
             new("vendedor_id", s.VendedorId), new("origem", s.Origem),
             new("tag", s.Tag), new("serial_no", s.SerialNo),
+            new("part_number", s.PartNumber),
+            new("valor_unitario", s.ValorUnitario.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+            new("observacao", s.Observacao),
         };
 }
 

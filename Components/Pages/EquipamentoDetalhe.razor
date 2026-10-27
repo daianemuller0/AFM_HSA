@@ -88,6 +88,16 @@ else
         }
     </div>
     <div class="toolbar tab-toolbar">
+        <input class="cell busca-bom" placeholder="Buscar pedido, cliente, tag, partnumber, item…"
+               @bind="_histBusca" @bind:event="oninput" />
+        @if (_histBusca.Trim().Length > 0)
+        {
+            <span class="busca-info">
+                <strong>@HistVisivel.Count</strong> de @_sales.Count registro(s)
+                <button class="btn-link" @onclick='() => _histBusca = ""'>limpar</button>
+            </span>
+        }
+        <div style="flex:1"></div>
         <button class="btn-ghost" @onclick="BaixarHistorico">⬇ Baixar Excel</button>
         <label class="btn-ghost file-btn">
             ⬆ Subir planilha
@@ -98,6 +108,13 @@ else
         </label>
         <button class="btn-primary" @onclick="NovaVenda">+ Adicionar registro</button>
     </div>
+    @if (_histBusca.Trim().Length > 0)
+    {
+        <div class="busca-aviso">
+            A busca só filtra o que aparece na tela — o <strong>Baixar Excel</strong> continua
+            trazendo o histórico completo deste equipamento.
+        </div>
+    }
     @if (_histMsg is not null)
     {
         <div class="@(_histOk ? "side-ok" : "alert-error")" style="margin-bottom:10px">@_histMsg</div>
@@ -105,13 +122,14 @@ else
     <table class="grid" style="margin-bottom:20px">
         <thead>
             <tr>
-                <th>Data</th><th>Pedido</th><th>Cliente / Unidade</th><th>Tag</th><th>Nº de série</th>
-                <th>Item vendido</th><th class="right">Qtd</th><th class="right">Valor</th>
-                <th>Vendedor</th><th>Origem</th><th class="right">Ações</th>
+                <th>Data</th><th>Pedido</th><th>Cliente / Unidade</th><th>Tag</th><th>Partnumber</th>
+                <th>Item vendido</th><th class="right">Quantidade</th>
+                <th class="right">Valor unitário</th><th class="right">Valor total</th>
+                <th>Obs</th><th class="right">Ações</th>
             </tr>
         </thead>
         <tbody>
-            @foreach (var s in _sales)
+            @foreach (var s in HistVisivel)
             {
                 @if (_editVendaId == s.Id)
                 {
@@ -129,10 +147,18 @@ else
                                         }
                                     </select></label>
                                 <label>Tag <input class="cell" @bind="_fv.Tag" placeholder="ex.: FD-101A" /></label>
-                                <label>Nº de série <input class="cell" @bind="_fv.SerialNo" /></label>
+                                <label>Partnumber <input class="cell" list="bom-pns" @bind="_fv.PartNumber"
+                                                        @bind:after="PartnumberMudou" /></label>
                                 <label>Item vendido <input class="cell" @bind="_fv.ItemVendido" /></label>
-                                <label>Quantidade <input class="cell" type="number" min="0" @bind="_fv.Quantidade" /></label>
-                                <label>Valor (R$) <input class="cell" type="number" step="0.01" min="0" @bind="_fv.Valor" /></label>
+                                <label>Quantidade <input class="cell" type="number" min="0"
+                                                         @bind="_fv.Quantidade" @bind:after="RecalcularTotal" /></label>
+                                <label>Valor unitário (R$) <input class="cell" type="number" step="0.01" min="0"
+                                                                  @bind="_fv.ValorUnitario" @bind:after="RecalcularTotal" /></label>
+                                <label>Valor total (R$)
+                                    <input class="cell" type="number" step="0.01" min="0" @bind="_fv.Valor" />
+                                    <span style="font-size:11px;color:var(--muted)">quantidade × unitário; dá para ajustar</span>
+                                </label>
+                                <label>Obs <input class="cell" @bind="_fv.Observacao" /></label>
                                 <label>Vendedor
                                         <select class="cell" @bind="_fv.VendedorId">
                                         <option value="">— sem vendedor —</option>
@@ -141,7 +167,6 @@ else
                                             <option value="@v.Id">@v.Nome</option>
                                         }
                                     </select></label>
-                                <label>Origem <input class="cell" @bind="_fv.Origem" placeholder="ex.: Proposta AFM" /></label>
                             </div>
                             <div class="toolbar" style="margin-top:10px">
                                 <button class="btn-primary" @onclick="SalvarVenda">Salvar</button>
@@ -158,12 +183,12 @@ else
                         <td>@Txt(s.Pedido)</td>
                         <td>@Intel.ClienteDaUnidade(s.ClientUnitId) — @Intel.UnitNome(s.ClientUnitId)</td>
                         <td class="nowrap">@Txt(s.Tag)</td>
-                        <td class="nowrap">@Txt(s.SerialNo)</td>
+                        <td class="nowrap">@Txt(s.PartNumber)</td>
                         <td>@s.ItemVendido</td>
                         <td class="right">@s.Quantidade</td>
-                        <td class="right nowrap">@Fmt.Brl0(s.Valor)</td>
-                        <td>@Intel.SalespersonName(s.VendedorId)</td>
-                        <td>@Txt(s.Origem)</td>
+                        <td class="right nowrap">@Fmt.Brl(s.ValorUnitario)</td>
+                        <td class="right nowrap"><strong>@Fmt.Brl0(s.Valor)</strong></td>
+                        <td>@Txt(s.Observacao)</td>
                         <td class="right nowrap">
                             <button class="btn-link" @onclick="() => EditarVenda(s)">editar</button>
                             @if (_confirmVendaId == s.Id)
@@ -179,9 +204,32 @@ else
                     </tr>
                 }
             }
-            @if (_sales.Count == 0) { <tr><td colspan="11" class="empty">Sem histórico de vendas AFM para este equipamento.</td></tr> }
+            @if (HistVisivel.Count == 0)
+            {
+                <tr>
+                    <td colspan="11" class="empty">
+                        @if (_sales.Count == 0)
+                        {
+                            <text>Sem histórico de vendas AFM para este equipamento.</text>
+                        }
+                        else
+                        {
+                            <text>Nenhum registro corresponde a "@_histBusca".</text>
+                        }
+                    </td>
+                </tr>
+            }
         </tbody>
     </table>
+
+    @* Partnumbers do BOM deste equipamento, sugeridos ao lançar uma venda. *@
+    <datalist id="bom-pns">
+        @foreach (var pn in _bom.Where(b => !string.IsNullOrWhiteSpace(b.PartNumber))
+                                .Select(b => b.PartNumber).Distinct())
+        {
+            <option value="@pn" />
+        }
+    </datalist>
 
     @* Ventilador centrífugo continua com os dados construtivos (peso, dimensões,
        material). Todo outro tipo trabalha com a lista de materiais — o BOM. *@
@@ -340,6 +388,7 @@ else
     private BomItem _fb = new();
 
     private string? _editVendaId, _confirmVendaId, _histMsg, _vendaErro;
+    private string _histBusca = "";
     private bool _histOk, _histSubstituir;
     private SalesRecord _fv = new();
 
@@ -457,6 +506,42 @@ else
 
     // =================== Histórico Aftermarket ============================
 
+    /// <summary>
+    /// Registros exibidos. O que está em edição fica sempre visível, mesmo fora
+    /// da busca — senão um lançamento novo sumiria ao ser digitado.
+    /// </summary>
+    private List<SalesRecord> HistVisivel
+    {
+        get
+        {
+            var s = _histBusca.Trim();
+            if (s.Length == 0) return _sales;
+            var alvo = s.ToLowerInvariant();
+            return _sales.Where(v => v.Id == _editVendaId || string.Join(' ',
+                    Fmt.Date(v.DataVenda), v.Pedido, Intel.ClienteDaUnidade(v.ClientUnitId),
+                    Intel.UnitNome(v.ClientUnitId), v.Tag, v.PartNumber, v.ItemVendido, v.Observacao)
+                .ToLowerInvariant().Contains(alvo)).ToList();
+        }
+    }
+
+    /// <summary>Valor total acompanha quantidade × unitário; o usuário pode ajustar depois.</summary>
+    private void RecalcularTotal() => _fv.Valor = _fv.ValorUnitario * _fv.Quantidade;
+
+    /// <summary>
+    /// Ao escolher um partnumber do BOM, preenche o item vendido com a descrição
+    /// cadastrada — só quando o campo ainda está vazio, para não apagar o que o
+    /// usuário escreveu.
+    /// </summary>
+    private void PartnumberMudou()
+    {
+        if (string.IsNullOrWhiteSpace(_fv.PartNumber)) return;
+        if (!string.IsNullOrWhiteSpace(_fv.ItemVendido)) return;
+        var item = _bom.FirstOrDefault(b =>
+            string.Equals(b.PartNumber, _fv.PartNumber, StringComparison.OrdinalIgnoreCase));
+        if (item is null) return;
+        _fv.ItemVendido = !string.IsNullOrWhiteSpace(item.DescricaoPt) ? item.DescricaoPt : item.DescricaoEn;
+    }
+
     private void NovaVenda()
     {
         _fv = new SalesRecord
@@ -478,8 +563,9 @@ else
         {
             Id = s.Id, DataVenda = s.DataVenda, Pedido = s.Pedido, ClientUnitId = s.ClientUnitId,
             EquipmentId = s.EquipmentId, ItemVendido = s.ItemVendido, Quantidade = s.Quantidade,
-            Valor = s.Valor, VendedorId = s.VendedorId, Origem = s.Origem,
-            Tag = s.Tag, SerialNo = s.SerialNo,
+            Valor = s.Valor, ValorUnitario = s.ValorUnitario, VendedorId = s.VendedorId,
+            Origem = s.Origem, Tag = s.Tag, SerialNo = s.SerialNo,
+            PartNumber = s.PartNumber, Observacao = s.Observacao,
         };
     }
 
@@ -513,7 +599,8 @@ else
     }
 
     private static readonly string[] HistHeader =
-        { "data_venda", "pedido", "unidade", "tag", "serial_number", "item_vendido", "quantidade", "valor", "vendedor", "origem" };
+        { "data_venda", "pedido", "unidade", "tag", "partnumber", "item_vendido",
+          "quantidade", "valor_unitario", "valor_total", "obs", "vendedor" };
 
     private async Task BaixarHistorico()
     {
@@ -523,12 +610,13 @@ else
             s.Pedido,
             Intel.UnitNome(s.ClientUnitId),
             s.Tag,
-            s.SerialNo,
+            s.PartNumber,
             s.ItemVendido,
             s.Quantidade.ToString(CultureInfo.InvariantCulture),
+            s.ValorUnitario.ToString("0.##", CultureInfo.InvariantCulture),
             s.Valor.ToString("0.##", CultureInfo.InvariantCulture),
+            s.Observacao,
             Vendedor(s.VendedorId),
-            s.Origem,
         }).ToList();
         var bytes = Planilha.Xlsx("Historico", HistHeader, linhas);
         await Baixar($"Historico_{Arquivo(_e!)}.xlsx", bytes);

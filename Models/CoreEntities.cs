@@ -162,6 +162,18 @@ public class SalesRecord
     /// qual dos equipamentos iguais da planta a venda foi feita.</summary>
     public string Tag { get; set; } = "";
     public string SerialNo { get; set; } = "";
+
+    /// <summary>Partnumber do item vendido (liga a venda ao BOM do equipamento).</summary>
+    public string PartNumber { get; set; } = "";
+
+    /// <summary>
+    /// Valor de uma unidade. <see cref="Valor"/> continua sendo o total da linha —
+    /// é ele que alimenta dashboards e previsões. Quando a planilha antiga só
+    /// trazia o total, o unitário é deduzido dele na leitura.
+    /// </summary>
+    public decimal ValorUnitario { get; set; }
+
+    public string Observacao { get; set; } = "";
 }
 
 // users

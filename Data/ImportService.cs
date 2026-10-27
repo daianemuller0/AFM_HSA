@@ -376,6 +376,7 @@ public class ImportService
                 if (!spByName.TryGetValue(Norm(vendedor), out var spId) && spIds.Contains(vendedor))
                     spId = vendedor;
 
+                var (qtd, unitario, totalVenda) = ValoresDaVenda(r, c);
                 outRows.Add(Row(
                     ("id", "sl-" + Guid.NewGuid().ToString("N")[..8]),
                     ("data_venda", data),
@@ -383,12 +384,15 @@ public class ImportService
                     ("client_unit_id", unitId ?? unidade),
                     ("equipment_id", equipmentId),
                     ("item_vendido", item),
-                    ("quantidade", Def(Get(r, c, "quantidade", "qtd"), "1")),
-                    ("valor", NumStr(Get(r, c, "valor"))),
+                    ("quantidade", qtd),
+                    ("valor", totalVenda),
+                    ("valor_unitario", unitario),
                     ("vendedor_id", spId ?? vendedor),
                     ("origem", Def(Get(r, c, "origem"), "Importação Excel")),
                     ("tag", Get(r, c, "tag")),
-                    ("serial_no", Get(r, c, "serial_number", "serial_no", "numero_de_serie", "n_de_serie", "serie"))));
+                    ("serial_no", Get(r, c, "serial_number", "serial_no", "numero_de_serie", "n_de_serie", "serie")),
+                    ("part_number", Get(r, c, "partnumber", "part_number", "part_no", "codigo_peca", "codigo")),
+                    ("observacao", Get(r, c, "obs", "observacao", "observacoes", "remarks"))));
             }
             if (outRows.Count == 0) return new ImportResult { Ok = false, Message = "Nenhuma linha válida encontrada." };
             if (substituir) _vendas.DeleteByEquip(equipmentId);
@@ -448,6 +452,7 @@ public class ImportService
             var vendedor = Get(r, c, "vendedor");
             spByName.TryGetValue(Norm(vendedor), out var spId);
 
+            var (qtd, unitario, totalVenda) = ValoresDaVenda(r, c);
             outRows.Add(Row(
                 ("id", "sl-" + Guid.NewGuid().ToString("N")[..8]),
                 ("data_venda", data),
@@ -455,12 +460,15 @@ public class ImportService
                 ("client_unit_id", unitId ?? unidade),
                 ("equipment_id", eqId ?? equipamento),
                 ("item_vendido", item),
-                ("quantidade", Def(Get(r, c, "quantidade", "qtd"), "1")),
-                ("valor", NumStr(Get(r, c, "valor"))),
+                ("quantidade", qtd),
+                ("valor", totalVenda),
+                ("valor_unitario", unitario),
                 ("vendedor_id", spId ?? vendedor),
                 ("origem", "Importação Excel"),
                 ("tag", Get(r, c, "tag")),
-                ("serial_no", Get(r, c, "serial_number", "serial_no", "numero_de_serie", "n_de_serie", "serie"))));
+                ("serial_no", Get(r, c, "serial_number", "serial_no", "numero_de_serie", "n_de_serie", "serie")),
+                ("part_number", Get(r, c, "partnumber", "part_number", "part_no", "codigo_peca", "codigo")),
+                ("observacao", Get(r, c, "obs", "observacao", "observacoes", "remarks"))));
         }
         return Write("salesHistory", outRows, sub);
     }
@@ -624,6 +632,25 @@ public class ImportService
         else if (s.Contains(',')) s = s.Replace(",", ".");
         return decimal.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out var d)
             ? d.ToString(CultureInfo.InvariantCulture) : "0";
+    }
+
+    /// <summary>
+    /// Quantidade, valor unitário e valor total de uma linha de venda. A planilha
+    /// pode trazer os dois valores, só o unitário ou só o total — o que faltar é
+    /// deduzido do outro pela quantidade.
+    /// </summary>
+    private static (string Qtd, string Unitario, string Total) ValoresDaVenda(string[] r, Dictionary<string, int> c)
+    {
+        var qtdTexto = Def(Get(r, c, "quantidade", "qtd", "qty"), "1");
+        var qtd = Fmt.Int(qtdTexto);
+        var unit = Fmt.Dec(NumStr(Get(r, c, "valor_unitario", "valor_unit", "vl_unitario", "preco_unitario", "unit_price")));
+        var total = Fmt.Dec(NumStr(Get(r, c, "valor_total", "valor", "vl_total", "total")));
+
+        if (total == 0m && unit != 0m && qtd > 0) total = unit * qtd;
+        if (unit == 0m && total != 0m && qtd > 0) unit = total / qtd;
+
+        var inv = CultureInfo.InvariantCulture;
+        return (qtdTexto, unit.ToString(inv), total.ToString(inv));
     }
 
     /// <summary>A exportação escreve "—" onde não há valor; na volta isso é vazio.</summary>
