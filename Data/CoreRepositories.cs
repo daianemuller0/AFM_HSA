@@ -267,7 +267,7 @@ public class SalesRecordRepository
 
     private const string Cols =
         "id, data_venda, pedido, client_unit_id, equipment_id, item_vendido, quantidade, valor, vendedor_id, origem, " +
-        "tag, serial_no, part_number, valor_unitario, observacao";
+        "tag, serial_no, part_number, valor_unitario, observacao, tipo_importacao, prazo_entrega";
 
     public List<SalesRecord> All() => _s.ReadLatest("salesHistory", Cols,
         r =>
@@ -286,6 +286,7 @@ public class SalesRecordRepository
                 VendedorId = Fmt.S(r, 8), Origem = Fmt.S(r, 9),
                 Tag = Fmt.S(r, 10), SerialNo = Fmt.S(r, 11),
                 PartNumber = Fmt.S(r, 12), Observacao = Fmt.S(r, 14),
+                TipoImportacao = Fmt.S(r, 15), PrazoEntrega = Fmt.S(r, 16),
             };
         }, orderBy: "data_venda DESC");
 
@@ -318,6 +319,7 @@ public class SalesRecordRepository
             new("part_number", s.PartNumber),
             new("valor_unitario", s.ValorUnitario.ToString(System.Globalization.CultureInfo.InvariantCulture)),
             new("observacao", s.Observacao),
+            new("tipo_importacao", s.TipoImportacao), new("prazo_entrega", s.PrazoEntrega),
         };
 }
 

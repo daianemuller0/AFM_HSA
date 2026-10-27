@@ -392,7 +392,9 @@ public class ImportService
                     ("tag", Get(r, c, "tag")),
                     ("serial_no", Get(r, c, "serial_number", "serial_no", "numero_de_serie", "n_de_serie", "serie")),
                     ("part_number", Get(r, c, "partnumber", "part_number", "part_no", "codigo_peca", "codigo")),
-                    ("observacao", Get(r, c, "obs", "observacao", "observacoes", "remarks"))));
+                    ("observacao", Get(r, c, "obs", "observacao", "observacoes", "remarks")),
+                    ("tipo_importacao", TipoImportacao(Get(r, c, "importacao", "tipo_importacao", "importado_por"))),
+                    ("prazo_entrega", Get(r, c, "prazo_de_entrega", "prazo_entrega", "prazo", "lead_time"))));
             }
             if (outRows.Count == 0) return new ImportResult { Ok = false, Message = "Nenhuma linha válida encontrada." };
             if (substituir) _vendas.DeleteByEquip(equipmentId);
@@ -468,7 +470,9 @@ public class ImportService
                 ("tag", Get(r, c, "tag")),
                 ("serial_no", Get(r, c, "serial_number", "serial_no", "numero_de_serie", "n_de_serie", "serie")),
                 ("part_number", Get(r, c, "partnumber", "part_number", "part_no", "codigo_peca", "codigo")),
-                ("observacao", Get(r, c, "obs", "observacao", "observacoes", "remarks"))));
+                ("observacao", Get(r, c, "obs", "observacao", "observacoes", "remarks")),
+                ("tipo_importacao", TipoImportacao(Get(r, c, "importacao", "tipo_importacao", "importado_por"))),
+                ("prazo_entrega", Get(r, c, "prazo_de_entrega", "prazo_entrega", "prazo", "lead_time"))));
         }
         return Write("salesHistory", outRows, sub);
     }
@@ -651,6 +655,18 @@ public class ImportService
 
         var inv = CultureInfo.InvariantCulture;
         return (qtdTexto, unit.ToString(inv), total.ToString(inv));
+    }
+
+    /// <summary>
+    /// Normaliza o tipo de importação para "total" ou "item" — a planilha pode vir
+    /// com "Por total", "TOTAL", "por item", "Item"… Qualquer outra coisa fica vazia.
+    /// </summary>
+    private static string TipoImportacao(string s)
+    {
+        var t = Norm(s);
+        if (t.Contains("total")) return "total";
+        if (t.Contains("item")) return "item";
+        return "";
     }
 
     /// <summary>A exportação escreve "—" onde não há valor; na volta isso é vazio.</summary>

@@ -119,12 +119,14 @@ else
     {
         <div class="@(_histOk ? "side-ok" : "alert-error")" style="margin-bottom:10px">@_histMsg</div>
     }
+    <div class="tabela-rolante">
     <table class="grid" style="margin-bottom:20px">
         <thead>
             <tr>
                 <th>Data</th><th>Pedido</th><th>Cliente / Unidade</th><th>Tag</th><th>Partnumber</th>
                 <th>Item vendido</th><th class="right">Quantidade</th>
                 <th class="right">Valor unitário</th><th class="right">Valor total</th>
+                <th>Importação</th><th>Prazo de entrega</th>
                 <th>Obs</th><th class="right">Ações</th>
             </tr>
         </thead>
@@ -134,7 +136,7 @@ else
                 @if (_editVendaId == s.Id)
                 {
                     <tr class="row-edit">
-                        <td colspan="11">
+                        <td colspan="13">
                             <div class="form3 form-edit">
                                 <label>Data <input class="cell" type="date" @bind="DataDaVenda" /></label>
                                 <label>Pedido <input class="cell" @bind="_fv.Pedido" placeholder="nº do pedido" /></label>
@@ -157,6 +159,17 @@ else
                                 <label>Valor total (R$)
                                     <input class="cell" type="number" step="0.01" min="0" @bind="_fv.Valor" />
                                     <span style="font-size:11px;color:var(--muted)">quantidade × unitário; dá para ajustar</span>
+                                </label>
+                                <label>Importação
+                                    <select class="cell" @bind="_fv.TipoImportacao">
+                                        <option value="">— não definido —</option>
+                                        <option value="total">Por total</option>
+                                        <option value="item">Por item</option>
+                                    </select>
+                                    <span style="font-size:11px;color:var(--muted)">muda o custo da importação</span>
+                                </label>
+                                <label>Prazo de entrega
+                                    <input class="cell" @bind="_fv.PrazoEntrega" placeholder="ex.: 45 dias" />
                                 </label>
                                 <label>Obs <input class="cell" @bind="_fv.Observacao" /></label>
                                 <label>Vendedor
@@ -188,6 +201,21 @@ else
                         <td class="right">@s.Quantidade</td>
                         <td class="right nowrap">@Fmt.Brl(s.ValorUnitario)</td>
                         <td class="right nowrap"><strong>@Fmt.Brl0(s.Valor)</strong></td>
+                        <td class="nowrap">
+                            @if (s.TipoImportacao == "total")
+                            {
+                                <span class="imp imp-total">Por total</span>
+                            }
+                            else if (s.TipoImportacao == "item")
+                            {
+                                <span class="imp imp-item">Por item</span>
+                            }
+                            else
+                            {
+                                <span style="color:var(--muted)">—</span>
+                            }
+                        </td>
+                        <td class="nowrap">@Txt(s.PrazoEntrega)</td>
                         <td>@Txt(s.Observacao)</td>
                         <td class="right nowrap">
                             <button class="btn-link" @onclick="() => EditarVenda(s)">editar</button>
@@ -207,7 +235,7 @@ else
             @if (HistVisivel.Count == 0)
             {
                 <tr>
-                    <td colspan="11" class="empty">
+                    <td colspan="13" class="empty">
                         @if (_sales.Count == 0)
                         {
                             <text>Sem histórico de vendas AFM para este equipamento.</text>
@@ -221,6 +249,7 @@ else
             }
         </tbody>
     </table>
+    </div>
 
     @* Partnumbers do BOM deste equipamento, sugeridos ao lançar uma venda. *@
     <datalist id="bom-pns">
@@ -519,10 +548,17 @@ else
             var alvo = s.ToLowerInvariant();
             return _sales.Where(v => v.Id == _editVendaId || string.Join(' ',
                     Fmt.Date(v.DataVenda), v.Pedido, Intel.ClienteDaUnidade(v.ClientUnitId),
-                    Intel.UnitNome(v.ClientUnitId), v.Tag, v.PartNumber, v.ItemVendido, v.Observacao)
+                    Intel.UnitNome(v.ClientUnitId), v.Tag, v.PartNumber, v.ItemVendido,
+                    RotuloImportacao(v.TipoImportacao), v.PrazoEntrega, v.Observacao)
                 .ToLowerInvariant().Contains(alvo)).ToList();
         }
     }
+
+    /// <summary>Texto do tipo de importação, usado na busca e na planilha.</summary>
+    private static string RotuloImportacao(string tipo) => tipo switch
+    {
+        "total" => "Por total", "item" => "Por item", _ => "",
+    };
 
     /// <summary>Valor total acompanha quantidade × unitário; o usuário pode ajustar depois.</summary>
     private void RecalcularTotal() => _fv.Valor = _fv.ValorUnitario * _fv.Quantidade;
@@ -566,6 +602,7 @@ else
             Valor = s.Valor, ValorUnitario = s.ValorUnitario, VendedorId = s.VendedorId,
             Origem = s.Origem, Tag = s.Tag, SerialNo = s.SerialNo,
             PartNumber = s.PartNumber, Observacao = s.Observacao,
+            TipoImportacao = s.TipoImportacao, PrazoEntrega = s.PrazoEntrega,
         };
     }
 
@@ -600,7 +637,8 @@ else
 
     private static readonly string[] HistHeader =
         { "data_venda", "pedido", "unidade", "tag", "partnumber", "item_vendido",
-          "quantidade", "valor_unitario", "valor_total", "obs", "vendedor" };
+          "quantidade", "valor_unitario", "valor_total", "importacao", "prazo_de_entrega",
+          "obs", "vendedor" };
 
     private async Task BaixarHistorico()
     {
@@ -615,6 +653,8 @@ else
             s.Quantidade.ToString(CultureInfo.InvariantCulture),
             s.ValorUnitario.ToString("0.##", CultureInfo.InvariantCulture),
             s.Valor.ToString("0.##", CultureInfo.InvariantCulture),
+            RotuloImportacao(s.TipoImportacao),
+            s.PrazoEntrega,
             s.Observacao,
             Vendedor(s.VendedorId),
         }).ToList();

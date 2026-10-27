@@ -173,6 +173,16 @@ public class SalesRecord
     /// </summary>
     public decimal ValorUnitario { get; set; }
 
+    /// <summary>
+    /// Como a peça é importada: "total" (declarada pelo valor do conjunto) ou
+    /// "item" (item a item). Muda o custo da importação, por isso entra no
+    /// histórico junto com o preço.
+    /// </summary>
+    public string TipoImportacao { get; set; } = "";
+
+    /// <summary>Prazo de entrega combinado — texto livre ("45 dias", "10 semanas").</summary>
+    public string PrazoEntrega { get; set; } = "";
+
     public string Observacao { get; set; } = "";
 }
 
