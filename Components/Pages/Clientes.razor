@@ -31,7 +31,14 @@
 @if (_novaAberta)
 {
     <div class="panel" style="margin-bottom:16px">
-        <div class="dash-title">Cadastrar nova planta</div>
+        <div class="dash-title">@(_duplicandoDe is null ? "Cadastrar nova planta" : "Duplicar planta")</div>
+        @if (_duplicandoDe is not null)
+        {
+            <div class="summary-bar" style="margin-bottom:12px">
+                Cópia de <strong>@_duplicandoNome</strong>. Os dados vieram preenchidos —
+                troque o <strong>nome da planta</strong> e o que mais mudar, depois salve.
+            </div>
+        }
         <div class="form3">
             <label>Cliente *
                 <select class="cell" @bind="_companyId">
@@ -100,10 +107,28 @@
             </div>
         }
 
+        @if (_duplicandoDe is not null && _equipDaOrigem > 0)
+        {
+            <label class="chk-inline" style="margin-top:14px">
+                <input type="checkbox" @bind="_copiarEquipamentos" />
+                Copiar também os @_equipDaOrigem equipamento(s) instalado(s) em @_duplicandoNome
+            </label>
+            @if (_copiarEquipamentos)
+            {
+                <div class="alert-warn" style="margin-top:8px">
+                    As tags, o ano e a criticidade são copiados. O <strong>número de série não</strong> —
+                    ele identifica a máquina física e não se repete em outra planta. Preencha os seriais
+                    da nova planta depois, pela tela dela.
+                </div>
+            }
+        }
+
         @if (_erro is not null) { <div class="alert-error" style="margin-top:12px">@_erro</div> }
 
         <div class="toolbar" style="margin-top:14px;margin-bottom:0">
-            <button class="btn-primary" @onclick="SalvarPlanta">Salvar planta</button>
+            <button class="btn-primary" @onclick="SalvarPlanta">
+                @(_duplicandoDe is null ? "Salvar planta" : "Salvar cópia")
+            </button>
             <button class="btn-ghost" @onclick="FecharNova">Cancelar</button>
             <span style="font-size:12px;color:var(--muted)">Os campos com * são obrigatórios.</span>
         </div>
@@ -116,7 +141,8 @@
         <tr>
             <th>Cliente</th><th>Unidade</th><th>CNPJ</th><th>Segmento</th><th>UF</th>
             <th class="right">Equipamentos</th><th class="right">Janelas abertas</th>
-            <th class="right">Valor potencial técnico</th><th>Vendedor</th><th style="width:150px">Ações</th>
+            <th class="right">Valor potencial técnico</th><th>Vendedor</th>
+            <th style="width:@(_ehAdmin ? "210px" : "150px")">Ações</th>
         </tr>
     </thead>
     <tbody>
@@ -134,6 +160,11 @@
                 <td>@Intel.SalespersonName(u.VendedorId)</td>
                 <td class="nowrap">
                     <a class="btn-link" href="@($"/clientes/{u.Id}")">Abrir</a>
+                    @if (_ehAdmin)
+                    {
+                        <button class="btn-link" title="Criar uma nova planta com os mesmos dados desta"
+                                @onclick="() => DuplicarPlanta(u)">duplicar</button>
+                    }
                     @if (_confirmarId == u.Id)
                     {
                         <button class="btn-link" style="color:#b91c1c;font-weight:600"
@@ -168,6 +199,11 @@
 @code {
     private const string NovoCliente = "__novo__";
 
+    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+
+    /// <summary>Duplicar planta é função de administrador — quem organiza a base.</summary>
+    private bool _ehAdmin;
+
     private List<ClientUnit> _all = new();
     private List<Company> _empresas = new();
     private List<Salesperson> _vendedores = new();
@@ -186,7 +222,20 @@
     private string _novoClienteNome = "";
     private ClientUnit _u = new();
 
-    protected override void OnInitialized() => Carregar();
+    // duplicação: id e nome da planta de origem, e se os equipamentos vão junto
+    private string? _duplicandoDe, _duplicandoNome;
+    private bool _copiarEquipamentos;
+    private int _equipDaOrigem;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthState is not null)
+        {
+            var user = (await AuthState).User;
+            _ehAdmin = user.IsInRole("admin");
+        }
+        Carregar();
+    }
 
     private void Carregar()
     {
@@ -264,12 +313,44 @@
         _erro = null; _msg = null; _confirmarId = null; _dicaVendedor = null;
         _companyId = ""; _novoClienteNome = "";
         _u = new ClientUnit();
+        _duplicandoDe = null; _duplicandoNome = null;
+        _copiarEquipamentos = false; _equipDaOrigem = 0;
+    }
+
+    /// <summary>
+    /// Abre o formulário já preenchido com os dados da planta escolhida. Nada é
+    /// gravado aqui: a cópia só existe quando o administrador salva.
+    /// </summary>
+    private void DuplicarPlanta(ClientUnit origem)
+    {
+        if (!_ehAdmin) return;
+
+        _novaAberta = true;
+        _erro = null; _msg = null; _confirmarId = null; _dicaVendedor = null;
+        _companyId = origem.CompanyId;
+        _novoClienteNome = "";
+        _u = new ClientUnit
+        {
+            NomeUnidade = origem.NomeUnidade + " (cópia)",
+            Cnpj = "",   // cada planta tem o seu — copiar criaria CNPJ repetido
+            Cidade = origem.Cidade,
+            Estado = origem.Estado,
+            Segmento = origem.Segmento,
+            Regiao = origem.Regiao,
+            VendedorId = origem.VendedorId,
+        };
+        _duplicandoDe = origem.Id;
+        _duplicandoNome = $"{NomeCliente(origem.CompanyId)} — {origem.NomeUnidade}";
+        _equipDaOrigem = _equipCount.GetValueOrDefault(origem.Id);
+        _copiarEquipamentos = false;
     }
 
     private void FecharNova()
     {
         _novaAberta = false;
         _erro = null;
+        _duplicandoDe = null; _duplicandoNome = null;
+        _copiarEquipamentos = false; _equipDaOrigem = 0;
     }
 
     private void SalvarPlanta()
@@ -317,10 +398,51 @@
         };
         Units.Save(u);
 
+        var copiados = 0;
+        if (_duplicandoDe is not null && _copiarEquipamentos)
+            copiados = CopiarEquipamentos(_duplicandoDe, u);
+
+        var eraCopia = _duplicandoDe is not null;
         Intel.Invalidate();
         Carregar();
         _novaAberta = false;
-        _msg = $"Planta \"{u.NomeUnidade}\" cadastrada.";
+        _duplicandoDe = null; _duplicandoNome = null;
+        _copiarEquipamentos = false; _equipDaOrigem = 0;
+
+        _msg = !eraCopia ? $"Planta \"{u.NomeUnidade}\" cadastrada."
+            : copiados > 0
+                ? $"Planta \"{u.NomeUnidade}\" criada por cópia, com {copiados} equipamento(s). Preencha os números de série pela tela da planta."
+                : $"Planta \"{u.NomeUnidade}\" criada por cópia.";
+    }
+
+    /// <summary>
+    /// Replica os equipamentos instalados da planta de origem na nova planta.
+    /// Cada registro ganha id próprio e as colunas que descrevem a planta são
+    /// reescritas. O número de série é zerado de propósito: ele identifica a
+    /// máquina física e não pode se repetir em duas plantas.
+    /// </summary>
+    private int CopiarEquipamentos(string origemId, ClientUnit destino)
+    {
+        var origem = Base.All().Where(b => b.ClientUnitId == origemId).ToList();
+        if (origem.Count == 0) return 0;
+
+        var cliente = NomeCliente(destino.CompanyId);
+        foreach (var b in origem)
+        {
+            b.Id = "ib-" + Guid.NewGuid().ToString("N")[..8];
+            b.ClientUnitId = destino.Id;
+            b.VendedorId = destino.VendedorId;
+            b.SerialNo = "";
+            b.PlantName = destino.NomeUnidade;
+            b.SiteUnit = destino.NomeUnidade;
+            b.City = destino.Cidade;
+            b.State = destino.Estado;
+            b.Industry = destino.Segmento;
+            b.Client = cliente;
+            b.EndCustomer = cliente;
+            Base.Save(b);
+        }
+        return origem.Count;
     }
 
     private void ExcluirPlanta(ClientUnit u)
