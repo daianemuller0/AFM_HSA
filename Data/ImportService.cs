@@ -288,27 +288,47 @@ public class ImportService
         var outRows = new List<IReadOnlyList<KeyValuePair<string, object?>>>();
         foreach (var r in rows)
         {
-            var pn = Get(r, c, "partnumber", "part_number", "part_no", "codigo", "codigo_peca");
-            var desc = Get(r, c, "descricao", "description", "descricao_do_item", "item");
-            if (string.IsNullOrWhiteSpace(pn) && string.IsNullOrWhiteSpace(desc)) continue;
+            var linha = LinhaBom(r, c);
+            if (linha is null) continue;
 
             var modelo = Get(r, c, "modelo_do_equipamento", "equipamento", "modelo");
             if (!eqByModelo.TryGetValue(Norm(modelo), out var eqId))
                 eqByNome.TryGetValue(Norm(modelo), out eqId);
 
-            outRows.Add(Row(
-                ("id", "bom-" + Guid.NewGuid().ToString("N")[..8]),
-                ("equipment_id", eqId ?? modelo),
-                ("tag", Get(r, c, "tag", "tag_equipamento")),
-                ("serial_no", Get(r, c, "serial_number", "serial_no", "numero_de_serie", "n_de_serie", "serie")),
-                ("part_number", pn),
-                ("quantidade", Get(r, c, "quantidade", "qtd", "qty", "quantity")),
-                ("descricao", desc),
-                ("outros", Get(r, c, "outros", "outro", "other")),
-                ("observacao", Get(r, c, "observacao", "obs", "observacoes", "remarks"))));
+            outRows.Add(ComEquipamento(linha, eqId ?? modelo));
         }
         return Write("bom", outRows, sub);
     }
+
+    /// <summary>
+    /// Lê uma linha de BOM da planilha. Devolve null quando a linha não tem nada
+    /// que a identifique (nem partnumber, nem item, nem descrição).
+    /// </summary>
+    private static IReadOnlyList<KeyValuePair<string, object?>>? LinhaBom(string[] r, Dictionary<string, int> c)
+    {
+        var item = Get(r, c, "item", "item_no", "pos", "posicao");
+        var pn = Get(r, c, "partnumber", "part_number", "part_no", "codigo", "codigo_peca");
+        var en = Get(r, c, "descricao_em_ingles", "descricao_ingles", "descricao_en", "description", "description_en");
+        var pt = Get(r, c, "descricao_portugues", "descricao_em_portugues", "descricao_pt", "descricao", "descricao_do_item");
+
+        if (string.IsNullOrWhiteSpace(pn) && string.IsNullOrWhiteSpace(item)
+            && string.IsNullOrWhiteSpace(en) && string.IsNullOrWhiteSpace(pt)) return null;
+
+        return Row(
+            ("id", "bom-" + Guid.NewGuid().ToString("N")[..8]),
+            ("equipment_id", ""),   // preenchido por ComEquipamento
+            ("item", item),
+            ("quantidade", Get(r, c, "quantidade", "qtd", "qty", "quantity")),
+            ("part_number", pn),
+            ("descricao_en", en),
+            ("descricao_pt", pt),
+            ("material", Get(r, c, "material", "materia_prima")));
+    }
+
+    private static IReadOnlyList<KeyValuePair<string, object?>> ComEquipamento(
+        IReadOnlyList<KeyValuePair<string, object?>> linha, string equipmentId) =>
+        linha.Select(kv => kv.Key == "equipment_id"
+            ? new KeyValuePair<string, object?>(kv.Key, equipmentId) : kv).ToList();
 
     // ---- importação dentro da ficha de um equipamento ---------------------
     // Aqui a planilha não precisa dizer de que equipamento se trata: é sempre o
@@ -322,19 +342,9 @@ public class ImportService
             var outRows = new List<IReadOnlyList<KeyValuePair<string, object?>>>();
             foreach (var r in dados)
             {
-                var pn = Get(r, c, "partnumber", "part_number", "part_no", "codigo", "codigo_peca");
-                var desc = Get(r, c, "descricao", "description", "item");
-                if (string.IsNullOrWhiteSpace(pn) && string.IsNullOrWhiteSpace(desc)) continue;
-                outRows.Add(Row(
-                    ("id", "bom-" + Guid.NewGuid().ToString("N")[..8]),
-                    ("equipment_id", equipmentId),
-                    ("tag", Get(r, c, "tag", "tag_equipamento")),
-                    ("serial_no", Get(r, c, "serial_number", "serial_no", "numero_de_serie", "n_de_serie", "serie")),
-                    ("part_number", pn),
-                    ("quantidade", Get(r, c, "quantidade", "qtd", "qty", "quantity")),
-                    ("descricao", desc),
-                    ("outros", Get(r, c, "outros", "outro", "other")),
-                    ("observacao", Get(r, c, "observacao", "obs", "observacoes", "remarks"))));
+                var linha = LinhaBom(r, c);
+                if (linha is null) continue;
+                outRows.Add(ComEquipamento(linha, equipmentId));
             }
             if (outRows.Count == 0) return new ImportResult { Ok = false, Message = "Nenhuma linha válida encontrada." };
             if (substituir) _bom.DeleteByEquip(equipmentId);

@@ -7,15 +7,23 @@ public class BomRepository
     private readonly ParquetStore _s;
     public BomRepository(ParquetStore s) => _s = s;
 
+    // "descricao" é da versão anterior da BOM: continua sendo lida para que os
+    // itens já cadastrados não apareçam sem descrição. Ao salvar, o valor migra
+    // para descricao_pt e a coluna antiga deixa de ser usada.
     private const string Cols =
-        "id, equipment_id, tag, serial_no, part_number, quantidade, descricao, outros, observacao";
+        "id, equipment_id, item, quantidade, part_number, descricao_en, descricao_pt, material, descricao";
 
     public List<BomItem> All() => _s.ReadLatest("bom", Cols,
-        r => new BomItem
+        r =>
         {
-            Id = Fmt.S(r, 0), EquipmentId = Fmt.S(r, 1), Tag = Fmt.S(r, 2), SerialNo = Fmt.S(r, 3),
-            PartNumber = Fmt.S(r, 4), Quantidade = Fmt.S(r, 5), Descricao = Fmt.S(r, 6),
-            Outros = Fmt.S(r, 7), Observacao = Fmt.S(r, 8),
+            var pt = Fmt.S(r, 6);
+            if (string.IsNullOrWhiteSpace(pt)) pt = Fmt.S(r, 8);
+            return new BomItem
+            {
+                Id = Fmt.S(r, 0), EquipmentId = Fmt.S(r, 1), Item = Fmt.S(r, 2),
+                Quantidade = Fmt.S(r, 3), PartNumber = Fmt.S(r, 4),
+                DescricaoEn = Fmt.S(r, 5), DescricaoPt = pt, Material = Fmt.S(r, 7),
+            };
         });
 
     public List<BomItem> ForEquip(string equipmentId) =>
@@ -38,9 +46,9 @@ public class BomRepository
         new KeyValuePair<string, object?>[]
         {
             new("id", b.Id), new("equipment_id", b.EquipmentId),
-            new("tag", b.Tag), new("serial_no", b.SerialNo),
-            new("part_number", b.PartNumber), new("quantidade", b.Quantidade),
-            new("descricao", b.Descricao), new("outros", b.Outros),
-            new("observacao", b.Observacao),
+            new("item", b.Item), new("quantidade", b.Quantidade),
+            new("part_number", b.PartNumber),
+            new("descricao_en", b.DescricaoEn), new("descricao_pt", b.DescricaoPt),
+            new("material", b.Material),
         };
 }
