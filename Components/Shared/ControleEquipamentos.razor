@@ -1,0 +1,350 @@
+@rendermode InteractiveServer
+@inject InstalledBaseRepository Base
+@inject EquipmentRepository Equipamentos
+@inject ClientUnitRepository Unidades
+@inject CompanyRepository Empresas
+@inject IntelligenceService Intel
+
+@* Controle da base por EQUIPAMENTO (e não por planta): agrupa os iguais,
+   mostra onde cada unidade física está e permite ligar/parar na hora. *@
+
+<div class="kpis kpis-3" style="margin-bottom:16px">
+    <div class="kpi click @(_situacao == "" ? "active" : "")" @onclick='() => _situacao = ""'>
+        <div class="kpi-label">Equipamentos na base</div>
+        <div class="kpi-value">@Todos.Count</div>
+    </div>
+    <div class="kpi click k-ok @(_situacao == "ativo" ? "active" : "")" @onclick='() => _situacao = "ativo"'>
+        <div class="kpi-label">Em operação</div>
+        <div class="kpi-value" style="color:#15803d">@Todos.Count(EmOperacao)</div>
+    </div>
+    <div class="kpi click k-aten @(_situacao == "inativo" ? "active" : "")" @onclick='() => _situacao = "inativo"'>
+        <div class="kpi-label">Parados</div>
+        <div class="kpi-value" style="color:#b45309">@Todos.Count(b => !EmOperacao(b))</div>
+    </div>
+</div>
+
+<div class="panel filtros">
+    <label>Buscar
+        <input class="cell" placeholder="tag, nº de série, modelo, planta, cliente…"
+               @bind="_busca" @bind:event="oninput" />
+    </label>
+    <label>Tipo
+        <select class="cell" @bind="_tipo" @bind:after="TipoMudou">
+            <option value="">Todos os tipos</option>
+            @foreach (var t in Tipos) { <option value="@t">@t</option> }
+        </select>
+    </label>
+    <label>Modelo
+        <select class="cell" @bind="_modelo">
+            <option value="">Todos os modelos</option>
+            @foreach (var m in Modelos) { <option value="@m">@m</option> }
+        </select>
+    </label>
+    <label>Fabricante
+        <select class="cell" @bind="_fabricante">
+            <option value="">Todos</option>
+            @foreach (var f in Fabricantes) { <option value="@f">@f</option> }
+        </select>
+    </label>
+    <label>UF
+        <select class="cell" @bind="_uf">
+            <option value="">Todas</option>
+            @foreach (var u in Ufs) { <option value="@u">@u</option> }
+        </select>
+    </label>
+    <div class="filtros-acao">
+        @if (TemFiltro)
+        {
+            <button class="btn-ghost" @onclick="Limpar">Limpar filtros</button>
+        }
+    </div>
+</div>
+
+<div class="resumo-filtro">
+    <strong>@Filtrados.Count</strong> equipamento(s)
+    em <strong>@Filtrados.Select(b => b.ClientUnitId).Distinct().Count()</strong> planta(s)
+    · <strong>@Agrupados.Count()</strong> modelo(s) diferente(s)
+    @if (TemFiltro) { <span class="resumo-tag">filtro ativo</span> }
+</div>
+
+@foreach (var grupo in Agrupados)
+{
+    var eq = CatalogoDe(grupo.Key);
+    var total = grupo.Sum(b => Math.Max(1, b.Quantidade));
+    var operando = grupo.Count(EmOperacao);
+    var parados = grupo.Count() - operando;
+    var plantas = grupo.Select(b => b.ClientUnitId).Distinct().Count();
+
+    <div class="eq-card">
+        <div class="eq-head">
+            <div class="eq-head-main">
+                <span class="eq-tipo">@(string.IsNullOrWhiteSpace(eq.Tipo) ? "Equipamento" : eq.Tipo)</span>
+                <div class="eq-modelo">@(string.IsNullOrWhiteSpace(eq.Modelo) ? Dash(eq.Nome) : eq.Modelo)</div>
+                <div class="eq-meta">
+                    <b>Fabricante:</b> @Dash(eq.Fabricante)
+                    @if (!string.IsNullOrWhiteSpace(eq.Aplicacao))
+                    {
+                        <text> &nbsp;·&nbsp; <b>Aplicação:</b> @eq.Aplicacao</text>
+                    }
+                </div>
+            </div>
+            <div class="eq-count"><div class="eq-count-n">@total</div><div class="eq-count-l">@(total == 1 ? "unidade" : "unidades")</div></div>
+            <div class="eq-count"><div class="eq-count-n" style="color:#15803d">@operando</div><div class="eq-count-l">em operação</div></div>
+            @if (parados > 0)
+            {
+                <div class="eq-count"><div class="eq-count-n" style="color:#b45309">@parados</div><div class="eq-count-l">parado@(parados == 1 ? "" : "s")</div></div>
+            }
+            <div class="eq-count"><div class="eq-count-n">@plantas</div><div class="eq-count-l">@(plantas == 1 ? "planta" : "plantas")</div></div>
+            <div style="align-self:center;display:flex;gap:8px">
+                @if (_modelo != eq.Modelo && !string.IsNullOrWhiteSpace(eq.Modelo))
+                {
+                    <button class="btn-ghost" title="Filtrar somente este modelo"
+                            @onclick="() => SoEsteModelo(eq)">Ver só este</button>
+                }
+                <a class="btn-ghost" href="@($"/equipamentos/{grupo.Key}")">Ficha técnica</a>
+            </div>
+        </div>
+
+        @foreach (var b in grupo)
+        {
+            var ligado = EmOperacao(b);
+            <div class="eq-unit @(ligado ? "" : "parado")">
+                <div class="eq-campo largo">
+                    <span class="rot">Cliente / Unidade</span>
+                    <span class="val">@ClienteDe(b.ClientUnitId)</span>
+                    <span class="sub">@PlantaDe(b.ClientUnitId)</span>
+                </div>
+                <div class="eq-campo curto"><span class="rot">UF</span><span class="val">@UfDe(b.ClientUnitId)</span></div>
+                <div class="eq-campo">
+                    <span class="rot">Tag</span>
+                    @if (string.IsNullOrWhiteSpace(b.Tag))
+                    {
+                        <span class="vazio">sem tag</span>
+                    }
+                    else
+                    {
+                        <span class="val">@b.Tag</span>
+                    }
+                </div>
+                <div class="eq-campo">
+                    <span class="rot">Nº de série</span>
+                    @if (string.IsNullOrWhiteSpace(b.SerialNo))
+                    {
+                        <span class="vazio">não informado</span>
+                    }
+                    else
+                    {
+                        <span class="val">@b.SerialNo</span>
+                    }
+                </div>
+                <div class="eq-campo curto"><span class="rot">Qtd</span><span class="val">@Math.Max(1, b.Quantidade)</span></div>
+                <div class="eq-campo curto">
+                    <span class="rot">Ano</span>
+                    @if (b.AnoInstalacao > 0)
+                    {
+                        <span class="val">@b.AnoInstalacao</span>
+                    }
+                    else
+                    {
+                        <span class="vazio">—</span>
+                    }
+                </div>
+
+                <span class="eq-sit @(ligado ? "eq-on" : "eq-off")">
+                    <span class="eq-dot"></span>@(ligado ? "Em operação" : "Parado")
+                </span>
+
+                <div class="eq-acoes">
+                    @if (ligado)
+                    {
+                        <button class="ico ico-stop" title="Marcar como parado"
+                                aria-label="Parar" @onclick="() => AlternarOperacao(b)">
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <rect x="5.5" y="5.5" width="13" height="13" rx="2.2" class="cheio" />
+                            </svg>
+                        </button>
+                    }
+                    else
+                    {
+                        <button class="ico ico-go" title="Marcar como em operação"
+                                aria-label="Reativar" @onclick="() => AlternarOperacao(b)">
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M7.5 5.2l11.5 6.8-11.5 6.8z" class="cheio" />
+                            </svg>
+                        </button>
+                    }
+                    <a class="ico ico-abrir" title="Abrir a planta deste equipamento"
+                       aria-label="Abrir a planta" href="@($"/clientes/{b.ClientUnitId}")">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M5 12h13" />
+                            <path d="M12.5 6.5l6 5.5-6 5.5" />
+                        </svg>
+                    </a>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@if (!Agrupados.Any())
+{
+    <div class="eq-card">
+        <div class="eq-vazio">
+            @if (Todos.Count == 0)
+            {
+                <text>Nenhum equipamento instalado na base ainda.</text>
+            }
+            else
+            {
+                <text>Nenhum equipamento corresponde aos filtros escolhidos.</text>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private List<InstalledBase> _base = new();
+    private Dictionary<string, Equipment> _equip = new();
+    private Dictionary<string, ClientUnit> _unidades = new();
+    private Dictionary<string, string> _empresas = new();
+
+    private string _busca = "", _tipo = "", _modelo = "", _fabricante = "", _uf = "", _situacao = "";
+
+    protected override void OnInitialized() => Carregar();
+
+    private void Carregar()
+    {
+        _base = Base.All();
+        _equip = Equipamentos.All().GroupBy(e => e.Id).ToDictionary(g => g.Key, g => g.First());
+        _unidades = Unidades.All().GroupBy(u => u.Id).ToDictionary(g => g.Key, g => g.First());
+        _empresas = Empresas.All().GroupBy(c => c.Id).ToDictionary(g => g.Key, g => g.First().Nome);
+    }
+
+    private List<InstalledBase> Todos => _base;
+
+    // ---- lookups -------------------------------------------------------
+
+    private Equipment CatalogoDe(string equipmentId) =>
+        _equip.TryGetValue(equipmentId, out var e) ? e : new Equipment { Modelo = equipmentId };
+
+    private ClientUnit? UnidadeDe(string unitId) =>
+        _unidades.TryGetValue(unitId, out var u) ? u : null;
+
+    private string PlantaDe(string unitId) => UnidadeDe(unitId)?.NomeUnidade ?? unitId;
+    private string UfDe(string unitId) => Dash(UnidadeDe(unitId)?.Estado ?? "");
+
+    private string ClienteDe(string unitId)
+    {
+        var u = UnidadeDe(unitId);
+        if (u is null) return "—";
+        return _empresas.TryGetValue(u.CompanyId, out var n) ? n : "—";
+    }
+
+    private static bool EmOperacao(InstalledBase b) =>
+        !string.Equals(b.Status, "inativo", StringComparison.OrdinalIgnoreCase);
+
+    private static string Dash(string s) => string.IsNullOrWhiteSpace(s) ? "—" : s;
+
+    // ---- opções dos filtros --------------------------------------------
+    // Derivadas da própria base, para só oferecer o que existe de verdade.
+
+    private List<string> Tipos => _base
+        .Select(b => CatalogoDe(b.EquipmentId).Tipo)
+        .Where(s => !string.IsNullOrWhiteSpace(s))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .OrderBy(s => s, StringComparer.OrdinalIgnoreCase).ToList();
+
+    /// <summary>Modelos do tipo escolhido — escolher o tipo encurta esta lista.</summary>
+    private List<string> Modelos => _base
+        .Where(b => _tipo.Length == 0 || Igual(CatalogoDe(b.EquipmentId).Tipo, _tipo))
+        .Select(b => CatalogoDe(b.EquipmentId).Modelo)
+        .Where(s => !string.IsNullOrWhiteSpace(s))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .OrderBy(s => s, StringComparer.OrdinalIgnoreCase).ToList();
+
+    private List<string> Fabricantes => _base
+        .Select(b => CatalogoDe(b.EquipmentId).Fabricante)
+        .Where(s => !string.IsNullOrWhiteSpace(s))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .OrderBy(s => s, StringComparer.OrdinalIgnoreCase).ToList();
+
+    private List<string> Ufs => _base
+        .Select(b => UnidadeDe(b.ClientUnitId)?.Estado ?? "")
+        .Where(s => !string.IsNullOrWhiteSpace(s))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .OrderBy(s => s, StringComparer.OrdinalIgnoreCase).ToList();
+
+    private bool TemFiltro =>
+        _busca.Length > 0 || _tipo.Length > 0 || _modelo.Length > 0 ||
+        _fabricante.Length > 0 || _uf.Length > 0 || _situacao.Length > 0;
+
+    private static bool Igual(string a, string b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Ao trocar o tipo, o modelo escolhido pode não pertencer mais a ele.</summary>
+    private void TipoMudou()
+    {
+        if (_modelo.Length > 0 && !Modelos.Any(m => Igual(m, _modelo))) _modelo = "";
+    }
+
+    private void SoEsteModelo(Equipment e)
+    {
+        _tipo = e.Tipo ?? "";
+        _modelo = e.Modelo ?? "";
+    }
+
+    private void Limpar()
+    {
+        _busca = ""; _tipo = ""; _modelo = ""; _fabricante = ""; _uf = ""; _situacao = "";
+    }
+
+    // ---- lista ----------------------------------------------------------
+
+    private List<InstalledBase> Filtrados
+    {
+        get
+        {
+            IEnumerable<InstalledBase> q = _base;
+
+            if (_tipo.Length > 0) q = q.Where(b => Igual(CatalogoDe(b.EquipmentId).Tipo, _tipo));
+            if (_modelo.Length > 0) q = q.Where(b => Igual(CatalogoDe(b.EquipmentId).Modelo, _modelo));
+            if (_fabricante.Length > 0) q = q.Where(b => Igual(CatalogoDe(b.EquipmentId).Fabricante, _fabricante));
+            if (_uf.Length > 0) q = q.Where(b => Igual(UnidadeDe(b.ClientUnitId)?.Estado ?? "", _uf));
+            if (_situacao == "ativo") q = q.Where(EmOperacao);
+            if (_situacao == "inativo") q = q.Where(b => !EmOperacao(b));
+
+            if (_busca.Trim().Length > 0)
+            {
+                var s = _busca.Trim().ToLowerInvariant();
+                q = q.Where(b =>
+                {
+                    var e = CatalogoDe(b.EquipmentId);
+                    var texto = string.Join(' ',
+                        b.Tag, b.SerialNo, e.Modelo, e.Tipo, e.Fabricante, e.Aplicacao,
+                        PlantaDe(b.ClientUnitId), ClienteDe(b.ClientUnitId), UfDe(b.ClientUnitId));
+                    return texto.ToLowerInvariant().Contains(s);
+                });
+            }
+
+            return q.ToList();
+        }
+    }
+
+    /// <summary>Equipamentos iguais ficam no mesmo cartão, em ordem de tipo e modelo.</summary>
+    private IEnumerable<IGrouping<string, InstalledBase>> Agrupados =>
+        Filtrados
+            .OrderBy(b => CatalogoDe(b.EquipmentId).Tipo, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(b => CatalogoDe(b.EquipmentId).Modelo, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(b => ClienteDe(b.ClientUnitId), StringComparer.OrdinalIgnoreCase)
+            .ThenBy(b => PlantaDe(b.ClientUnitId), StringComparer.OrdinalIgnoreCase)
+            .ThenBy(b => b.Tag, StringComparer.OrdinalIgnoreCase)
+            .GroupBy(b => b.EquipmentId);
+
+    private void AlternarOperacao(InstalledBase b)
+    {
+        b.Status = EmOperacao(b) ? "inativo" : "ativo";
+        b.OperatingStatus = EmOperacao(b) ? "Em operação" : "Parado";
+        Base.Save(b);
+        Intel.Invalidate();
+        Carregar();
+    }
+}

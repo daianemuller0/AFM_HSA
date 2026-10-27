@@ -11,7 +11,28 @@
 <PageTitle>Clientes e Unidades · AFM HSA</PageTitle>
 
 <h1>Clientes e Unidades</h1>
-<p class="subtitle">@Filtradas.Count planta(s) cadastrada(s)</p>
+<p class="subtitle">
+    @if (_aba == "plantas")
+    {
+        <text>@Filtradas.Count planta(s) cadastrada(s)</text>
+    }
+    else
+    {
+        <text>Controle da base pelo equipamento: os iguais ficam juntos, em qualquer planta.</text>
+    }
+</p>
+
+<div class="tabs">
+    <button class="tab @(_aba == "plantas" ? "active" : "")" @onclick='() => _aba = "plantas"'>Por planta</button>
+    <button class="tab @(_aba == "equipamentos" ? "active" : "")" @onclick='() => _aba = "equipamentos"'>Por equipamento</button>
+</div>
+
+@if (_aba == "equipamentos")
+{
+    <ControleEquipamentos />
+}
+else
+{
 
 <div class="toolbar">
     <input class="cell" style="max-width:320px" placeholder="Buscar cliente, unidade, CNPJ, segmento…"
@@ -196,7 +217,11 @@
     </div>
 }
 
+}
+
 @code {
+    private string _aba = "plantas";
+
     private const string NovoCliente = "__novo__";
 
     [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
