@@ -751,3 +751,12 @@ h1 { font-size: 24px; margin: 0 0 4px; color: var(--primary); letter-spacing: -.
 .eq-campo .sub { display: block; font-size: 12.5px; color: var(--muted); margin-top: 1px; }
 .ico-abrir { color: var(--primary); text-decoration: none; }
 .ico-abrir:hover { background: #eef4fa; }
+
+/* ===== Busca dentro do BOM ===== */
+.busca-bom { max-width: 330px; }
+.busca-info { font-size: 12.5px; color: var(--muted); display: inline-flex; align-items: center; gap: 8px; }
+.busca-info strong { color: var(--text); }
+.busca-aviso {
+    font-size: 12.5px; color: #0c4a6e; background: #eef6ff; border: 1px solid #cfe3f7;
+    border-radius: var(--radius-sm); padding: 8px 12px; margin-bottom: 10px;
+}

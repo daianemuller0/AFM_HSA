@@ -40,19 +40,26 @@ else
 
     <div class="dash-title">Cliente / unidade onde está instalado</div>
     <table class="grid" style="margin-bottom:20px">
-        <thead><tr><th>Cliente / Unidade</th><th class="right">Qtd</th><th>Ano</th><th>Status</th><th>Criticidade</th></tr></thead>
+        <thead>
+            <tr>
+                <th>Cliente / Unidade</th><th>Tag</th><th>Nº de série</th>
+                <th class="right">Qtd</th><th>Ano</th><th>Status</th><th>Criticidade</th>
+            </tr>
+        </thead>
         <tbody>
             @foreach (var b in _base)
             {
                 <tr>
                     <td>@Intel.ClienteDaUnidade(b.ClientUnitId) — @Intel.UnitNome(b.ClientUnitId)</td>
+                    <td class="nowrap">@Txt(b.Tag)</td>
+                    <td class="nowrap">@Txt(b.SerialNo)</td>
                     <td class="right">@b.Quantidade</td>
                     <td>@(b.AnoInstalacao > 0 ? b.AnoInstalacao.ToString() : "—")</td>
                     <td>@Cap(b.Status)</td>
                     <td><span class="badge @CritClass(b.Criticidade)">@Cap(b.Criticidade)</span></td>
                 </tr>
             }
-            @if (_base.Count == 0) { <tr><td colspan="5" class="empty">Não instalado.</td></tr> }
+            @if (_base.Count == 0) { <tr><td colspan="7" class="empty">Não instalado.</td></tr> }
         </tbody>
     </table>
 
@@ -207,6 +214,16 @@ else
             </span>
         </div>
         <div class="toolbar tab-toolbar">
+            <input class="cell busca-bom" placeholder="Buscar item, partnumber, descrição, material…"
+                   @bind="_bomBusca" @bind:event="oninput" />
+            @if (_bomBusca.Trim().Length > 0)
+            {
+                <span class="busca-info">
+                    <strong>@BomVisivel.Count</strong> de @_bom.Count item(ns)
+                    <button class="btn-link" @onclick='() => _bomBusca = ""'>limpar</button>
+                </span>
+            }
+            <div style="flex:1"></div>
             <button class="btn-ghost" @onclick="BaixarBom">⬇ Baixar Excel</button>
             <label class="btn-ghost file-btn">
                 ⬆ Subir planilha
@@ -217,6 +234,13 @@ else
             </label>
             <button class="btn-primary" @onclick="NovoItemBom">+ Adicionar item</button>
         </div>
+        @if (_bomBusca.Trim().Length > 0)
+        {
+            <div class="busca-aviso">
+                A busca só filtra o que aparece na tela — o <strong>Baixar Excel</strong> continua
+                trazendo o BOM completo deste equipamento.
+            </div>
+        }
         @if (_bomMsg is not null)
         {
             <div class="@(_bomOk ? "side-ok" : "alert-error")" style="margin-bottom:10px">@_bomMsg</div>
@@ -230,7 +254,7 @@ else
                 </tr>
             </thead>
             <tbody>
-                @foreach (var b in _bom)
+                @foreach (var b in BomVisivel)
                 {
                     @if (_editBomId == b.Id)
                     {
@@ -276,7 +300,21 @@ else
                         </tr>
                     }
                 }
-                @if (_bom.Count == 0) { <tr><td colspan="7" class="empty">Nenhum item de BOM cadastrado para este equipamento.</td></tr> }
+                @if (BomVisivel.Count == 0)
+                {
+                    <tr>
+                        <td colspan="7" class="empty">
+                            @if (_bom.Count == 0)
+                            {
+                                <text>Nenhum item de BOM cadastrado para este equipamento.</text>
+                            }
+                            else
+                            {
+                                <text>Nenhum item do BOM corresponde a "@_bomBusca".</text>
+                            }
+                        </td>
+                    </tr>
+                }
             </tbody>
         </table>
     }
@@ -297,6 +335,7 @@ else
 
     // --- estado das edições / importações ---------------------------------
     private string? _editBomId, _confirmBomId, _bomMsg, _bomErro;
+    private string _bomBusca = "";
     private bool _bomOk, _bomSubstituir;
     private BomItem _fb = new();
 
@@ -311,7 +350,11 @@ else
         _e = Equipamentos.All().FirstOrDefault(e => e.Id == Id);
         if (_e is null) return;
         _parts = Pecas.All().Where(p => p.EquipmentId == _e.Id).OrderBy(p => p.Nome).ToList();
-        _base = Base.All().Where(b => b.EquipmentId == _e.Id).ToList();
+        _base = Base.All().Where(b => b.EquipmentId == _e.Id)
+            .OrderBy(b => Intel.ClienteDaUnidade(b.ClientUnitId), StringComparer.OrdinalIgnoreCase)
+            .ThenBy(b => Intel.UnitNome(b.ClientUnitId), StringComparer.OrdinalIgnoreCase)
+            .ThenBy(b => b.Tag, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(b => b.SerialNo, StringComparer.OrdinalIgnoreCase).ToList();
         _constr = Construcao.ForEquip(_e.Id);
         _bom = Bom.ForEquip(_e.Id)
             .OrderBy(b => OrdemItem(b.Item))
@@ -329,6 +372,23 @@ else
     }
 
     // =================== BOM ==============================================
+
+    /// <summary>
+    /// Itens do BOM exibidos. A linha em edição fica sempre visível, mesmo que
+    /// não case com a busca — senão um item recém-criado sumiria da tela.
+    /// </summary>
+    private List<BomItem> BomVisivel
+    {
+        get
+        {
+            var s = _bomBusca.Trim();
+            if (s.Length == 0) return _bom;
+            var alvo = s.ToLowerInvariant();
+            return _bom.Where(b => b.Id == _editBomId || string.Join(' ',
+                    b.Item, b.Quantidade, b.PartNumber, b.DescricaoEn, b.DescricaoPt, b.Material)
+                .ToLowerInvariant().Contains(alvo)).ToList();
+        }
+    }
 
     private void NovoItemBom()
     {
