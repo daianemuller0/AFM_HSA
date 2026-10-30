@@ -1,0 +1,317 @@
+@page "/nacionalizacao"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@using System.Globalization
+@inject NacionalizacaoRepository Nacionais
+@inject ImportService Importer
+@inject IJSRuntime JS
+
+<PageTitle>Nacionalização · AFM HSA</PageTitle>
+
+<h1>Nacionalização</h1>
+<p class="subtitle">
+    Peças nacionalizadas. A ficha do equipamento consulta esta lista pelo partnumber
+    e mostra se a peça é nacionalizada.
+</p>
+
+<div class="kpis kpis-4" style="margin-bottom:16px">
+    <div class="kpi"><div class="kpi-label">Itens na lista</div><div class="kpi-value">@_lista.Count</div></div>
+    <div class="kpi"><div class="kpi-label">Total intercompany</div><div class="kpi-value" style="font-size:18px">@Fmt.Brl0(_lista.Sum(n => n.ValorTotalIntercompany))</div></div>
+    <div class="kpi k-ok"><div class="kpi-label">Total BR</div><div class="kpi-value" style="font-size:18px">@Fmt.Brl0(_lista.Sum(n => n.TotalBr))</div></div>
+    <div class="kpi k-aten"><div class="kpi-label">Já vendidos</div><div class="kpi-value">@_lista.Count(n => n.JaVendido) de @_lista.Count</div></div>
+</div>
+
+<div class="toolbar tab-toolbar">
+    <input class="cell busca-bom" placeholder="Buscar projeto, cód. HSA, partnumber, descrição…"
+           @bind="_busca" @bind:event="oninput" />
+    <select class="cell" style="width:220px;flex:none" @bind="_filtroVendido">
+        <option value="">Vendidos e não vendidos</option>
+        <option value="sim">Só já vendidos</option>
+        <option value="nao">Só ainda não vendidos</option>
+    </select>
+    @if (TemFiltro)
+    {
+        <span class="busca-info">
+            <strong>@Visiveis.Count</strong> de @_lista.Count item(ns)
+            <button class="btn-link" @onclick="LimparFiltros">limpar</button>
+        </span>
+    }
+    <div style="flex:1"></div>
+    <button class="btn-ghost" @onclick="Baixar">⬇ Baixar Excel</button>
+    <label class="btn-ghost file-btn">
+        ⬆ Subir planilha
+        <InputFile OnChange="Subir" accept=".xlsx,.xlsm,.xls,.csv" />
+    </label>
+    <label class="chk-inline">
+        <input type="checkbox" @bind="_substituir" /> substituir a lista inteira
+    </label>
+    <button class="btn-primary" @onclick="Novo">+ Adicionar peça</button>
+</div>
+
+@if (TemFiltro)
+{
+    <div class="busca-aviso">
+        O filtro só muda o que aparece na tela — o <strong>Baixar Excel</strong> traz a lista completa.
+    </div>
+}
+@if (_msg is not null)
+{
+    <div class="@(_ok ? "side-ok" : "alert-error")" style="margin-bottom:10px">@_msg</div>
+}
+
+<div class="tabela-rolante">
+<table class="grid">
+    <thead>
+        <tr>
+            <th>Data da nacionalização</th><th>Projeto</th><th>Cód. HSA</th><th>Partnumber</th>
+            <th>Descrição alterada</th><th class="right">Qnt.</th>
+            <th class="right">Valor intercompany</th><th class="right">Valor total intercompany</th>
+            <th class="right">Valor BR</th><th class="right">Total BR</th>
+            <th>Já vendido?</th><th class="right">Ações</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var n in Visiveis)
+        {
+            @if (_editId == n.Id)
+            {
+                <tr class="row-edit">
+                    <td colspan="12">
+                        <div class="form3 form-edit">
+                            <label>Data da nacionalização <input class="cell" type="date" @bind="DataForm" /></label>
+                            <label>Projeto <input class="cell" @bind="_f.Projeto" /></label>
+                            <label>Cód. HSA <input class="cell" @bind="_f.CodHsa" /></label>
+                            <label>Partnumber * <input class="cell" @bind="_f.PartNumber" /></label>
+                            <label>Descrição alterada <input class="cell" @bind="_f.DescricaoAlterada" /></label>
+                            <label>Qnt. <input class="cell" type="number" min="0" step="any"
+                                               @bind="_f.Quantidade" @bind:after="Recalcular" /></label>
+                            <label>Valor intercompany (R$) <input class="cell" type="number" min="0" step="0.01"
+                                                                  @bind="_f.ValorIntercompany" @bind:after="Recalcular" /></label>
+                            <label>Valor total intercompany (R$)
+                                <input class="cell" type="number" min="0" step="0.01" @bind="_f.ValorTotalIntercompany" />
+                                <span style="font-size:11px;color:var(--muted)">qnt. × valor; dá para ajustar</span>
+                            </label>
+                            <label>Valor BR (R$) <input class="cell" type="number" min="0" step="0.01"
+                                                        @bind="_f.ValorBr" @bind:after="Recalcular" /></label>
+                            <label>Total BR (R$)
+                                <input class="cell" type="number" min="0" step="0.01" @bind="_f.TotalBr" />
+                                <span style="font-size:11px;color:var(--muted)">qnt. × valor; dá para ajustar</span>
+                            </label>
+                            <label>Já vendido?
+                                <select class="cell" @bind="VendidoForm">
+                                    <option value="nao">Não</option>
+                                    <option value="sim">Sim</option>
+                                </select>
+                            </label>
+                        </div>
+                        <div class="toolbar" style="margin-top:10px">
+                            <button class="btn-primary" @onclick="Salvar">Salvar</button>
+                            <button class="btn-ghost" @onclick="Cancelar">Cancelar</button>
+                            @if (_erro is not null) { <span class="alert-error" style="padding:6px 10px">@_erro</span> }
+                        </div>
+                    </td>
+                </tr>
+            }
+            else
+            {
+                <tr>
+                    <td class="nowrap">@Fmt.Date(n.Data)</td>
+                    <td>@Txt(n.Projeto)</td>
+                    <td class="nowrap">@Txt(n.CodHsa)</td>
+                    <td class="nowrap"><strong>@Txt(n.PartNumber)</strong></td>
+                    <td>@Txt(n.DescricaoAlterada)</td>
+                    <td class="right">@Num(n.Quantidade)</td>
+                    <td class="right nowrap">@Fmt.Brl(n.ValorIntercompany)</td>
+                    <td class="right nowrap">@Fmt.Brl(n.ValorTotalIntercompany)</td>
+                    <td class="right nowrap">@Fmt.Brl(n.ValorBr)</td>
+                    <td class="right nowrap"><strong>@Fmt.Brl(n.TotalBr)</strong></td>
+                    <td>
+                        @if (n.JaVendido)
+                        {
+                            <span class="nac nac-sim">Sim</span>
+                        }
+                        else
+                        {
+                            <span class="nac nac-nao">Não</span>
+                        }
+                    </td>
+                    <td class="right nowrap">
+                        <button class="btn-link" @onclick="() => Editar(n)">editar</button>
+                        @if (_confirmId == n.Id)
+                        {
+                            <button class="btn-link" style="color:#b91c1c;font-weight:700" @onclick="() => Excluir(n)">confirmar</button>
+                            <button class="btn-link" style="color:var(--muted)" @onclick="() => _confirmId = null">não</button>
+                        }
+                        else
+                        {
+                            <button class="btn-link" style="color:#b91c1c" @onclick="() => _confirmId = n.Id">excluir</button>
+                        }
+                    </td>
+                </tr>
+            }
+        }
+        @if (Visiveis.Count == 0)
+        {
+            <tr>
+                <td colspan="12" class="empty">
+                    @if (_lista.Count == 0)
+                    {
+                        <text>Nenhuma peça nacionalizada cadastrada. Use "Adicionar peça" ou suba a planilha.</text>
+                    }
+                    else
+                    {
+                        <text>Nenhuma peça corresponde ao filtro.</text>
+                    }
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+</div>
+
+@code {
+    private List<Nacionalizacao> _lista = new();
+    private string _busca = "", _filtroVendido = "";
+    private bool _substituir, _ok;
+    private string? _msg, _erro, _editId, _confirmId;
+    private Nacionalizacao _f = new();
+
+    protected override void OnInitialized() => Carregar();
+
+    private void Carregar() => _lista = Nacionais.All();
+
+    private bool TemFiltro => _busca.Trim().Length > 0 || _filtroVendido.Length > 0;
+
+    private void LimparFiltros() { _busca = ""; _filtroVendido = ""; }
+
+    /// <summary>A linha em edição fica sempre visível, mesmo fora do filtro.</summary>
+    private List<Nacionalizacao> Visiveis
+    {
+        get
+        {
+            IEnumerable<Nacionalizacao> q = _lista;
+            if (_filtroVendido == "sim") q = q.Where(n => n.JaVendido || n.Id == _editId);
+            if (_filtroVendido == "nao") q = q.Where(n => !n.JaVendido || n.Id == _editId);
+            var s = _busca.Trim().ToLowerInvariant();
+            if (s.Length > 0)
+                q = q.Where(n => n.Id == _editId || string.Join(' ',
+                        Fmt.Date(n.Data), n.Projeto, n.CodHsa, n.PartNumber, n.DescricaoAlterada)
+                    .ToLowerInvariant().Contains(s));
+            return q.ToList();
+        }
+    }
+
+    // ---- formulário -------------------------------------------------------
+
+    /// <summary>Ponte entre o campo de data e o texto ISO gravado.</summary>
+    private DateOnly? DataForm
+    {
+        get => DateOnly.TryParseExact(_f.Data, "yyyy-MM-dd", CultureInfo.InvariantCulture,
+            DateTimeStyles.None, out var d) ? d : null;
+        set => _f.Data = value?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "";
+    }
+
+    private string VendidoForm
+    {
+        get => _f.JaVendido ? "sim" : "nao";
+        set => _f.JaVendido = value == "sim";
+    }
+
+    /// <summary>Totais acompanham qnt. × valor unitário; o usuário pode ajustar depois.</summary>
+    private void Recalcular()
+    {
+        _f.ValorTotalIntercompany = _f.Quantidade * _f.ValorIntercompany;
+        _f.TotalBr = _f.Quantidade * _f.ValorBr;
+    }
+
+    private void Novo()
+    {
+        _f = new Nacionalizacao
+        {
+            Id = "nac-" + Guid.NewGuid().ToString("N")[..8],
+            Data = DateTime.Today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            Quantidade = 1,
+        };
+        _editId = _f.Id; _erro = null; _msg = null;
+        _lista.Insert(0, _f);
+    }
+
+    private void Editar(Nacionalizacao n)
+    {
+        _editId = n.Id; _erro = null; _msg = null;
+        _f = new Nacionalizacao
+        {
+            Id = n.Id, Data = n.Data, Projeto = n.Projeto, CodHsa = n.CodHsa, PartNumber = n.PartNumber,
+            DescricaoAlterada = n.DescricaoAlterada, Quantidade = n.Quantidade,
+            ValorIntercompany = n.ValorIntercompany, ValorTotalIntercompany = n.ValorTotalIntercompany,
+            ValorBr = n.ValorBr, TotalBr = n.TotalBr, JaVendido = n.JaVendido,
+        };
+    }
+
+    private void Salvar()
+    {
+        _f.PartNumber = (_f.PartNumber ?? "").Trim();
+        if (_f.PartNumber.Length == 0)
+        {
+            _erro = "Informe o partnumber — é por ele que a ficha do equipamento encontra a peça.";
+            return;
+        }
+        Nacionais.Save(_f);
+        _editId = null; _erro = null;
+        _msg = $"Peça {_f.PartNumber} salva."; _ok = true;
+        Carregar();
+    }
+
+    private void Cancelar() { _editId = null; _erro = null; Carregar(); }
+
+    private void Excluir(Nacionalizacao n)
+    {
+        Nacionais.Delete(n);
+        _confirmId = null; _editId = null;
+        _msg = $"Peça {n.PartNumber} excluída da lista."; _ok = true;
+        Carregar();
+    }
+
+    // ---- planilha ---------------------------------------------------------
+
+    // Mesmos títulos da planilha da equipe: o arquivo baixado volta pela importação.
+    private static readonly string[] Cabecalho =
+    {
+        "Data da nacionalização", "Projeto", "Cód. HSA", "Partnumber", "Descrição Alterada", "Qnt.",
+        "Valor Intercompany", "Valor total Intercompany", "Valor BR", "Total BR", "Já vendido?",
+    };
+
+    private async Task Baixar()
+    {
+        var inv = CultureInfo.InvariantCulture;
+        var linhas = _lista.Where(n => n.Id != _editId || !string.IsNullOrWhiteSpace(n.PartNumber))
+            .Select(n => new[]
+            {
+                n.Data, n.Projeto, n.CodHsa, n.PartNumber, n.DescricaoAlterada,
+                n.Quantidade.ToString("0.##", inv),
+                n.ValorIntercompany.ToString("0.##", inv), n.ValorTotalIntercompany.ToString("0.##", inv),
+                n.ValorBr.ToString("0.##", inv), n.TotalBr.ToString("0.##", inv),
+                n.JaVendido ? "Sim" : "Não",
+            }).ToList();
+        var bytes = Planilha.Xlsx("Nacionalizacao", Cabecalho, linhas);
+        await JS.InvokeVoidAsync("appDownload", "Nacionalizacao.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            Convert.ToBase64String(bytes));
+    }
+
+    private async Task Subir(InputFileChangeEventArgs e)
+    {
+        const long limite = 25L * 1024 * 1024;
+        if (e.File.Size > limite) { _msg = "Arquivo muito grande (limite de 25 MB)."; _ok = false; return; }
+        using var ms = new MemoryStream();
+        await e.File.OpenReadStream(limite).CopyToAsync(ms);
+        var res = Importer.ImportNacionalizacao(ms.ToArray(), e.File.Name, _substituir);
+        _msg = res.Message; _ok = res.Ok;
+        if (res.Ok) { _editId = null; Carregar(); }
+    }
+
+    // ---- formatação -------------------------------------------------------
+
+    private static string Txt(string s) => string.IsNullOrWhiteSpace(s) ? "—" : s;
+    private static string Num(decimal d) => d.ToString("0.##", new CultureInfo("pt-BR"));
+}

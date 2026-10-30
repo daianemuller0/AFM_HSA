@@ -14,6 +14,7 @@ public static class Icons
         ["gauge"] = "<path d='M12 15l3.5-3.5'/><path d='M2 12a10 10 0 1 1 20 0'/>",
         ["briefcase"] = "<rect x='2' y='7' width='20' height='14' rx='2'/><path d='M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16'/>",
         ["target"] = "<circle cx='12' cy='12' r='10'/><circle cx='12' cy='12' r='6'/><circle cx='12' cy='12' r='2'/>",
+        ["flag"] = "<path d='M4 22V4'/><path d='M4 4h12l-2 4 2 4H4'/>",
         ["receipt"] = "<path d='M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1V2l-2 1-2-1-2 1-2-1-2 1-2-1Z'/><path d='M8 7h8'/><path d='M8 11h8'/><path d='M8 15h5'/>",
         ["map-pin"] = "<path d='M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0Z'/><circle cx='12' cy='10' r='3'/>",
         ["bell"] = "<path d='M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9'/><path d='M13.73 21a2 2 0 0 1-3.46 0'/>",

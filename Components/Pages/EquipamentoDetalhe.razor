@@ -8,6 +8,7 @@
 @inject SalesRecordRepository Vendas
 @inject ConstructionRepository Construcao
 @inject BomRepository Bom
+@inject NacionalizacaoRepository Nacionais
 @inject ClientUnitRepository Unidades
 @inject SalespersonRepository Vendedores
 @inject ImportService Importer
@@ -79,7 +80,7 @@ else
     <table class="grid" style="margin-bottom:20px">
         <thead>
             <tr>
-                <th>Partnumber</th><th>Descrição (do BOM)</th><th>Frequência de troca</th>
+                <th>Partnumber</th><th>Peça nacionalizada</th><th>Descrição (do BOM)</th><th>Frequência de troca</th>
                 <th>Compras no histórico</th><th class="right">Valor estimado</th><th>Criticidade</th>
                 <th class="right">Ações</th>
             </tr>
@@ -90,7 +91,7 @@ else
                 @if (_editRegraId == p.Id)
                 {
                     <tr class="row-edit">
-                        <td colspan="7">
+                        <td colspan="8">
                             <div class="form3 form-edit">
                                 <label>Partnumber *
                                     <input class="cell" list="bom-pns" @bind="_fp.Codigo" @bind:after="PnRegraMudou" />
@@ -133,6 +134,7 @@ else
                                 <strong>@p.Codigo</strong>
                             }
                         </td>
+                        <td>@SeloNacional(p.Codigo)</td>
                         <td>@(DescricaoBom(p.Codigo) is { Length: > 0 } d ? d : p.Nome)</td>
                         <td class="nowrap">@Freq(p.CicloMeses)</td>
                         <td class="nowrap">
@@ -163,7 +165,7 @@ else
                     </tr>
                 }
             }
-            @if (_parts.Count == 0) { <tr><td colspan="7" class="empty">Nenhuma regra de troca cadastrada. Use "Adicionar regra" e escolha o partnumber do BOM.</td></tr> }
+            @if (_parts.Count == 0) { <tr><td colspan="8" class="empty">Nenhuma regra de troca cadastrada. Use "Adicionar regra" e escolha o partnumber do BOM.</td></tr> }
         </tbody>
     </table>
 
@@ -210,7 +212,7 @@ else
         <thead>
             <tr>
                 <th>Data</th><th>N° de venda</th><th>Modelo</th><th>Serial number</th><th>TAG</th>
-                <th>Partnumber</th><th class="right">Quantidade</th>
+                <th>Partnumber</th><th>Peça nacionalizada</th><th class="right">Quantidade</th>
                 <th class="right">Valor unitário</th><th class="right">Valor total</th>
                 <th>Prazo de entrega</th><th>Observação</th><th class="right">Ações</th>
             </tr>
@@ -221,7 +223,7 @@ else
                 @if (_editVendaId == s.Id)
                 {
                     <tr class="row-edit">
-                        <td colspan="12">
+                        <td colspan="13">
                             <div class="form3 form-edit">
                                 <label>Data * <input class="cell" type="date" @bind="DataDaVenda" /></label>
                                 <label>N° de venda <input class="cell" @bind="_fv.Pedido" placeholder="ex.: PV-44821" /></label>
@@ -300,6 +302,7 @@ else
                                 <span class="sub-cel fora" title="Este partnumber não está no BOM do equipamento">@s.ItemVendido</span>
                             }
                         </td>
+                        <td>@SeloNacional(s.PartNumber)</td>
                         <td class="right">@s.Quantidade</td>
                         <td class="right nowrap">@Fmt.Brl(s.ValorUnitario)</td>
                         <td class="right nowrap"><strong>@Fmt.Brl0(s.Valor)</strong></td>
@@ -323,7 +326,7 @@ else
             @if (HistVisivel.Count == 0)
             {
                 <tr>
-                    <td colspan="12" class="empty">
+                    <td colspan="13" class="empty">
                         @if (_sales.Count == 0)
                         {
                             <text>Sem histórico de vendas AFM para este equipamento.</text>
@@ -413,7 +416,7 @@ else
         <table class="grid">
             <thead>
                 <tr>
-                    <th>Item</th><th class="right">Quantidade</th><th>Partnumber</th>
+                    <th>Item</th><th class="right">Quantidade</th><th>Partnumber</th><th>Peça nacionalizada</th>
                     <th>Descrição em inglês</th><th>Descrição em português</th><th>Material</th>
                     <th class="right">Ações</th>
                 </tr>
@@ -424,7 +427,7 @@ else
                     @if (_editBomId == b.Id)
                     {
                         <tr class="row-edit">
-                            <td colspan="7">
+                            <td colspan="8">
                                 <div class="form3 form-edit">
                                     <label>Item <input class="cell" @bind="_fb.Item" placeholder="ex.: 10" /></label>
                                     <label>Quantidade <input class="cell" @bind="_fb.Quantidade" placeholder="ex.: 2 ou 1 jogo" /></label>
@@ -447,6 +450,7 @@ else
                             <td class="nowrap">@Txt(b.Item)</td>
                             <td class="right">@Txt(b.Quantidade)</td>
                             <td class="nowrap">@Txt(b.PartNumber)</td>
+                            <td>@SeloNacional(b.PartNumber)</td>
                             <td>@Txt(b.DescricaoEn)</td>
                             <td>@Txt(b.DescricaoPt)</td>
                             <td>@Txt(b.Material)</td>
@@ -468,7 +472,7 @@ else
                 @if (BomVisivel.Count == 0)
                 {
                     <tr>
-                        <td colspan="7" class="empty">
+                        <td colspan="8" class="empty">
                             @if (_bom.Count == 0)
                             {
                                 <text>Nenhum item de BOM cadastrado para este equipamento.</text>
@@ -493,6 +497,7 @@ else
     private List<ConstructionItem> _constr = new();
     private List<BomItem> _bom = new();
     private List<SalesRecord> _sales = new();
+    private HashSet<string> _nacionais = new();   // partnumbers nacionalizados (normalizados)
     private List<ClientUnit> _unidades = new();
     private List<Salesperson> _vendedores = new();
     private int _qtd, _pecasCriticas;
@@ -530,6 +535,7 @@ else
             .ThenBy(b => b.Tag, StringComparer.OrdinalIgnoreCase)
             .ThenBy(b => b.SerialNo, StringComparer.OrdinalIgnoreCase).ToList();
         _constr = Construcao.ForEquip(_e.Id);
+        _nacionais = Nacionais.PartNumbers();
         _bom = Bom.ForEquip(_e.Id)
             .OrderBy(b => OrdemItem(b.Item))
             .ThenBy(b => b.Item, StringComparer.OrdinalIgnoreCase)
@@ -557,6 +563,16 @@ else
         if (item is null) return "";
         return !string.IsNullOrWhiteSpace(item.DescricaoPt) ? item.DescricaoPt : item.DescricaoEn;
     }
+
+    /// <summary>O partnumber está na lista de Nacionalização?</summary>
+    private bool EhNacionalizada(string? pn) =>
+        _nacionais.Contains(IntelligenceService.NormPn(pn));
+
+    /// <summary>Selo Sim/Não da coluna "Peça nacionalizada" (texto fixo, sem dado do usuário).</summary>
+    private MarkupString SeloNacional(string? pn) => new(
+        string.IsNullOrWhiteSpace(pn) ? "<span style=\"color:var(--muted)\">—</span>"
+        : EhNacionalizada(pn) ? "<span class=\"nac nac-sim\">Sim</span>"
+        : "<span class=\"nac nac-nao\">Não</span>");
 
     private string DicaBom(string? pn)
     {
@@ -709,7 +725,7 @@ else
     }
 
     private static readonly string[] BomHeader =
-        { "item", "quantidade", "partnumber", "descricao_em_ingles", "descricao_portugues", "material" };
+        { "item", "quantidade", "partnumber", "peca_nacionalizada", "descricao_em_ingles", "descricao_portugues", "material" };
 
     private async Task BaixarBom()
     {
@@ -717,7 +733,7 @@ else
         var linhas = _bom
             .Where(b => !string.IsNullOrWhiteSpace(b.PartNumber) || !string.IsNullOrWhiteSpace(b.Item)
                      || !string.IsNullOrWhiteSpace(b.DescricaoEn) || !string.IsNullOrWhiteSpace(b.DescricaoPt))
-            .Select(b => new[] { b.Item, b.Quantidade, b.PartNumber, b.DescricaoEn, b.DescricaoPt, b.Material })
+            .Select(b => new[] { b.Item, b.Quantidade, b.PartNumber, SimNao(b.PartNumber), b.DescricaoEn, b.DescricaoPt, b.Material })
             .ToList();
         var bytes = Planilha.Xlsx("BOM", BomHeader, linhas);
         await Baixar($"BOM_{Arquivo(_e!)}.xlsx", bytes);
@@ -879,7 +895,7 @@ else
     // precisam voltar intactas quando a planilha for importada de novo.
     private static readonly string[] HistHeader =
         { "data_venda", "numero_de_venda", "modelo", "serial_number", "tag", "partnumber",
-          "descricao", "quantidade", "valor_unitario", "valor_total", "prazo_de_entrega",
+          "peca_nacionalizada", "descricao", "quantidade", "valor_unitario", "valor_total", "prazo_de_entrega",
           "observacao", "importacao", "unidade", "vendedor" };
 
     private async Task BaixarHistorico()
@@ -892,6 +908,7 @@ else
             s.SerialNo,
             s.Tag,
             s.PartNumber,
+            SimNao(s.PartNumber),
             DescricaoBom(s.PartNumber) is { Length: > 0 } d ? d : s.ItemVendido,
             s.Quantidade.ToString(CultureInfo.InvariantCulture),
             s.ValorUnitario.ToString("0.##", CultureInfo.InvariantCulture),
@@ -993,6 +1010,10 @@ else
     /// <summary>Ordena o item do BOM pelo número (10, 20, 100) e não como texto.</summary>
     private static int OrdemItem(string item) =>
         int.TryParse(new string((item ?? "").Where(char.IsDigit).ToArray()), out var n) ? n : int.MaxValue;
+
+    /// <summary>"Sim"/"Não" da peça nacionalizada para as planilhas exportadas.</summary>
+    private string SimNao(string? pn) =>
+        string.IsNullOrWhiteSpace(pn) ? "" : EhNacionalizada(pn) ? "Sim" : "Não";
 
     private static string Txt(string s) => string.IsNullOrWhiteSpace(s) ? "—" : s;
 

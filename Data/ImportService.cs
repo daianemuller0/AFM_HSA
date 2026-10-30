@@ -410,6 +410,69 @@ public class ImportService
             return new ImportResult { Ok = true, Count = outRows.Count, Message = $"{outRows.Count} registro(s) importado(s)." };
         });
 
+    // ---- nacionalização ---------------------------------------------------
+
+    /// <summary>
+    /// Lista de peças nacionalizadas. Cabeçalhos do jeito que a equipe usa
+    /// ("Data da nacionalização", "Cód. HSA", "Qnt.", "Já vendido?"…) ou em
+    /// snake_case; os totais faltantes saem de quantidade × unitário.
+    /// </summary>
+    public ImportResult ImportNacionalizacao(byte[] bytes, string fileName, bool substituir)
+        => ImportarNaFicha(bytes, fileName, rows =>
+        {
+            var (c, dados) = rows;
+            var inv = CultureInfo.InvariantCulture;
+            var outRows = new List<IReadOnlyList<KeyValuePair<string, object?>>>();
+            foreach (var r in dados)
+            {
+                var pn = Get(r, c, PnAliases);
+                var cod = Get(r, c, "cod__hsa", "cod_hsa", "codigo_hsa", "cod_hsa_");
+                var desc = Get(r, c, "descricao_alterada", "descricao", "description");
+                if (string.IsNullOrWhiteSpace(pn) && string.IsNullOrWhiteSpace(cod) && string.IsNullOrWhiteSpace(desc))
+                    continue;
+
+                var qtd = Fmt.Dec(NumStr(Get(r, c, "qnt", "qtd", "quantidade", "qty")));
+                var (icUnit, icTotal) = UnitarioETotal(qtd,
+                    Get(r, c, "valor_intercompany", "vl_intercompany", "intercompany"),
+                    Get(r, c, "valor_total_intercompany", "total_intercompany"));
+                var (brUnit, brTotal) = UnitarioETotal(qtd,
+                    Get(r, c, "valor_br", "vl_br"),
+                    Get(r, c, "total_br", "valor_total_br"));
+
+                outRows.Add(Row(
+                    ("id", "nac-" + Guid.NewGuid().ToString("N")[..8]),
+                    ("data", GetDate(r, c, "data_da_nacionalizacao", "data_nacionalizacao", "data")),
+                    ("projeto", Get(r, c, "projeto", "project")),
+                    ("cod_hsa", cod),
+                    ("part_number", pn),
+                    ("descricao_alterada", desc),
+                    ("quantidade", qtd.ToString(inv)),
+                    ("valor_intercompany", icUnit.ToString(inv)),
+                    ("valor_total_intercompany", icTotal.ToString(inv)),
+                    ("valor_br", brUnit.ToString(inv)),
+                    ("total_br", brTotal.ToString(inv)),
+                    ("ja_vendido", SimNao(Get(r, c, "ja_vendido", "vendido", "ja_foi_vendido")) ? "true" : "false")));
+            }
+            return Write("nacionalizacao", outRows, substituir);
+        });
+
+    /// <summary>Unitário e total de uma linha: o que faltar sai do outro pela quantidade.</summary>
+    private static (decimal Unit, decimal Total) UnitarioETotal(decimal qtd, string unitTexto, string totalTexto)
+    {
+        var unit = Fmt.Dec(NumStr(unitTexto));
+        var total = Fmt.Dec(NumStr(totalTexto));
+        if (total == 0m && unit != 0m && qtd > 0) total = unit * qtd;
+        if (unit == 0m && total != 0m && qtd > 0) unit = total / qtd;
+        return (unit, total);
+    }
+
+    /// <summary>"Sim", "S", "X", "true", "1", "yes" contam como sim.</summary>
+    private static bool SimNao(string s)
+    {
+        var t = Norm(s);
+        return t is "sim" or "s" or "x" or "true" or "1" or "yes" or "y" or "vendido";
+    }
+
     /// <summary>Lê a planilha, monta o mapa de colunas e entrega ao importador.</summary>
     private static ImportResult ImportarNaFicha(byte[] bytes, string fileName,
         Func<(Dictionary<string, int> Cols, List<string[]> Rows), ImportResult> importar)

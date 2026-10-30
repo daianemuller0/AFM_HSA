@@ -781,3 +781,11 @@ h1 { font-size: 24px; margin: 0 0 4px; color: var(--primary); letter-spacing: -.
     display: inline-block; font-size: 11px; font-weight: 700; color: #b45309;
     background: #fef3e2; border-radius: 20px; padding: 2px 9px; cursor: help;
 }
+
+/* ===== Peça nacionalizada (Sim/Não) ===== */
+.nac {
+    display: inline-block; border-radius: 20px; padding: 2px 11px;
+    font-size: 11.5px; font-weight: 700; white-space: nowrap;
+}
+.nac-sim { background: #e6f7ee; color: #15803d; }
+.nac-nao { background: #f1f4f8; color: #64748b; }
