@@ -83,7 +83,7 @@ public class ImportService
         var ext = (Path.GetExtension(fileName ?? "") ?? "").ToLowerInvariant();
         return Formato(bytes, ext) switch
         {
-            "xlsx" => Separar(LerXlsx(bytes)),
+            "xlsx" => Separar(LerXlsxComSeguranca(bytes)),
             "xls" => Separar(LerXls(bytes)),
             _ => Separar(LerCsv(bytes)),
         };
@@ -107,6 +107,25 @@ public class ImportService
         if (ext == ".xlsx" || ext == ".xlsm") return "xlsx";
         if (ext == ".xls") return "xls";
         return "csv";
+    }
+
+    /// <summary>
+    /// Lê .xlsx pelo ClosedXML e, se ele falhar, pelo ExcelDataReader. O caso
+    /// típico é fórmula com vínculo para outro arquivo ("='[Outra.xlsx]Aba'!B4"):
+    /// o ClosedXML tenta recalcular e para com "References from other files are
+    /// not yet implemented". O ExcelDataReader nunca recalcula — usa o valor que
+    /// o Excel deixou salvo na célula, que é exatamente o que a pessoa vê.
+    /// </summary>
+    private static List<string[]> LerXlsxComSeguranca(byte[] bytes)
+    {
+        try
+        {
+            return LerXlsx(bytes);
+        }
+        catch (Exception)
+        {
+            return LerXls(bytes);   // ExcelReaderFactory também abre .xlsx
+        }
     }
 
     private static List<string[]> LerXlsx(byte[] bytes)
@@ -135,6 +154,7 @@ public class ImportService
         return cell.GetString().Trim();
     }
 
+    /// <summary>Lê .xls (e .xlsx, como plano B) com os valores salvos nas células.</summary>
     private static List<string[]> LerXls(byte[] bytes)
     {
         RegistrarCodePages();
