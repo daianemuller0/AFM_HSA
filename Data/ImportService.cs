@@ -24,13 +24,14 @@ public class ImportService
     private readonly CompanyRepository _companies;
     private readonly BomRepository _bom;
     private readonly SalesRecordRepository _vendas;
+    private readonly InstalledBaseRepository _base;
 
     public ImportService(ParquetStore store, ClientUnitRepository units, EquipmentRepository equip,
         SalespersonRepository sp, CompanyRepository companies, BomRepository bom,
-        SalesRecordRepository vendas)
+        SalesRecordRepository vendas, InstalledBaseRepository baseInstalada)
     {
         _store = store; _units = units; _equip = equip; _sp = sp; _companies = companies;
-        _bom = bom; _vendas = vendas;
+        _bom = bom; _vendas = vendas; _base = baseInstalada;
     }
 
     /// <summary>
@@ -360,18 +361,25 @@ public class ImportService
             var unitIds = new HashSet<string>(_units.All().Select(u => u.Id), StringComparer.OrdinalIgnoreCase);
             var spByName = _sp.All().GroupBy(s => Norm(s.Nome)).ToDictionary(g => g.Key, g => g.First().Id);
             var spIds = new HashSet<string>(_sp.All().Select(s => s.Id), StringComparer.OrdinalIgnoreCase);
+            var descPorPn = DescricoesDoBom(equipmentId);
+            var instalados = _base.All().Where(b => b.EquipmentId == equipmentId).ToList();
 
             var outRows = new List<IReadOnlyList<KeyValuePair<string, object?>>>();
             foreach (var r in dados)
             {
-                var item = Get(r, c, "item_vendido", "item", "peca");
+                var pn = Get(r, c, PnAliases);
                 var data = GetDate(r, c, "data_venda", "data");
-                if (string.IsNullOrWhiteSpace(item) && string.IsNullOrWhiteSpace(data)) continue;
+                if (string.IsNullOrWhiteSpace(pn) && string.IsNullOrWhiteSpace(data)) continue;
 
-                // a planilha pode trazer o nome da unidade ou o próprio id
+                var tag = Get(r, c, "tag");
+                var serie = Get(r, c, SerieAliases);
+
+                // a planilha pode trazer o nome da unidade ou o próprio id;
+                // sem isso, a planta sai da unidade instalada com esse serial / TAG
                 var unidade = SemTraco(Get(r, c, "unidade", "cliente_unidade", "cliente"));
                 if (!unitByName.TryGetValue(Norm(unidade), out var unitId) && unitIds.Contains(unidade))
                     unitId = unidade;
+                unitId ??= PlantaPorSerieOuTag(instalados, serie, tag);
                 var vendedor = SemTraco(Get(r, c, "vendedor"));
                 if (!spByName.TryGetValue(Norm(vendedor), out var spId) && spIds.Contains(vendedor))
                     spId = vendedor;
@@ -380,18 +388,18 @@ public class ImportService
                 outRows.Add(Row(
                     ("id", "sl-" + Guid.NewGuid().ToString("N")[..8]),
                     ("data_venda", data),
-                    ("pedido", Get(r, c, "pedido")),
+                    ("pedido", Get(r, c, NumeroVendaAliases)),
                     ("client_unit_id", unitId ?? unidade),
                     ("equipment_id", equipmentId),
-                    ("item_vendido", item),
+                    ("item_vendido", DescricaoDaVenda(descPorPn, pn, r, c)),
                     ("quantidade", qtd),
                     ("valor", totalVenda),
                     ("valor_unitario", unitario),
                     ("vendedor_id", spId ?? vendedor),
                     ("origem", Def(Get(r, c, "origem"), "Importação Excel")),
-                    ("tag", Get(r, c, "tag")),
-                    ("serial_no", Get(r, c, "serial_number", "serial_no", "numero_de_serie", "n_de_serie", "serie")),
-                    ("part_number", Get(r, c, "partnumber", "part_number", "part_no", "codigo_peca", "codigo")),
+                    ("tag", tag),
+                    ("serial_no", serie),
+                    ("part_number", pn),
                     ("observacao", Get(r, c, "obs", "observacao", "observacoes", "remarks")),
                     ("tipo_importacao", TipoImportacao(Get(r, c, "importacao", "tipo_importacao", "importado_por"))),
                     ("prazo_entrega", Get(r, c, "prazo_de_entrega", "prazo_entrega", "prazo", "lead_time"))));
@@ -455,21 +463,23 @@ public class ImportService
             spByName.TryGetValue(Norm(vendedor), out var spId);
 
             var (qtd, unitario, totalVenda) = ValoresDaVenda(r, c);
+            var pnGeral = Get(r, c, PnAliases);
             outRows.Add(Row(
                 ("id", "sl-" + Guid.NewGuid().ToString("N")[..8]),
                 ("data_venda", data),
-                ("pedido", Get(r, c, "pedido")),
+                ("pedido", Get(r, c, NumeroVendaAliases)),
                 ("client_unit_id", unitId ?? unidade),
                 ("equipment_id", eqId ?? equipamento),
-                ("item_vendido", item),
+                ("item_vendido", eqId is null ? Def(item, pnGeral)
+                                              : DescricaoDaVenda(DescricoesDoBom(eqId), pnGeral, r, c)),
                 ("quantidade", qtd),
                 ("valor", totalVenda),
                 ("valor_unitario", unitario),
                 ("vendedor_id", spId ?? vendedor),
                 ("origem", "Importação Excel"),
                 ("tag", Get(r, c, "tag")),
-                ("serial_no", Get(r, c, "serial_number", "serial_no", "numero_de_serie", "n_de_serie", "serie")),
-                ("part_number", Get(r, c, "partnumber", "part_number", "part_no", "codigo_peca", "codigo")),
+                ("serial_no", Get(r, c, SerieAliases)),
+                ("part_number", pnGeral),
                 ("observacao", Get(r, c, "obs", "observacao", "observacoes", "remarks")),
                 ("tipo_importacao", TipoImportacao(Get(r, c, "importacao", "tipo_importacao", "importado_por"))),
                 ("prazo_entrega", Get(r, c, "prazo_de_entrega", "prazo_entrega", "prazo", "lead_time"))));
@@ -667,6 +677,56 @@ public class ImportService
         if (t.Contains("total")) return "total";
         if (t.Contains("item")) return "item";
         return "";
+    }
+
+    // Cabeçalhos aceitos. "N° de venda" vira "n__de_venda" (o ° e o espaço viram
+    // dois "_"), "Nº de venda" vira "nº_de_venda" — por isso as variações.
+    private static readonly string[] NumeroVendaAliases =
+        { "numero_de_venda", "n__de_venda", "nº_de_venda", "no_de_venda", "n_de_venda",
+          "numero_venda", "n_venda", "venda", "pedido" };
+    private static readonly string[] PnAliases =
+        { "partnumber", "part_number", "part_no", "codigo_peca", "codigo" };
+    private static readonly string[] SerieAliases =
+        { "serial_number", "serial_no", "numero_de_serie", "n_de_serie", "n__de_serie", "nº_de_serie", "serie" };
+
+    /// <summary>Partnumber → descrição (português, ou inglês na falta) do BOM do equipamento.</summary>
+    private Dictionary<string, string> DescricoesDoBom(string equipmentId) =>
+        _bom.ForEquip(equipmentId)
+            .Where(b => !string.IsNullOrWhiteSpace(b.PartNumber))
+            .GroupBy(b => IntelligenceService.NormPn(b.PartNumber))
+            .ToDictionary(g => g.Key, g =>
+            {
+                var b = g.First();
+                return !string.IsNullOrWhiteSpace(b.DescricaoPt) ? b.DescricaoPt : b.DescricaoEn;
+            });
+
+    /// <summary>
+    /// A descrição do item vem do BOM pelo partnumber. Fora do BOM, usa a coluna
+    /// de descrição da planilha, se houver, e por último o próprio partnumber.
+    /// </summary>
+    private static string DescricaoDaVenda(Dictionary<string, string> descPorPn, string pn,
+        string[] r, Dictionary<string, int> c)
+    {
+        if (descPorPn.TryGetValue(IntelligenceService.NormPn(pn), out var d) && !string.IsNullOrWhiteSpace(d))
+            return d;
+        var daPlanilha = Get(r, c, "descricao", "item_vendido", "item", "peca");
+        return Def(daPlanilha, pn);
+    }
+
+    /// <summary>Planta da unidade instalada com esse serial; sem serial, pela TAG (se única).</summary>
+    private static string? PlantaPorSerieOuTag(List<AfmHsa.Models.InstalledBase> instalados, string serie, string tag)
+    {
+        if (!string.IsNullOrWhiteSpace(serie))
+        {
+            var b = instalados.FirstOrDefault(x => string.Equals(x.SerialNo, serie.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (b is not null) return b.ClientUnitId;
+        }
+        if (!string.IsNullOrWhiteSpace(tag))
+        {
+            var porTag = instalados.Where(x => string.Equals(x.Tag, tag.Trim(), StringComparison.OrdinalIgnoreCase)).ToList();
+            if (porTag.Count == 1) return porTag[0].ClientUnitId;
+        }
+        return null;
     }
 
     /// <summary>A exportação escreve "—" onde não há valor; na volta isso é vazio.</summary>

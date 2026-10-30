@@ -63,21 +63,107 @@ else
         </tbody>
     </table>
 
-    <div class="dash-title">Regras técnicas de troca (peças e ciclos)</div>
+    <div class="dash-title">Regras técnicas de troca (peças e ciclos)
+        <span style="margin-left:8px;font-size:12px;font-weight:600;color:var(--muted)">
+            por partnumber — é ele que liga a regra às vendas
+        </span>
+    </div>
+    <div class="toolbar tab-toolbar">
+        <div style="flex:1"></div>
+        <button class="btn-primary" @onclick="NovaRegra">+ Adicionar regra</button>
+    </div>
+    @if (_regraMsg is not null)
+    {
+        <div class="side-ok" style="margin-bottom:10px">@_regraMsg</div>
+    }
     <table class="grid" style="margin-bottom:20px">
-        <thead><tr><th>Item / Conjunto</th><th>Frequência de troca</th><th>Origem</th><th class="right">Valor estimado</th><th>Criticidade</th></tr></thead>
+        <thead>
+            <tr>
+                <th>Partnumber</th><th>Descrição (do BOM)</th><th>Frequência de troca</th>
+                <th>Compras no histórico</th><th class="right">Valor estimado</th><th>Criticidade</th>
+                <th class="right">Ações</th>
+            </tr>
+        </thead>
         <tbody>
             @foreach (var p in _parts)
             {
-                <tr>
-                    <td>@p.Nome</td>
-                    <td class="nowrap">@Freq(p.CicloMeses)</td>
-                    <td><span class="badge st-ok">@Origem(p.Nome)</span></td>
-                    <td class="right nowrap">@(p.ValorEstimado > 0 ? Fmt.Brl0(p.ValorEstimado) : "—")</td>
-                    <td><span class="badge @(p.Critica ? "st-vencida" : "st-plan")">@(p.Critica ? "Crítica" : "Normal")</span></td>
-                </tr>
+                @if (_editRegraId == p.Id)
+                {
+                    <tr class="row-edit">
+                        <td colspan="7">
+                            <div class="form3 form-edit">
+                                <label>Partnumber *
+                                    <input class="cell" list="bom-pns" @bind="_fp.Codigo" @bind:after="PnRegraMudou" />
+                                    <span class="dica-bom @(DescricaoBom(_fp.Codigo).Length > 0 ? "" : "fora")">
+                                        @DicaBom(_fp.Codigo)
+                                    </span>
+                                </label>
+                                <label>Ciclo de troca (meses) *
+                                    <input class="cell" type="number" min="1" @bind="_fp.CicloMeses" />
+                                </label>
+                                <label>Valor estimado (R$)
+                                    <input class="cell" type="number" step="0.01" min="0" @bind="_fp.ValorEstimado" />
+                                </label>
+                                <label>Criticidade
+                                    <select class="cell" @bind="CriticidadeRegra">
+                                        <option value="normal">Normal</option>
+                                        <option value="critica">Crítica</option>
+                                    </select>
+                                </label>
+                            </div>
+                            <div class="toolbar" style="margin-top:10px">
+                                <button class="btn-primary" @onclick="SalvarRegra">Salvar</button>
+                                <button class="btn-ghost" @onclick="CancelarRegra">Cancelar</button>
+                                @if (_regraErro is not null) { <span class="alert-error" style="padding:6px 10px">@_regraErro</span> }
+                            </div>
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    var compras = ComprasDoPn(p.Codigo);
+                    <tr>
+                        <td class="nowrap">
+                            @if (string.IsNullOrWhiteSpace(p.Codigo))
+                            {
+                                <span class="sem-pn" title="Regra antiga, cadastrada pelo nome. Edite para informar o partnumber.">sem partnumber</span>
+                            }
+                            else
+                            {
+                                <strong>@p.Codigo</strong>
+                            }
+                        </td>
+                        <td>@(DescricaoBom(p.Codigo) is { Length: > 0 } d ? d : p.Nome)</td>
+                        <td class="nowrap">@Freq(p.CicloMeses)</td>
+                        <td class="nowrap">
+                            @if (compras.Count > 0)
+                            {
+                                <span class="badge st-ok">@compras.Count compra(s)</span>
+                                <span class="sub-cel">última em @Fmt.Date(compras.Max(v => v.DataVenda))</span>
+                            }
+                            else
+                            {
+                                <span style="color:var(--muted)">sem compras</span>
+                            }
+                        </td>
+                        <td class="right nowrap">@(p.ValorEstimado > 0 ? Fmt.Brl0(p.ValorEstimado) : "—")</td>
+                        <td><span class="badge @(p.Critica ? "st-vencida" : "st-plan")">@(p.Critica ? "Crítica" : "Normal")</span></td>
+                        <td class="right nowrap">
+                            <button class="btn-link" @onclick="() => EditarRegra(p)">editar</button>
+                            @if (_confirmRegraId == p.Id)
+                            {
+                                <button class="btn-link" style="color:#b91c1c;font-weight:700" @onclick="() => ExcluirRegra(p)">confirmar</button>
+                                <button class="btn-link" style="color:var(--muted)" @onclick="() => _confirmRegraId = null">não</button>
+                            }
+                            else
+                            {
+                                <button class="btn-link" style="color:#b91c1c" @onclick="() => _confirmRegraId = p.Id">excluir</button>
+                            }
+                        </td>
+                    </tr>
+                }
             }
-            @if (_parts.Count == 0) { <tr><td colspan="5" class="empty">Sem peças cadastradas.</td></tr> }
+            @if (_parts.Count == 0) { <tr><td colspan="7" class="empty">Nenhuma regra de troca cadastrada. Use "Adicionar regra" e escolha o partnumber do BOM.</td></tr> }
         </tbody>
     </table>
 
@@ -88,7 +174,7 @@ else
         }
     </div>
     <div class="toolbar tab-toolbar">
-        <input class="cell busca-bom" placeholder="Buscar pedido, cliente, tag, partnumber, item…"
+        <input class="cell busca-bom" placeholder="Buscar nº de venda, serial, tag, partnumber, descrição…"
                @bind="_histBusca" @bind:event="oninput" />
         @if (_histBusca.Trim().Length > 0)
         {
@@ -123,11 +209,10 @@ else
     <table class="grid" style="margin-bottom:20px">
         <thead>
             <tr>
-                <th>Data</th><th>Pedido</th><th>Cliente / Unidade</th><th>Tag</th><th>Partnumber</th>
-                <th>Item vendido</th><th class="right">Quantidade</th>
+                <th>Data</th><th>N° de venda</th><th>Modelo</th><th>Serial number</th><th>TAG</th>
+                <th>Partnumber</th><th class="right">Quantidade</th>
                 <th class="right">Valor unitário</th><th class="right">Valor total</th>
-                <th>Importação</th><th>Prazo de entrega</th>
-                <th>Obs</th><th class="right">Ações</th>
+                <th>Prazo de entrega</th><th>Observação</th><th class="right">Ações</th>
             </tr>
         </thead>
         <tbody>
@@ -136,22 +221,28 @@ else
                 @if (_editVendaId == s.Id)
                 {
                     <tr class="row-edit">
-                        <td colspan="13">
+                        <td colspan="12">
                             <div class="form3 form-edit">
-                                <label>Data <input class="cell" type="date" @bind="DataDaVenda" /></label>
-                                <label>Pedido <input class="cell" @bind="_fv.Pedido" placeholder="nº do pedido" /></label>
-                                <label>Cliente / Unidade
-                                        <select class="cell" @bind="_fv.ClientUnitId">
-                                        <option value="">— selecione —</option>
-                                        @foreach (var u in _unidades)
+                                <label>Data * <input class="cell" type="date" @bind="DataDaVenda" /></label>
+                                <label>N° de venda <input class="cell" @bind="_fv.Pedido" placeholder="ex.: PV-44821" /></label>
+                                <label>Equipamento instalado
+                                    <select class="cell" @bind="_unidadeEscolhida" @bind:after="UnidadeEscolhida">
+                                        <option value="">— escolher pela tag / serial —</option>
+                                        @foreach (var b in _base)
                                         {
-                                            <option value="@u.Id">@Intel.ClienteDaUnidade(u.Id) — @u.NomeUnidade</option>
+                                            <option value="@b.Id">@RotuloUnidade(b)</option>
                                         }
-                                    </select></label>
-                                <label>Tag <input class="cell" @bind="_fv.Tag" placeholder="ex.: FD-101A" /></label>
-                                <label>Partnumber <input class="cell" list="bom-pns" @bind="_fv.PartNumber"
-                                                        @bind:after="PartnumberMudou" /></label>
-                                <label>Item vendido <input class="cell" @bind="_fv.ItemVendido" /></label>
+                                    </select>
+                                    <span style="font-size:11px;color:var(--muted)">preenche serial, TAG e planta</span>
+                                </label>
+                                <label>Serial number <input class="cell" @bind="_fv.SerialNo" /></label>
+                                <label>TAG <input class="cell" @bind="_fv.Tag" placeholder="ex.: FD-101A" /></label>
+                                <label>Partnumber *
+                                    <input class="cell" list="bom-pns" @bind="_fv.PartNumber" />
+                                    <span class="dica-bom @(DescricaoBom(_fv.PartNumber).Length > 0 ? "" : "fora")">
+                                        @DicaBom(_fv.PartNumber)
+                                    </span>
+                                </label>
                                 <label>Quantidade <input class="cell" type="number" min="0"
                                                          @bind="_fv.Quantidade" @bind:after="RecalcularTotal" /></label>
                                 <label>Valor unitário (R$) <input class="cell" type="number" step="0.01" min="0"
@@ -160,26 +251,26 @@ else
                                     <input class="cell" type="number" step="0.01" min="0" @bind="_fv.Valor" />
                                     <span style="font-size:11px;color:var(--muted)">quantidade × unitário; dá para ajustar</span>
                                 </label>
+                                <label>Prazo de entrega
+                                    <input class="cell" @bind="_fv.PrazoEntrega" placeholder="ex.: 45 dias" />
+                                </label>
+                                <label>Observação <input class="cell" @bind="_fv.Observacao" /></label>
                                 <label>Importação
                                     <select class="cell" @bind="_fv.TipoImportacao">
                                         <option value="">— não definido —</option>
                                         <option value="total">Por total</option>
                                         <option value="item">Por item</option>
                                     </select>
-                                    <span style="font-size:11px;color:var(--muted)">muda o custo da importação</span>
                                 </label>
-                                <label>Prazo de entrega
-                                    <input class="cell" @bind="_fv.PrazoEntrega" placeholder="ex.: 45 dias" />
-                                </label>
-                                <label>Obs <input class="cell" @bind="_fv.Observacao" /></label>
                                 <label>Vendedor
-                                        <select class="cell" @bind="_fv.VendedorId">
+                                    <select class="cell" @bind="_fv.VendedorId">
                                         <option value="">— sem vendedor —</option>
                                         @foreach (var v in _vendedores)
                                         {
                                             <option value="@v.Id">@v.Nome</option>
                                         }
-                                    </select></label>
+                                    </select>
+                                </label>
                             </div>
                             <div class="toolbar" style="margin-top:10px">
                                 <button class="btn-primary" @onclick="SalvarVenda">Salvar</button>
@@ -191,30 +282,27 @@ else
                 }
                 else
                 {
+                    var desc = DescricaoBom(s.PartNumber);
                     <tr>
                         <td class="nowrap">@Fmt.Date(s.DataVenda)</td>
-                        <td>@Txt(s.Pedido)</td>
-                        <td>@Intel.ClienteDaUnidade(s.ClientUnitId) — @Intel.UnitNome(s.ClientUnitId)</td>
+                        <td class="nowrap">@Txt(s.Pedido)</td>
+                        <td class="nowrap">@Txt(_e.Modelo)</td>
+                        <td class="nowrap">@Txt(s.SerialNo)</td>
                         <td class="nowrap">@Txt(s.Tag)</td>
-                        <td class="nowrap">@Txt(s.PartNumber)</td>
-                        <td>@s.ItemVendido</td>
+                        <td>
+                            <strong class="nowrap">@Txt(s.PartNumber)</strong>
+                            @if (desc.Length > 0)
+                            {
+                                <span class="sub-cel">@desc</span>
+                            }
+                            else if (!string.IsNullOrWhiteSpace(s.ItemVendido) && s.ItemVendido != s.PartNumber)
+                            {
+                                <span class="sub-cel fora" title="Este partnumber não está no BOM do equipamento">@s.ItemVendido</span>
+                            }
+                        </td>
                         <td class="right">@s.Quantidade</td>
                         <td class="right nowrap">@Fmt.Brl(s.ValorUnitario)</td>
                         <td class="right nowrap"><strong>@Fmt.Brl0(s.Valor)</strong></td>
-                        <td class="nowrap">
-                            @if (s.TipoImportacao == "total")
-                            {
-                                <span class="imp imp-total">Por total</span>
-                            }
-                            else if (s.TipoImportacao == "item")
-                            {
-                                <span class="imp imp-item">Por item</span>
-                            }
-                            else
-                            {
-                                <span style="color:var(--muted)">—</span>
-                            }
-                        </td>
                         <td class="nowrap">@Txt(s.PrazoEntrega)</td>
                         <td>@Txt(s.Observacao)</td>
                         <td class="right nowrap">
@@ -235,7 +323,7 @@ else
             @if (HistVisivel.Count == 0)
             {
                 <tr>
-                    <td colspan="13" class="empty">
+                    <td colspan="12" class="empty">
                         @if (_sales.Count == 0)
                         {
                             <text>Sem histórico de vendas AFM para este equipamento.</text>
@@ -420,6 +508,10 @@ else
     private string _histBusca = "";
     private bool _histOk, _histSubstituir;
     private SalesRecord _fv = new();
+    private string _unidadeEscolhida = "";   // id da InstalledBase escolhida no formulário
+
+    private string? _editRegraId, _confirmRegraId, _regraMsg, _regraErro;
+    private Part _fp = new();
 
     protected override void OnInitialized() => Carregar();
 
@@ -427,7 +519,11 @@ else
     {
         _e = Equipamentos.All().FirstOrDefault(e => e.Id == Id);
         if (_e is null) return;
-        _parts = Pecas.All().Where(p => p.EquipmentId == _e.Id).OrderBy(p => p.Nome).ToList();
+        // regras com partnumber primeiro; as antigas (só nome) ficam no fim, para revisar
+        _parts = Pecas.All().Where(p => p.EquipmentId == _e.Id)
+            .OrderBy(p => string.IsNullOrWhiteSpace(p.Codigo))
+            .ThenBy(p => p.Codigo, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(p => p.Nome, StringComparer.OrdinalIgnoreCase).ToList();
         _base = Base.All().Where(b => b.EquipmentId == _e.Id)
             .OrderBy(b => Intel.ClienteDaUnidade(b.ClientUnitId), StringComparer.OrdinalIgnoreCase)
             .ThenBy(b => Intel.UnitNome(b.ClientUnitId), StringComparer.OrdinalIgnoreCase)
@@ -448,6 +544,109 @@ else
             .Where(o => o.EquipmentId == _e.Id && o.DiasAteJanela <= 730)
             .Sum(o => o.ValorEstimado);
     }
+
+    // =================== Partnumber → BOM ==================================
+    // O partnumber é a chave da peça: a descrição vem sempre do BOM do
+    // equipamento, nunca é digitada de novo em outro lugar.
+
+    private string DescricaoBom(string? pn)
+    {
+        var alvo = IntelligenceService.NormPn(pn);
+        if (alvo.Length == 0) return "";
+        var item = _bom.FirstOrDefault(b => IntelligenceService.NormPn(b.PartNumber) == alvo);
+        if (item is null) return "";
+        return !string.IsNullOrWhiteSpace(item.DescricaoPt) ? item.DescricaoPt : item.DescricaoEn;
+    }
+
+    private string DicaBom(string? pn)
+    {
+        if (string.IsNullOrWhiteSpace(pn)) return "escolha um partnumber do BOM";
+        var d = DescricaoBom(pn);
+        return d.Length > 0 ? d : "não está no BOM deste equipamento";
+    }
+
+    /// <summary>Vendas deste equipamento com o partnumber informado.</summary>
+    private List<SalesRecord> ComprasDoPn(string? pn)
+    {
+        var alvo = IntelligenceService.NormPn(pn);
+        if (alvo.Length == 0) return new List<SalesRecord>();
+        return _sales.Where(v => IntelligenceService.NormPn(v.PartNumber) == alvo).ToList();
+    }
+
+    // =================== Regras técnicas de troca =========================
+
+    private void NovaRegra()
+    {
+        _fp = new Part
+        {
+            Id = "pt-" + Guid.NewGuid().ToString("N")[..8],
+            EquipmentId = _e!.Id, Ativo = true, CicloMeses = 12,
+        };
+        _editRegraId = _fp.Id; _regraErro = null; _regraMsg = null;
+        _parts.Insert(0, _fp);
+    }
+
+    private void EditarRegra(Part p)
+    {
+        _editRegraId = p.Id; _regraErro = null; _regraMsg = null;
+        _fp = new Part
+        {
+            Id = p.Id, EquipmentId = p.EquipmentId, Nome = p.Nome, CicloMeses = p.CicloMeses,
+            Critica = p.Critica, Descritivo = p.Descritivo, Codigo = p.Codigo,
+            ValorEstimado = p.ValorEstimado, VenderJunto = p.VenderJunto,
+            PecaComplementar = p.PecaComplementar, Observacao = p.Observacao, Ativo = p.Ativo,
+        };
+    }
+
+    /// <summary>Ponte texto ↔ bool para o select de criticidade da regra.</summary>
+    private string CriticidadeRegra
+    {
+        get => _fp.Critica ? "critica" : "normal";
+        set => _fp.Critica = value == "critica";
+    }
+
+    /// <summary>Ao escolher o partnumber, o nome da regra passa a ser a descrição do BOM.</summary>
+    private void PnRegraMudou()
+    {
+        var d = DescricaoBom(_fp.Codigo);
+        if (d.Length > 0) _fp.Nome = d;
+    }
+
+    private void SalvarRegra()
+    {
+        _fp.Codigo = (_fp.Codigo ?? "").Trim();
+        if (_fp.Codigo.Length == 0) { _regraErro = "Informe o partnumber da peça."; return; }
+        if (_fp.CicloMeses <= 0) { _regraErro = "Informe o ciclo de troca em meses."; return; }
+
+        var alvo = IntelligenceService.NormPn(_fp.Codigo);
+        if (_parts.Any(p => p.Id != _fp.Id && IntelligenceService.NormPn(p.Codigo) == alvo))
+        {
+            _regraErro = $"Já existe uma regra para o partnumber {_fp.Codigo} neste equipamento.";
+            return;
+        }
+
+        var d = DescricaoBom(_fp.Codigo);
+        if (d.Length > 0) _fp.Nome = d;
+        else if (string.IsNullOrWhiteSpace(_fp.Nome)) _fp.Nome = _fp.Codigo;
+        _fp.EquipmentId = _e!.Id;
+
+        Pecas.Save(_fp);
+        _editRegraId = null; _regraErro = null;
+        _regraMsg = $"Regra do partnumber {_fp.Codigo} salva.";
+        Intel.Invalidate();
+        Carregar();
+    }
+
+    private void ExcluirRegra(Part p)
+    {
+        Pecas.Delete(p);
+        _confirmRegraId = null; _editRegraId = null;
+        _regraMsg = "Regra excluída.";
+        Intel.Invalidate();
+        Carregar();
+    }
+
+    private void CancelarRegra() { _editRegraId = null; _regraErro = null; Carregar(); }
 
     // =================== BOM ==============================================
 
@@ -547,9 +746,9 @@ else
             if (s.Length == 0) return _sales;
             var alvo = s.ToLowerInvariant();
             return _sales.Where(v => v.Id == _editVendaId || string.Join(' ',
-                    Fmt.Date(v.DataVenda), v.Pedido, Intel.ClienteDaUnidade(v.ClientUnitId),
-                    Intel.UnitNome(v.ClientUnitId), v.Tag, v.PartNumber, v.ItemVendido,
-                    RotuloImportacao(v.TipoImportacao), v.PrazoEntrega, v.Observacao)
+                    Fmt.Date(v.DataVenda), v.Pedido, v.SerialNo, v.Tag, v.PartNumber,
+                    DescricaoBom(v.PartNumber), v.ItemVendido, v.PrazoEntrega, v.Observacao,
+                    Intel.ClienteDaUnidade(v.ClientUnitId), Intel.UnitNome(v.ClientUnitId))
                 .ToLowerInvariant().Contains(alvo)).ToList();
         }
     }
@@ -563,19 +762,47 @@ else
     /// <summary>Valor total acompanha quantidade × unitário; o usuário pode ajustar depois.</summary>
     private void RecalcularTotal() => _fv.Valor = _fv.ValorUnitario * _fv.Quantidade;
 
-    /// <summary>
-    /// Ao escolher um partnumber do BOM, preenche o item vendido com a descrição
-    /// cadastrada — só quando o campo ainda está vazio, para não apagar o que o
-    /// usuário escreveu.
-    /// </summary>
-    private void PartnumberMudou()
+    /// <summary>Texto da opção no seletor de equipamento instalado.</summary>
+    private string RotuloUnidade(InstalledBase b)
     {
-        if (string.IsNullOrWhiteSpace(_fv.PartNumber)) return;
-        if (!string.IsNullOrWhiteSpace(_fv.ItemVendido)) return;
-        var item = _bom.FirstOrDefault(b =>
-            string.Equals(b.PartNumber, _fv.PartNumber, StringComparison.OrdinalIgnoreCase));
-        if (item is null) return;
-        _fv.ItemVendido = !string.IsNullOrWhiteSpace(item.DescricaoPt) ? item.DescricaoPt : item.DescricaoEn;
+        var tag = string.IsNullOrWhiteSpace(b.Tag) ? "sem tag" : b.Tag;
+        var serie = string.IsNullOrWhiteSpace(b.SerialNo) ? "sem serial" : b.SerialNo;
+        return $"{tag} · {serie} — {Intel.ClienteDaUnidade(b.ClientUnitId)} / {Intel.UnitNome(b.ClientUnitId)}";
+    }
+
+    /// <summary>
+    /// Escolher a unidade instalada preenche serial, TAG e a planta da venda —
+    /// a planta não aparece como coluna, mas continua alimentando dashboards
+    /// e a carteira por cliente.
+    /// </summary>
+    private void UnidadeEscolhida()
+    {
+        var b = _base.FirstOrDefault(x => x.Id == _unidadeEscolhida);
+        if (b is null) return;
+        _fv.SerialNo = b.SerialNo;
+        _fv.Tag = b.Tag;
+        _fv.ClientUnitId = b.ClientUnitId;
+    }
+
+    /// <summary>Unidade instalada que corresponde ao serial (ou, sem ele, à TAG).</summary>
+    private InstalledBase? UnidadeDaVenda(SalesRecord v)
+    {
+        if (!string.IsNullOrWhiteSpace(v.SerialNo))
+        {
+            var porSerie = _base.FirstOrDefault(b =>
+                string.Equals(b.SerialNo, v.SerialNo.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (porSerie is not null) return porSerie;
+        }
+        if (!string.IsNullOrWhiteSpace(v.Tag))
+        {
+            var porTag = _base.Where(b =>
+                string.Equals(b.Tag, v.Tag.Trim(), StringComparison.OrdinalIgnoreCase)).ToList();
+            // a mesma TAG pode existir em plantas diferentes: só usa se for única
+            if (porTag.Count == 1) return porTag[0];
+            var naPlanta = porTag.FirstOrDefault(b => b.ClientUnitId == v.ClientUnitId);
+            if (naPlanta is not null) return naPlanta;
+        }
+        return null;
     }
 
     private void NovaVenda()
@@ -588,6 +815,7 @@ else
             Quantidade = 1,
             Origem = "Lançamento manual",
         };
+        _unidadeEscolhida = "";
         _editVendaId = _fv.Id; _vendaErro = null; _histMsg = null;
         _sales.Insert(0, _fv);
     }
@@ -604,20 +832,32 @@ else
             PartNumber = s.PartNumber, Observacao = s.Observacao,
             TipoImportacao = s.TipoImportacao, PrazoEntrega = s.PrazoEntrega,
         };
+        _unidadeEscolhida = UnidadeDaVenda(_fv)?.Id ?? "";
     }
 
     private void SalvarVenda()
     {
-        if (string.IsNullOrWhiteSpace(_fv.ItemVendido))
-        {
-            _vendaErro = "Informe o item vendido.";
-            return;
-        }
+        _fv.PartNumber = (_fv.PartNumber ?? "").Trim();
         if (string.IsNullOrWhiteSpace(_fv.DataVenda))
         {
             _vendaErro = "Informe a data da venda.";
             return;
         }
+        if (_fv.PartNumber.Length == 0)
+        {
+            _vendaErro = "Informe o partnumber — é por ele que a venda entra no controle de recompra.";
+            return;
+        }
+
+        // descrição sempre a do BOM; fora do BOM, mantém o que havia ou o próprio partnumber
+        var desc = DescricaoBom(_fv.PartNumber);
+        if (desc.Length > 0) _fv.ItemVendido = desc;
+        else if (string.IsNullOrWhiteSpace(_fv.ItemVendido)) _fv.ItemVendido = _fv.PartNumber;
+
+        // planta da venda: a da unidade instalada com esse serial / TAG
+        var unidade = UnidadeDaVenda(_fv);
+        if (unidade is not null) _fv.ClientUnitId = unidade.ClientUnitId;
+
         _fv.EquipmentId = _e!.Id;
         Vendas.Save(_fv);
         _editVendaId = null; _vendaErro = null;
@@ -635,10 +875,12 @@ else
         Carregar();
     }
 
+    // As colunas da tela primeiro; depois as que não aparecem na tabela mas
+    // precisam voltar intactas quando a planilha for importada de novo.
     private static readonly string[] HistHeader =
-        { "data_venda", "pedido", "unidade", "tag", "partnumber", "item_vendido",
-          "quantidade", "valor_unitario", "valor_total", "importacao", "prazo_de_entrega",
-          "obs", "vendedor" };
+        { "data_venda", "numero_de_venda", "modelo", "serial_number", "tag", "partnumber",
+          "descricao", "quantidade", "valor_unitario", "valor_total", "prazo_de_entrega",
+          "observacao", "importacao", "unidade", "vendedor" };
 
     private async Task BaixarHistorico()
     {
@@ -646,16 +888,18 @@ else
         {
             s.DataVenda,
             s.Pedido,
-            Intel.UnitNome(s.ClientUnitId),
+            _e!.Modelo,
+            s.SerialNo,
             s.Tag,
             s.PartNumber,
-            s.ItemVendido,
+            DescricaoBom(s.PartNumber) is { Length: > 0 } d ? d : s.ItemVendido,
             s.Quantidade.ToString(CultureInfo.InvariantCulture),
             s.ValorUnitario.ToString("0.##", CultureInfo.InvariantCulture),
             s.Valor.ToString("0.##", CultureInfo.InvariantCulture),
-            RotuloImportacao(s.TipoImportacao),
             s.PrazoEntrega,
             s.Observacao,
+            RotuloImportacao(s.TipoImportacao),
+            Intel.UnitNome(s.ClientUnitId),
             Vendedor(s.VendedorId),
         }).ToList();
         var bytes = Planilha.Xlsx("Historico", HistHeader, linhas);
@@ -754,13 +998,6 @@ else
 
     private static string Freq(int meses) =>
         $"{meses} meses (~{(meses / 12.0).ToString("0.0", CultureInfo.InvariantCulture)} anos)";
-
-    private string Origem(string parte)
-    {
-        var pn = parte.ToLowerInvariant();
-        var n = _sales.Count(s => { var it = s.ItemVendido.ToLowerInvariant(); return it.Contains(pn) || pn.Contains(it); });
-        return n > 0 ? $"Histórico ({n} compras)" : "Regra técnica";
-    }
 
     private static string Cap(string s) => string.IsNullOrEmpty(s) ? "—" : char.ToUpperInvariant(s[0]) + s[1..];
     private static string CritClass(string c) => c.ToLowerInvariant() switch

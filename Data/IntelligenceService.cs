@@ -121,10 +121,20 @@ public class IntelligenceService
         return (48, false);
     }
 
-    private (int meses, bool critica) PartCycleFor(string equipmentId, string item)
+    private (int meses, bool critica) PartCycleFor(string equipmentId, string item, string partNumber = "")
     {
-        var s = NormItem(item);
         var parts = Parts.Where(p => p.EquipmentId == equipmentId && p.Ativo).ToList();
+
+        // O partnumber é a chave da peça: com ele, a regra é exata.
+        var pnVenda = NormPn(partNumber);
+        if (pnVenda.Length > 0)
+        {
+            var regra = parts.FirstOrDefault(p => NormPn(p.Codigo) == pnVenda);
+            if (regra is not null && regra.CicloMeses > 0) return (regra.CicloMeses, regra.Critica);
+        }
+
+        // Sem partnumber (histórico antigo): aproximação pelo nome do item.
+        var s = NormItem(item);
         foreach (var p in parts)
         {
             var pn = NormItem(p.Nome);
@@ -147,7 +157,7 @@ public class IntelligenceService
         var groups = new Dictionary<string, List<SalesRecord>>();
         foreach (var s in Sales)
         {
-            var key = $"{s.EquipmentId}::{NormItem(s.ItemVendido)}";
+            var key = ChaveSerie(s);
             if (!groups.TryGetValue(key, out var arr)) { arr = new(); groups[key] = arr; }
             arr.Add(s);
         }
@@ -161,8 +171,8 @@ public class IntelligenceService
 
             recs.Sort((a, b) => string.CompareOrdinal(a.DataVenda, b.DataVenda));
             var last = recs[^1];
-            var item = last.ItemVendido;
-            var (meses, partCritica) = PartCycleFor(last.EquipmentId, item);
+            var item = RotuloItem(last);
+            var (meses, partCritica) = PartCycleFor(last.EquipmentId, last.ItemVendido, last.PartNumber);
 
             var reprog = ov != null && !string.IsNullOrEmpty(ov.Reprograma) ? ov.Reprograma : null;
             var prevista = reprog ?? AddMonths(last.DataVenda, meses);
@@ -441,7 +451,7 @@ public class IntelligenceService
         var groups = new Dictionary<string, List<SalesRecord>>();
         foreach (var s in Sales)
         {
-            var key = $"{s.EquipmentId}::{NormItem(s.ItemVendido)}";
+            var key = ChaveSerie(s);
             if (!groups.TryGetValue(key, out var arr)) { arr = new(); groups[key] = arr; }
             arr.Add(s);
         }
@@ -454,7 +464,7 @@ public class IntelligenceService
             recs.Sort((a, b) => string.CompareOrdinal(a.DataVenda, b.DataVenda));
             var prev = recs[^2];
             var atual = recs[^1];
-            var (meses, _) = PartCycleFor(prev.EquipmentId, prev.ItemVendido);
+            var (meses, _) = PartCycleFor(prev.EquipmentId, prev.ItemVendido, prev.PartNumber);
             if (!DateTime.TryParse(AddMonths(prev.DataVenda, meses), CultureInfo.InvariantCulture, DateTimeStyles.None, out var previsto)) continue;
             if (!DateTime.TryParse(atual.DataVenda, CultureInfo.InvariantCulture, DateTimeStyles.None, out var real)) continue;
             var erroDias = Math.Abs((previsto - real).TotalDays);
@@ -476,6 +486,31 @@ public class IntelligenceService
     // ---- helpers de data e texto -----------------------------------------
     private static string NormItem(string s) =>
         Regex.Replace(s.Trim().ToLowerInvariant(), @"\s+", " ");
+
+    /// <summary>Partnumber comparável: sem espaços e sem diferença de caixa.</summary>
+    public static string NormPn(string? pn) =>
+        Regex.Replace((pn ?? "").Trim().ToUpperInvariant(), @"\s+", "");
+
+    /// <summary>
+    /// Série de compras de uma peça num equipamento. Venda com partnumber agrupa
+    /// pelo partnumber; venda antiga, sem ele, continua agrupando pelo nome do
+    /// item — mesma chave de antes, para não perder status e reprogramações já
+    /// gravados nessas oportunidades.
+    /// </summary>
+    private static string ChaveSerie(SalesRecord s) =>
+        NormPn(s.PartNumber) is { Length: > 0 } pn
+            ? $"{s.EquipmentId}::pn:{pn}"
+            : $"{s.EquipmentId}::{NormItem(s.ItemVendido)}";
+
+    /// <summary>Descrição da peça com o partnumber ao lado, quando existe.</summary>
+    private static string RotuloItem(SalesRecord s)
+    {
+        var pn = (s.PartNumber ?? "").Trim();
+        var desc = (s.ItemVendido ?? "").Trim();
+        if (pn.Length == 0) return desc;
+        if (desc.Length == 0 || NormPn(desc) == NormPn(pn)) return $"PN {pn}";
+        return $"{desc} · PN {pn}";
+    }
 
     private static string AddMonths(string iso, int months)
     {

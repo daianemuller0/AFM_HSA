@@ -258,6 +258,24 @@ public class PartRepository
             PecaComplementar = Fmt.S(r, 9), Observacao = Fmt.S(r, 10),
             Ativo = r.IsDBNull(11) ? true : Fmt.Bool(Fmt.S(r, 11)),
         }, orderBy: "nome");
+
+    // Regra técnica de troca. "codigo" guarda o partnumber da peça — é por ele
+    // que a regra casa com as vendas do histórico.
+    public void Save(Part p) => _s.WriteRow("parts", Linha(p));
+    public void Delete(Part p) => _s.WriteRow("parts", Linha(p), deleted: true);
+
+    private static IReadOnlyList<KeyValuePair<string, object?>> Linha(Part p) =>
+        new KeyValuePair<string, object?>[]
+        {
+            new("id", p.Id), new("equipment_id", p.EquipmentId), new("nome", p.Nome),
+            new("ciclo_meses", p.CicloMeses.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+            new("critica", p.Critica ? "true" : "false"),
+            new("descritivo", p.Descritivo), new("codigo", p.Codigo),
+            new("valor_estimado", p.ValorEstimado.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+            new("vender_junto", p.VenderJunto ? "true" : "false"),
+            new("peca_complementar", p.PecaComplementar), new("observacao", p.Observacao),
+            new("ativo", p.Ativo ? "true" : "false"),
+        };
 }
 
 public class SalesRecordRepository
