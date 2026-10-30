@@ -45,12 +45,20 @@ public class OfferRepository
 
     // ---- itens -----------------------------------------------------------
     public List<CommercialOfferItem> AllItems() => _s.ReadLatest("commercialOfferItems",
-        "id, offer_id, description, quantity, unit_price, total_price",
+        "id, offer_id, description, quantity, unit_price, total_price, " +
+        "equipment_id, part_number, nacionalizado, custo_referencia, custo_data, ultima_venda, ultima_venda_data",
         r => new CommercialOfferItem
         {
             Id = Fmt.S(r, 0), OfferId = Fmt.S(r, 1), Description = Fmt.S(r, 2),
             Quantity = Fmt.Int(Fmt.S(r, 3)), UnitPrice = Fmt.Dec(Fmt.S(r, 4)), TotalPrice = Fmt.Dec(Fmt.S(r, 5)),
+            EquipmentId = Fmt.S(r, 6), PartNumber = Fmt.S(r, 7), Nacionalizado = Fmt.Bool(Fmt.S(r, 8)),
+            CustoReferencia = DecOuNull(Fmt.S(r, 9)), CustoData = Fmt.S(r, 10),
+            UltimaVenda = DecOuNull(Fmt.S(r, 11)), UltimaVendaData = Fmt.S(r, 12),
         });
+
+    /// <summary>Vazio continua vazio: "custo não disponível" não pode virar R$ 0,00.</summary>
+    private static decimal? DecOuNull(string s) => string.IsNullOrWhiteSpace(s) ? null : Fmt.Dec(s);
+    private static string DOuVazio(decimal? v) => v is decimal d ? D(d) : "";
 
     public List<CommercialOfferItem> ItemsFor(string offerId) =>
         AllItems().Where(i => i.OfferId == offerId).ToList();
@@ -61,5 +69,9 @@ public class OfferRepository
             new("id", it.Id), new("offer_id", it.OfferId), new("description", it.Description),
             new("quantity", it.Quantity.ToString()), new("unit_price", D(it.UnitPrice)),
             new("total_price", D(it.TotalPrice)),
+            new("equipment_id", it.EquipmentId), new("part_number", it.PartNumber),
+            new("nacionalizado", it.Nacionalizado ? "true" : "false"),
+            new("custo_referencia", DOuVazio(it.CustoReferencia)), new("custo_data", it.CustoData),
+            new("ultima_venda", DOuVazio(it.UltimaVenda)), new("ultima_venda_data", it.UltimaVendaData),
         });
 }

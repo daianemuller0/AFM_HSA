@@ -7,6 +7,9 @@
 @inject EquipmentRepository Equipamentos
 @inject InstalledBaseRepository Base
 @inject PartRepository Pecas
+@inject BomRepository Bom
+@inject NacionalizacaoRepository Nacionais
+@inject SalesRecordRepository Vendas
 @inject OfferRepository OffersRepo
 @inject IntelligenceService Intel
 @inject NavigationManager Nav
@@ -29,45 +32,179 @@
                     @foreach (var u in _units) { <option value="@u.Id">@Intel.UnitLabel(u.Id)</option> }
                 </select>
             </label>
-            <label>Equipamento
-                <select class="cell" @bind="_equipId">
-                    <option value="">—</option>
-                    @foreach (var e in EquipsDaUnidade) { <option value="@e.Id">@e.Modelo</option> }
-                </select>
-            </label>
             <label>A/C (contato) <input class="cell" @bind="_o.AttentionTo" /></label>
             <label>Cidade <input class="cell" @bind="_o.City" /></label>
             <label>Nossa referência <input class="cell" @bind="_o.OurReference" /></label>
             <label>Projeto <input class="cell" @bind="_o.Project" /></label>
         </div>
+
+        @if (!string.IsNullOrEmpty(_unitId))
+        {
+            <div class="dash-title" style="margin-top:16px">Equipamentos da unidade
+                <span style="margin-left:8px;font-size:12px;font-weight:600;color:var(--muted)">marque um ou mais</span>
+            </div>
+            @if (EquipsDaUnidade.Count == 0)
+            {
+                <div class="empty" style="padding:8px 0">Nenhum equipamento instalado nesta unidade.</div>
+            }
+            else
+            {
+                <div class="equip-chips">
+                    @foreach (var e in EquipsDaUnidade)
+                    {
+                        var marcado = _equipIds.Contains(e.Id);
+                        <label class="equip-chip @(marcado ? "on" : "")">
+                            <input type="checkbox" checked="@marcado" @onchange="() => AlternarEquip(e.Id)" />
+                            <span><strong>@e.Modelo</strong><small>@e.Tipo</small></span>
+                        </label>
+                    }
+                </div>
+            }
+        }
     </div>
 
+    @if (_equipIds.Count > 0)
+    {
+        <div class="panel" style="margin-bottom:16px">
+            <div class="dash-title">Itens da BOM dos equipamentos selecionados
+                <span style="margin-left:8px;font-size:12px;font-weight:600;color:var(--muted)">
+                    a situação de nacionalização e as referências são verificadas automaticamente
+                </span>
+            </div>
+            <div class="toolbar tab-toolbar">
+                <input class="cell busca-bom" placeholder="Buscar partnumber, descrição, item…"
+                       @bind="_bomBusca" @bind:event="oninput" />
+                <div style="flex:1"></div>
+                <button class="btn-ghost" @onclick="MarcarVisiveis">Marcar todos visíveis</button>
+                <button class="btn-primary" disabled="@(_bomMarcados.Count == 0)" @onclick="AdicionarBomMarcados">
+                    + Adicionar @(_bomMarcados.Count) item(ns) à proposta
+                </button>
+            </div>
+            <div class="tabela-rolante" style="max-height:340px;overflow-y:auto">
+            <table class="grid tabela-bom-proposta">
+                <thead>
+                    <tr>
+                        <th style="width:34px"></th><th>Equipamento</th><th>Item</th><th>Partnumber</th><th>Descrição</th>
+                        <th class="right">Qtd BOM</th><th>Nacionalizado</th><th class="right">Referência de custo</th><th class="right">Última venda</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var b in BomVisivel)
+                    {
+                        var r = Ref(b.PartNumber);
+                        var naProposta = _items.Any(i => i.EquipmentId == b.EquipmentId &&
+                            IntelligenceService.NormPn(i.PartNumber) == IntelligenceService.NormPn(b.PartNumber) && i.PartNumber.Length > 0);
+                        <tr class="@(naProposta ? "linha-na-proposta" : "")">
+                            <td>
+                                @if (naProposta)
+                                {
+                                    <span class="sub-cel" title="Já está na proposta">✓</span>
+                                }
+                                else
+                                {
+                                    <input type="checkbox" checked="@_bomMarcados.Contains(b.Id)" @onchange="() => AlternarBom(b.Id)" />
+                                }
+                            </td>
+                            <td class="nowrap">@ModeloDe(b.EquipmentId)</td>
+                            <td class="nowrap">@Txt(b.Item)</td>
+                            <td class="nowrap"><strong>@Txt(b.PartNumber)</strong></td>
+                            <td>@DescricaoBom(b)</td>
+                            <td class="right">@Txt(b.Quantidade)</td>
+                            <td>@SeloNac(r)</td>
+                            <td class="right nowrap">@CelulaCusto(r)</td>
+                            <td class="right nowrap">@CelulaUltimaVenda(r)</td>
+                        </tr>
+                    }
+                    @if (BomVisivel.Count == 0)
+                    {
+                        <tr><td colspan="9" class="empty">
+                            @(_bomBusca.Trim().Length > 0 ? $"Nenhum item da BOM corresponde a \"{_bomBusca}\"."
+                                                           : "Os equipamentos selecionados não têm BOM cadastrada.")
+                        </td></tr>
+                    }
+                </tbody>
+            </table>
+            </div>
+            <div style="margin-top:10px">
+                <button class="btn-ghost" @onclick="AdicionarPecas">+ Adicionar peças das regras de troca</button>
+            </div>
+        </div>
+    }
+
     <div class="panel" style="margin-bottom:16px">
-        <div class="dash-title">Itens</div>
-        @if (!string.IsNullOrEmpty(_equipId))
-        {
-            <button class="btn-ghost" style="margin-bottom:10px" @onclick="AdicionarPecas">+ Adicionar peças do equipamento</button>
-        }
-        <table class="grid" style="margin-bottom:12px">
-            <thead><tr><th>Descrição</th><th class="right">Qtd</th><th class="right">Unitário</th><th class="right">Total</th><th></th></tr></thead>
+        <div class="dash-title">Itens da proposta
+            <span style="margin-left:8px;font-size:12px;font-weight:600;color:var(--muted)">
+                referência de custo e última venda são só para apoio — o preço é sempre o que você definir
+            </span>
+        </div>
+        <div class="tabela-rolante">
+        <table class="grid tabela-proposta" style="margin-bottom:12px">
+            <thead>
+                <tr>
+                    <th>Descrição</th><th>Nacionalizado</th><th class="right">Referência de custo (R$)</th>
+                    <th class="right">Última venda (R$)</th><th class="right">Qtd</th>
+                    <th class="right">Preço unitário da proposta (R$)</th><th class="right">Total</th><th></th>
+                </tr>
+            </thead>
             <tbody>
                 @for (int i = 0; i < _items.Count; i++)
                 {
                     var it = _items[i];
                     var idx = i;
-                    <tr>
-                        <td>@it.Description</td>
-                        <td class="right">@it.Quantity</td>
-                        <td class="right nowrap">@Fmt.Brl(it.UnitPrice)</td>
-                        <td class="right nowrap">@Fmt.Brl(it.TotalPrice)</td>
-                        <td><button class="btn-link" @onclick="() => Remover(idx)">remover</button></td>
+                    var r = RefDoItem(it);
+                    <tr class="@(it.UnitPrice <= 0 ? "sem-preco" : "")">
+                        <td>
+                            @it.Description
+                            @if (it.EquipmentId.Length > 0)
+                            {
+                                <span class="sub-cel">@ModeloDe(it.EquipmentId)</span>
+                            }
+                        </td>
+                        <td>@(it.PartNumber.Length > 0 ? SeloNac(r) : Traco)</td>
+                        <td class="right nowrap">
+                            @if (it.PartNumber.Length > 0)
+                            {
+                                @CelulaCusto(r)
+                            }
+                            else
+                            {
+                                @Traco
+                            }
+                        </td>
+                        <td class="right nowrap">
+                            @if (it.PartNumber.Length > 0)
+                            {
+                                @CelulaUltimaVenda(r)
+                                @if (r.UltimaVenda is decimal uv && uv != it.UnitPrice)
+                                {
+                                    <button class="btn-link usar-preco" title="Copiar o valor da última venda para o preço da proposta"
+                                            @onclick="() => UsarPreco(idx, uv)">usar</button>
+                                }
+                            }
+                            else
+                            {
+                                @Traco
+                            }
+                        </td>
+                        <td class="right">
+                            <input class="cell num qtd-cel" type="number" min="1" value="@it.Quantity"
+                                   @onchange="e => MudarQtd(idx, e)" />
+                        </td>
+                        <td class="right">
+                            <input class="cell num preco-cel" type="number" min="0" step="0.01" placeholder="definir"
+                                   value="@(it.UnitPrice > 0 ? it.UnitPrice.ToString(CultureInfo.InvariantCulture) : "")"
+                                   @onchange="e => MudarPreco(idx, e)" />
+                        </td>
+                        <td class="right nowrap"><strong>@Fmt.Brl(it.TotalPrice)</strong></td>
+                        <td><button class="btn-link" style="color:#b91c1c" @onclick="() => Remover(idx)">remover</button></td>
                     </tr>
                 }
-                @if (_items.Count == 0) { <tr><td colspan="5" class="empty">Nenhum item.</td></tr> }
+                @if (_items.Count == 0) { <tr><td colspan="8" class="empty">Nenhum item. Selecione equipamentos e itens da BOM acima, ou adicione um item manual.</td></tr> }
             </tbody>
         </table>
+        </div>
         <div class="item-row" style="grid-template-columns:2fr 80px 120px auto">
-            <label>Descrição <input class="cell" @bind="_desc" /></label>
+            <label>Descrição (item manual) <input class="cell" @bind="_desc" /></label>
             <label>Qtd <input class="cell num" type="number" @bind="_qtd" /></label>
             <label>Unitário (R$) <input class="cell num" type="number" step="0.01" @bind="_preco" /></label>
             <label>&nbsp;<button class="btn-primary" @onclick="AdicionarItem">Adicionar</button></label>
@@ -96,7 +233,17 @@
         <div>Total da oferta</div>
         <div class="side-total-value">@Fmt.Brl(Total)</div>
     </div>
-    <div class="side-note">O documento imprimível é gerado após salvar.</div>
+    @if (_items.Count > 0)
+    {
+        <div class="side-note">
+            @_items.Count item(ns)
+            @if (_items.Count(i => i.UnitPrice <= 0) is > 0 and var semPreco)
+            {
+                <br /><span style="color:#b45309;font-weight:600">@semPreco sem preço definido</span>
+            }
+        </div>
+    }
+    <div class="side-note">O documento imprimível é gerado após salvar. Custo de referência e última venda não aparecem para o cliente.</div>
     @if (_erro is not null) { <div class="alert-error">@_erro</div> }
     <button class="btn-accent btn-block" @onclick="Salvar">Salvar oferta</button>
     <a class="btn-ghost btn-block" href="/ofertas">Cancelar</a>
@@ -107,6 +254,11 @@
     private List<ClientUnit> _units = new();
     private List<InstalledBase> _base = new();
     private List<Part> _parts = new();
+    private List<Equipment> _equipamentos = new();
+    private List<BomItem> _bom = new();
+    private List<Nacionalizacao> _nacionais = new();
+    private List<SalesRecord> _vendas = new();
+
     private CommercialOffer _o = new()
     {
         Status = "Rascunho",
@@ -116,18 +268,32 @@
         SgiText = OfferDefaults.Sgi, TermsText = OfferDefaults.Terms,
     };
     private List<CommercialOfferItem> _items = new();
-    private string _unitId = "", _equipId = "";
+    private string _unitId = "";
+    private readonly List<string> _equipIds = new();          // equipamentos marcados, na ordem em que foram marcados
+    private readonly HashSet<string> _bomMarcados = new();    // ids de BomItem marcados para adicionar
+    private string _bomBusca = "";
     private string _desc = "";
     private int _qtd = 1;
     private decimal _preco;
     private string? _erro;
+
+    // referências por partnumber, calculadas uma vez por cliente (a base não muda enquanto a tela está aberta)
+    private readonly Dictionary<string, ReferenciaPreco> _refs = new();
+
+    private static readonly MarkupString Traco = new("<span style=\"color:var(--muted)\">—</span>");
 
     protected override void OnInitialized()
     {
         _units = Units.All();
         _base = Base.All();
         _parts = Pecas.All();
+        _equipamentos = Equipamentos.All();
+        _bom = Bom.All();
+        _nacionais = Nacionais.All();
+        _vendas = Vendas.All();
     }
+
+    // ---- cliente e equipamentos ------------------------------------------
 
     private List<Equipment> EquipsDaUnidade
     {
@@ -135,13 +301,13 @@
         {
             if (string.IsNullOrEmpty(_unitId)) return new();
             var ids = _base.Where(b => b.ClientUnitId == _unitId).Select(b => b.EquipmentId).Distinct().ToHashSet();
-            return Equipamentos.All().Where(e => ids.Contains(e.Id)).ToList();
+            return _equipamentos.Where(e => ids.Contains(e.Id)).OrderBy(e => e.Modelo).ToList();
         }
     }
 
     private void UnidadeMudou()
     {
-        _equipId = "";
+        _equipIds.Clear(); _bomMarcados.Clear(); _refs.Clear(); _bomBusca = "";
         var u = _units.FirstOrDefault(x => x.Id == _unitId);
         if (u != null)
         {
@@ -151,16 +317,161 @@
         }
     }
 
+    private void AlternarEquip(string id)
+    {
+        if (!_equipIds.Remove(id)) _equipIds.Add(id);
+        // itens marcados de um equipamento desmarcado deixam de valer
+        var validos = _bom.Where(b => _equipIds.Contains(b.EquipmentId)).Select(b => b.Id).ToHashSet();
+        _bomMarcados.RemoveWhere(x => !validos.Contains(x));
+    }
+
+    private string ModeloDe(string equipmentId) =>
+        _equipamentos.FirstOrDefault(e => e.Id == equipmentId)?.Modelo ?? equipmentId;
+
+    // ---- BOM ----------------------------------------------------------------
+
+    private List<BomItem> BomVisivel
+    {
+        get
+        {
+            var q = _bom.Where(b => _equipIds.Contains(b.EquipmentId));
+            var s = _bomBusca.Trim().ToLowerInvariant();
+            if (s.Length > 0)
+                q = q.Where(b => string.Join(' ', b.Item, b.PartNumber, b.DescricaoPt, b.DescricaoEn, b.Material,
+                                             ModeloDe(b.EquipmentId)).ToLowerInvariant().Contains(s));
+            return q.OrderBy(b => _equipIds.IndexOf(b.EquipmentId))
+                    .ThenBy(b => OrdemItem(b.Item)).ThenBy(b => b.PartNumber).ToList();
+        }
+    }
+
+    private static int OrdemItem(string item) =>
+        int.TryParse(new string((item ?? "").Where(char.IsDigit).ToArray()), out var n) ? n : int.MaxValue;
+
+    private static string DescricaoBom(BomItem b) =>
+        !string.IsNullOrWhiteSpace(b.DescricaoPt) ? b.DescricaoPt : b.DescricaoEn;
+
+    private void AlternarBom(string id)
+    {
+        if (!_bomMarcados.Remove(id)) _bomMarcados.Add(id);
+    }
+
+    private void MarcarVisiveis()
+    {
+        foreach (var b in BomVisivel)
+        {
+            var naProposta = _items.Any(i => i.EquipmentId == b.EquipmentId && i.PartNumber.Length > 0 &&
+                IntelligenceService.NormPn(i.PartNumber) == IntelligenceService.NormPn(b.PartNumber));
+            if (!naProposta) _bomMarcados.Add(b.Id);
+        }
+    }
+
+    /// <summary>
+    /// Leva os itens marcados para a proposta. O preço fica em branco: a
+    /// referência de custo e a última venda aparecem ao lado, mas quem define o
+    /// preço é o usuário (o botão "usar" copia a última venda, se ele quiser).
+    /// </summary>
+    private void AdicionarBomMarcados()
+    {
+        foreach (var b in _bom.Where(b => _bomMarcados.Contains(b.Id))
+                              .OrderBy(b => _equipIds.IndexOf(b.EquipmentId)).ThenBy(b => OrdemItem(b.Item)))
+        {
+            var r = Ref(b.PartNumber);
+            var desc = DescricaoBom(b);
+            _items.Add(new CommercialOfferItem
+            {
+                Description = string.IsNullOrWhiteSpace(b.PartNumber) ? desc
+                              : string.IsNullOrWhiteSpace(desc) ? b.PartNumber : $"{b.PartNumber} — {desc}",
+                Quantity = QtdDaBom(b.Quantidade),
+                UnitPrice = 0,
+                TotalPrice = 0,
+                EquipmentId = b.EquipmentId,
+                PartNumber = b.PartNumber.Trim(),
+                Nacionalizado = r.Nacionalizado,
+                CustoReferencia = r.Custo, CustoData = r.CustoData,
+                UltimaVenda = r.UltimaVenda, UltimaVendaData = r.UltimaVendaData,
+            });
+        }
+        _bomMarcados.Clear();
+        _erro = null;
+    }
+
+    /// <summary>"2" → 2; "1 jogo" → 1; "3,5 kg" → 3; vazio → 1.</summary>
+    private static int QtdDaBom(string q)
+    {
+        var digitos = new string((q ?? "").Trim().TakeWhile(char.IsDigit).ToArray());
+        return int.TryParse(digitos, out var n) && n > 0 ? n : 1;
+    }
+
+    // ---- referências de preço -----------------------------------------------
+
+    private ReferenciaPreco Ref(string? pn)
+    {
+        var chave = IntelligenceService.NormPn(pn);
+        if (chave.Length == 0) return ReferenciaPreco.Vazia;
+        if (!_refs.TryGetValue(chave, out var r))
+            _refs[chave] = r = ReferenciaPreco.Para(pn, _unitId, _nacionais, _vendas);
+        return r;
+    }
+
+    private ReferenciaPreco RefDoItem(CommercialOfferItem it) => Ref(it.PartNumber);
+
+    private static MarkupString SeloNac(ReferenciaPreco r) => new(r.Nacionalizado
+        ? "<span class=\"nac nac-sim\">Sim</span>"
+        : "<span class=\"nac nac-nao\">Não</span>");
+
+    /// <summary>Não nacionalizado: nada de custo. Nacionalizado sem valor: "Custo não disponível".</summary>
+    private RenderFragment CelulaCusto(ReferenciaPreco r) => __builder =>
+    {
+        if (!r.Nacionalizado)
+        {
+            <span style="color:var(--muted)">—</span>
+        }
+        else if (r.Custo is decimal c)
+        {
+            <strong>@Fmt.Brl(c)</strong>
+            @if (r.CustoData.Length > 0)
+            {
+                <span class="sub-cel">atualizado em @Fmt.Date(r.CustoData)</span>
+            }
+        }
+        else
+        {
+            <span class="custo-indisp">Custo não disponível</span>
+        }
+    };
+
+    private RenderFragment CelulaUltimaVenda(ReferenciaPreco r) => __builder =>
+    {
+        if (r.UltimaVenda is decimal v)
+        {
+            @Fmt.Brl(v)
+            <span class="sub-cel">@Fmt.Date(r.UltimaVendaData) · @(r.UltimaVendaDoCliente ? "este cliente" : "outro cliente")</span>
+        }
+        else
+        {
+            <span style="color:var(--muted)">sem venda</span>
+        }
+    };
+
+    // ---- itens da proposta ----------------------------------------------------
+
+    /// <summary>Peças cadastradas nas regras de troca dos equipamentos marcados (como antes).</summary>
     private void AdicionarPecas()
     {
-        foreach (var p in _parts.Where(p => p.EquipmentId == _equipId))
+        foreach (var p in _parts.Where(p => _equipIds.Contains(p.EquipmentId)))
         {
+            var r = Ref(p.Codigo);
             _items.Add(new CommercialOfferItem
             {
                 Description = string.IsNullOrEmpty(p.Descritivo) ? p.Nome : $"{p.Nome} — {p.Descritivo}",
                 Quantity = 1,
                 UnitPrice = p.ValorEstimado,
                 TotalPrice = p.ValorEstimado,
+                EquipmentId = p.EquipmentId,
+                PartNumber = (p.Codigo ?? "").Trim(),
+                Nacionalizado = r.Nacionalizado,
+                CustoReferencia = r.Custo, CustoData = r.CustoData,
+                UltimaVenda = r.UltimaVenda, UltimaVendaData = r.UltimaVendaData,
             });
         }
     }
@@ -173,6 +484,32 @@
         _desc = ""; _qtd = 1; _preco = 0;
     }
 
+    private void MudarQtd(int idx, ChangeEventArgs e)
+    {
+        if (idx < 0 || idx >= _items.Count) return;
+        var it = _items[idx];
+        it.Quantity = int.TryParse(e.Value?.ToString(), out var q) && q > 0 ? q : 1;
+        it.TotalPrice = it.Quantity * it.UnitPrice;
+    }
+
+    private void MudarPreco(int idx, ChangeEventArgs e)
+    {
+        if (idx < 0 || idx >= _items.Count) return;
+        var it = _items[idx];
+        var texto = (e.Value?.ToString() ?? "").Replace(",", ".");
+        it.UnitPrice = decimal.TryParse(texto, NumberStyles.Any, CultureInfo.InvariantCulture, out var p) && p > 0 ? p : 0;
+        it.TotalPrice = it.Quantity * it.UnitPrice;
+    }
+
+    /// <summary>Só por ação do usuário: copia a última venda para o preço da proposta.</summary>
+    private void UsarPreco(int idx, decimal valor)
+    {
+        if (idx < 0 || idx >= _items.Count) return;
+        var it = _items[idx];
+        it.UnitPrice = valor;
+        it.TotalPrice = it.Quantity * valor;
+    }
+
     private void Remover(int idx)
     {
         if (idx >= 0 && idx < _items.Count) _items.RemoveAt(idx);
@@ -180,13 +517,21 @@
 
     private decimal Total => _items.Sum(i => i.TotalPrice);
 
+    private static string Txt(string s) => string.IsNullOrWhiteSpace(s) ? "—" : s;
+
     private void Salvar()
     {
         if (string.IsNullOrWhiteSpace(_o.ClientName)) { _erro = "Selecione o cliente."; return; }
+        var semPreco = _items.Count(i => i.UnitPrice <= 0);
+        if (semPreco > 0)
+        {
+            _erro = $"Defina o preço unitário da proposta em {semPreco} item(ns) — estão destacados na tabela.";
+            return;
+        }
         var now = DateTime.Now;
         _o.Id = Guid.NewGuid().ToString("N");
         _o.OfferCode = "OF-" + now.ToString("yyyyMMdd-HHmmss");
-        _o.EquipmentId = _equipId;
+        _o.EquipmentId = string.Join(";", _equipIds);
         _o.OfferDate = now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         _o.CreatedAt = _o.OfferDate;
         _o.OurReference = string.IsNullOrWhiteSpace(_o.OurReference) ? _o.OfferCode : _o.OurReference;

@@ -41,4 +41,17 @@ public class CommercialOfferItem
     public int Quantity { get; set; } = 1;
     public decimal UnitPrice { get; set; }
     public decimal TotalPrice { get; set; }
+
+    // --- Origem do item e apoio à precificação (uso interno) ----------------
+    // Ficam gravados como foram vistos ao montar a proposta, para auditoria.
+    // NÃO aparecem no documento do cliente e nunca alteram o preço sozinhos.
+    public string EquipmentId { get; set; } = "";
+    public string PartNumber { get; set; } = "";
+    public bool Nacionalizado { get; set; }
+    /// <summary>Custo de referência (Valor BR da lista de Nacionalização); null = não disponível.</summary>
+    public decimal? CustoReferencia { get; set; }
+    public string CustoData { get; set; } = "";
+    /// <summary>Preço unitário da última venda do partnumber; null = sem venda.</summary>
+    public decimal? UltimaVenda { get; set; }
+    public string UltimaVendaData { get; set; } = "";
 }

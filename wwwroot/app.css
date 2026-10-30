@@ -822,3 +822,27 @@ h1 { font-size: 24px; margin: 0 0 4px; color: var(--primary); letter-spacing: -.
     display: inline-block; font-size: 11px; font-weight: 700; color: #15803d;
     background: #e6f7ee; border-radius: 20px; padding: 2px 9px; cursor: help;
 }
+
+/* ===== Gerar Proposta: equipamentos, BOM e referência de custo ===== */
+.equip-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.equip-chip {
+    display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+    border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 12px; background: #fff;
+}
+.equip-chip.on { border-color: var(--primary); background: #eef4fa; }
+.equip-chip span { display: flex; flex-direction: column; line-height: 1.2; }
+.equip-chip small { font-size: 11px; color: var(--muted); }
+.linha-na-proposta > td { background: #f6fbf8; color: var(--muted); }
+.custo-indisp {
+    display: inline-block; font-size: 11.5px; font-weight: 700; color: #b45309;
+    background: #fef3e2; border-radius: 20px; padding: 2px 9px; white-space: nowrap;
+}
+.qtd-cel { width: 70px; text-align: right; }
+.preco-cel { width: 130px; text-align: right; }
+.sem-preco > td { background: #fffaf0; }
+.sem-preco .preco-cel { border-color: #f59e0b; }
+.usar-preco { font-size: 11.5px; margin-left: 4px; }
+/* tabelas largas da proposta: rolam na horizontal em vez de espremer os campos */
+.tabela-proposta { min-width: 1080px; }
+.tabela-proposta td:first-child { min-width: 230px; }
+.tabela-bom-proposta { min-width: 980px; }
