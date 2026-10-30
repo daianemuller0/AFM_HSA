@@ -806,3 +806,15 @@ h1 { font-size: 24px; margin: 0 0 4px; color: var(--primary); letter-spacing: -.
     display: inline-block; font-size: 11px; font-weight: 700; color: #0b4f87;
     background: #eef4fa; border-radius: 20px; padding: 2px 9px;
 }
+
+/* ===== Próxima compra prevista (regras de troca) ===== */
+.prox { margin-bottom: 6px; }
+.prox:last-child { margin-bottom: 0; }
+.prox strong { margin-right: 6px; }
+.prox-pill {
+    display: inline-block; border-radius: 20px; padding: 1px 9px;
+    font-size: 11px; font-weight: 700; white-space: nowrap;
+}
+.prox-atrasada { background: #fdeaea; color: #b91c1c; }
+.prox-breve { background: #fef3e2; color: #b45309; }
+.prox-ok { background: #eef4fa; color: #0b4f87; }

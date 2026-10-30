@@ -67,10 +67,14 @@ else
 
     <div class="dash-title">Regras técnicas de troca (peças e ciclos)
         <span style="margin-left:8px;font-size:12px;font-weight:600;color:var(--muted)">
-            por partnumber · sem regra cadastrada, a frequência é calculada pelo histórico de compras
+            frequência calculada pelo histórico de compras de cada partnumber — fica mais precisa a cada venda
         </span>
     </div>
     <div class="toolbar tab-toolbar">
+        <span style="font-size:12.5px;color:var(--muted)">
+            A partir de <strong style="color:var(--text)">2 compras do mesmo cliente</strong> o sistema calcula a frequência e prevê a próxima compra.
+            Sem histórico suficiente, vale a regra cadastrada.
+        </span>
         <div style="flex:1"></div>
         <button class="btn-primary" @onclick="NovaRegra">+ Adicionar regra</button>
     </div>
@@ -78,21 +82,22 @@ else
     {
         <div class="side-ok" style="margin-bottom:10px">@_regraMsg</div>
     }
+    <div class="tabela-rolante">
     <table class="grid" style="margin-bottom:20px">
         <thead>
             <tr>
-                <th>Partnumber</th><th>Peça nacionalizada</th><th>Descrição (do BOM)</th><th>Frequência de troca</th>
-                <th>Compras no histórico</th><th class="right">Valor estimado</th><th>Criticidade</th>
-                <th class="right">Ações</th>
+                <th>Partnumber</th><th>Peça nacionalizada</th><th>Descrição (do BOM)</th>
+                <th>Frequência de troca</th><th>Compras no histórico</th><th>Próxima compra</th>
+                <th class="right">Valor estimado</th><th>Criticidade</th><th class="right">Ações</th>
             </tr>
         </thead>
         <tbody>
-            @foreach (var p in _parts)
+            @foreach (var l in LinhasRegras)
             {
-                @if (_editRegraId == p.Id)
+                @if (l.Regra is not null && _editRegraId == l.Regra.Id)
                 {
                     <tr class="row-edit">
-                        <td colspan="8">
+                        <td colspan="9">
                             <div class="form3 form-edit">
                                 <label>Partnumber *
                                     <input class="cell" list="bom-pns" @bind="_fp.Codigo" @bind:after="PnRegraMudou" />
@@ -102,6 +107,7 @@ else
                                 </label>
                                 <label>Ciclo de troca (meses) *
                                     <input class="cell" type="number" min="1" @bind="_fp.CicloMeses" />
+                                    <span style="font-size:11px;color:var(--muted)">usado enquanto o histórico não tiver 2 compras do mesmo cliente</span>
                                 </label>
                                 <label>Valor estimado (R$)
                                     <input class="cell" type="number" step="0.01" min="0" @bind="_fp.ValorEstimado" />
@@ -123,95 +129,128 @@ else
                 }
                 else
                 {
-                    var compras = ComprasDoPn(p.Codigo);
-                    <tr>
+                    <tr class="@(l.Regra is null ? "linha-historico" : "")">
                         <td class="nowrap">
-                            @if (string.IsNullOrWhiteSpace(p.Codigo))
+                            @if (string.IsNullOrWhiteSpace(l.Pn))
                             {
                                 <span class="sem-pn" title="Regra antiga, cadastrada pelo nome. Edite para informar o partnumber.">sem partnumber</span>
                             }
                             else
                             {
-                                <strong>@p.Codigo</strong>
+                                <strong>@l.Pn</strong>
                             }
                         </td>
-                        <td>@SeloNacional(p.Codigo)</td>
-                        <td>@(DescricaoBom(p.Codigo) is { Length: > 0 } d ? d : p.Nome)</td>
+                        <td>@SeloNacional(l.Pn)</td>
+                        <td>@l.Descricao</td>
                         <td class="nowrap">
-                            @Freq(p.CicloMeses)
-                            @if (FrequenciaDoPn(p.Codigo) is (int mh, var nIntervalos))
+                            @if (l.MesesHistorico is int mh)
                             {
-                                <span class="sub-cel">pelo histórico: ~@mh meses (@nIntervalos intervalo(s))</span>
+                                <strong>@Freq(mh)</strong>
+                                <span class="sub-cel">pelo histórico · média de @l.Intervalos intervalo(s)</span>
+                                @if (l.Regra is not null && l.Regra.CicloMeses > 0 && l.Regra.CicloMeses != mh)
+                                {
+                                    <span class="sub-cel">regra cadastrada: @l.Regra.CicloMeses meses</span>
+                                }
+                            }
+                            else if (l.Meses is int mr)
+                            {
+                                @Freq(mr)
+                                <span class="sub-cel">regra cadastrada · histórico ainda insuficiente</span>
+                            }
+                            else
+                            {
+                                <span style="color:var(--muted)">—</span>
+                                <span class="sub-cel">precisa de 2 compras do mesmo cliente</span>
                             }
                         </td>
                         <td class="nowrap">
-                            @if (compras.Count > 0)
+                            @if (l.Compras.Count > 0)
                             {
-                                <span class="badge st-ok">@compras.Count compra(s)</span>
-                                <span class="sub-cel">última em @Fmt.Date(compras.Max(v => v.DataVenda))</span>
+                                <span class="badge st-ok">@l.Compras.Count compra(s)</span>
+                                <span class="sub-cel">última em @Fmt.Date(l.Compras.Max(v => v.DataVenda))</span>
                             }
                             else
                             {
                                 <span style="color:var(--muted)">sem compras</span>
                             }
                         </td>
-                        <td class="right nowrap">@(p.ValorEstimado > 0 ? Fmt.Brl0(p.ValorEstimado) : "—")</td>
-                        <td><span class="badge @(p.Critica ? "st-vencida" : "st-plan")">@(p.Critica ? "Crítica" : "Normal")</span></td>
-                        <td class="right nowrap">
-                            <button class="btn-link" @onclick="() => EditarRegra(p)">editar</button>
-                            @if (_confirmRegraId == p.Id)
+                        <td class="nowrap">
+                            @if (l.Proximas.Count == 0)
                             {
-                                <button class="btn-link" style="color:#b91c1c;font-weight:700" @onclick="() => ExcluirRegra(p)">confirmar</button>
-                                <button class="btn-link" style="color:var(--muted)" @onclick="() => _confirmRegraId = null">não</button>
+                                <span style="color:var(--muted)">—</span>
                             }
                             else
                             {
-                                <button class="btn-link" style="color:#b91c1c" @onclick="() => _confirmRegraId = p.Id">excluir</button>
+                                @foreach (var px in l.Proximas.Take(3))
+                                {
+                                    <div class="prox">
+                                        <strong>@Fmt.Date(px.Data)</strong>
+                                        <span class="prox-pill @ClasseProxima(px.Dias)">@TextoProxima(px.Dias)</span>
+                                        <span class="sub-cel">@Intel.ClienteDaUnidade(px.ClientUnitId) — @Intel.UnitNome(px.ClientUnitId)</span>
+                                    </div>
+                                }
+                                @if (l.Proximas.Count > 3)
+                                {
+                                    <span class="sub-cel">+ @(l.Proximas.Count - 3) cliente(s)</span>
+                                }
+                            }
+                        </td>
+                        <td class="right nowrap">
+                            @if (l.Regra is not null && l.Regra.ValorEstimado > 0)
+                            {
+                                @Fmt.Brl0(l.Regra.ValorEstimado)
+                            }
+                            else if (l.Compras.Count > 0 && UltimoUnitario(l.Compras) > 0)
+                            {
+                                @Fmt.Brl0(UltimoUnitario(l.Compras))
+                                <span class="sub-cel">última compra</span>
+                            }
+                            else
+                            {
+                                <text>—</text>
+                            }
+                        </td>
+                        <td>
+                            @if (l.Regra is not null)
+                            {
+                                <span class="badge @(l.Regra.Critica ? "st-vencida" : "st-plan")">@(l.Regra.Critica ? "Crítica" : "Normal")</span>
+                            }
+                            else
+                            {
+                                <span class="sem-regra" title="Calculada só pelo histórico. Crie a regra para definir criticidade e valor.">sem regra</span>
+                            }
+                        </td>
+                        <td class="right nowrap">
+                            @if (l.Regra is not null)
+                            {
+                                var regra = l.Regra;
+                                <button class="btn-link" @onclick="() => EditarRegra(regra)">editar</button>
+                                @if (_confirmRegraId == regra.Id)
+                                {
+                                    <button class="btn-link" style="color:#b91c1c;font-weight:700" @onclick="() => ExcluirRegra(regra)">confirmar</button>
+                                    <button class="btn-link" style="color:var(--muted)" @onclick="() => _confirmRegraId = null">não</button>
+                                }
+                                else
+                                {
+                                    <button class="btn-link" style="color:#b91c1c" @onclick="() => _confirmRegraId = regra.Id">excluir</button>
+                                }
+                            }
+                            else
+                            {
+                                <button class="btn-link" title="Criar a regra com a frequência calculada (dá para ajustar criticidade e valor)"
+                                        @onclick="() => CriarRegraDoHistorico(l)">criar regra</button>
                             }
                         </td>
                     </tr>
                 }
             }
-            @* Partnumbers comprados que ainda não têm regra: frequência calculada pelo histórico *@
-            @foreach (var h in PnsSoNoHistorico)
+            @if (LinhasRegras.Count == 0)
             {
-                <tr class="linha-historico">
-                    <td class="nowrap"><strong>@h.Pn</strong></td>
-                    <td>@SeloNacional(h.Pn)</td>
-                    <td>@(DescricaoBom(h.Pn) is { Length: > 0 } dh ? dh : h.Compras[0].ItemVendido)</td>
-                    <td class="nowrap">
-                        @if (h.Meses is int m)
-                        {
-                            @Freq(m)
-                            <span class="sub-cel">calculada pelo histórico · @h.Intervalos intervalo(s)</span>
-                        }
-                        else
-                        {
-                            <span style="color:var(--muted)">—</span>
-                            <span class="sub-cel">precisa de 2 compras na mesma unidade</span>
-                        }
-                    </td>
-                    <td class="nowrap">
-                        <span class="badge st-ok">@h.Compras.Count compra(s)</span>
-                        <span class="sub-cel">última em @Fmt.Date(h.Compras.Max(v => v.DataVenda))</span>
-                    </td>
-                    <td class="right nowrap">
-                        @(UltimoUnitario(h.Compras) is decimal u && u > 0 ? Fmt.Brl0(u) : "—")
-                        <span class="sub-cel">última compra</span>
-                    </td>
-                    <td><span class="sem-regra">sem regra</span></td>
-                    <td class="right nowrap">
-                        <button class="btn-link" title="Transformar a frequência calculada em regra (dá para ajustar)"
-                                @onclick="() => CriarRegraDoHistorico(h)">criar regra</button>
-                    </td>
-                </tr>
-            }
-            @if (_parts.Count == 0 && PnsSoNoHistorico.Count == 0)
-            {
-                <tr><td colspan="8" class="empty">Nenhuma regra de troca e nenhuma compra com partnumber. Use "Adicionar regra" ou suba o histórico.</td></tr>
+                <tr><td colspan="9" class="empty">Nenhuma regra de troca e nenhuma compra com partnumber. Use "Adicionar regra" ou suba o histórico.</td></tr>
             }
         </tbody>
     </table>
+    </div>
 
     <div class="dash-title">Histórico Aftermarket (deste equipamento)
         @if (_sales.Count > 0)
@@ -670,33 +709,87 @@ else
 
     // =================== Regras técnicas de troca =========================
 
-    /// <summary>Partnumber comprado que ainda não tem regra cadastrada.</summary>
-    private record PnHistorico(string Pn, List<SalesRecord> Compras, int? Meses, int Intervalos);
+    /// <summary>Próxima compra prevista de um cliente (planta) para a peça.</summary>
+    private record ProximaDoCliente(string ClientUnitId, string Data, int Dias);
 
-    /// <summary>Frequência real de compra do partnumber neste equipamento.</summary>
-    private (int? Meses, int Intervalos) FrequenciaDoPn(string? pn) =>
-        IntelligenceService.FrequenciaDoHistorico(ComprasDoPn(pn));
+    /// <summary>
+    /// Uma linha da tabela de regras: a regra cadastrada (se houver) somada ao
+    /// que o histórico mostra para o mesmo partnumber. Partnumber comprado sem
+    /// regra também vira linha, com Regra = null.
+    /// </summary>
+    private record LinhaRegra(Part? Regra, string Pn, string Descricao, List<SalesRecord> Compras,
+        int? MesesHistorico, int Intervalos, int? Meses, List<ProximaDoCliente> Proximas);
 
-    private List<PnHistorico> PnsSoNoHistorico
+    /// <summary>
+    /// Monta as linhas. Frequência: a do histórico (a partir de 2 compras do
+    /// mesmo cliente) e, sem ela, a da regra. Próxima compra: para cada cliente
+    /// que já comprou, a última compra dele + a frequência. Ordem: a linha em
+    /// edição no topo; depois as próximas compras mais urgentes.
+    /// </summary>
+    private List<LinhaRegra> LinhasRegras
     {
         get
         {
-            var comRegra = _parts.Select(p => IntelligenceService.NormPn(p.Codigo))
-                                 .Where(x => x.Length > 0).ToHashSet();
-            return _sales
-                .Where(v => !string.IsNullOrWhiteSpace(v.PartNumber))
-                .GroupBy(v => IntelligenceService.NormPn(v.PartNumber))
-                .Where(g => !comRegra.Contains(g.Key))
-                .Select(g =>
-                {
-                    var compras = g.ToList();
-                    var (meses, intervalos) = IntelligenceService.FrequenciaDoHistorico(compras);
-                    return new PnHistorico(compras[0].PartNumber.Trim(), compras, meses, intervalos);
-                })
-                .OrderBy(h => h.Pn, StringComparer.OrdinalIgnoreCase)
+            var linhas = new List<LinhaRegra>();
+            var comRegra = new HashSet<string>();
+
+            foreach (var p in _parts)
+            {
+                var pn = (p.Codigo ?? "").Trim();
+                if (pn.Length > 0) comRegra.Add(IntelligenceService.NormPn(pn));
+                var compras = ComprasDoPn(pn);
+                var desc = DescricaoBom(pn) is { Length: > 0 } d ? d : p.Nome;
+                linhas.Add(NovaLinha(p, pn, desc, compras));
+            }
+
+            foreach (var g in _sales.Where(v => !string.IsNullOrWhiteSpace(v.PartNumber))
+                                    .GroupBy(v => IntelligenceService.NormPn(v.PartNumber))
+                                    .Where(x => !comRegra.Contains(x.Key)))
+            {
+                var compras = g.ToList();
+                var pn = compras[0].PartNumber.Trim();
+                var desc = DescricaoBom(pn) is { Length: > 0 } d ? d : compras[0].ItemVendido;
+                linhas.Add(NovaLinha(null, pn, desc, compras));
+            }
+
+            return linhas
+                .OrderByDescending(l => l.Regra is not null && l.Regra.Id == _editRegraId)
+                .ThenBy(l => l.Proximas.Count > 0 ? l.Proximas[0].Data : "9999")
+                .ThenBy(l => l.Pn, StringComparer.OrdinalIgnoreCase)
                 .ToList();
         }
     }
+
+    private LinhaRegra NovaLinha(Part? regra, string pn, string desc, List<SalesRecord> compras)
+    {
+        var (mh, intervalos) = IntelligenceService.FrequenciaDoHistorico(compras);
+        int? meses = mh ?? (regra is not null && regra.CicloMeses > 0 ? regra.CicloMeses : null);
+
+        var proximas = new List<ProximaDoCliente>();
+        if (meses is int m)
+        {
+            foreach (var cliente in compras.GroupBy(v => v.ClientUnitId ?? ""))
+            {
+                var ultima = cliente.Max(v => v.DataVenda);
+                var data = IntelligenceService.ProximaCompra(ultima, m);
+                if (!DateTime.TryParse(data, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt)) continue;
+                proximas.Add(new ProximaDoCliente(cliente.Key, data, (int)(dt.Date - DateTime.Today).TotalDays));
+            }
+        }
+        return new LinhaRegra(regra, pn, desc, compras, mh, intervalos, meses,
+            proximas.OrderBy(x => x.Data, StringComparer.Ordinal).ToList());
+    }
+
+    private static string ClasseProxima(int dias) =>
+        dias < 0 ? "prox-atrasada" : dias <= 90 ? "prox-breve" : "prox-ok";
+
+    private static string TextoProxima(int dias) => dias switch
+    {
+        < 0 => $"atrasada há {-dias} dia(s)",
+        0 => "hoje",
+        <= 90 => $"em {dias} dia(s)",
+        _ => $"em ~{Math.Round(dias / 30.44)} meses",
+    };
 
     private static decimal UltimoUnitario(List<SalesRecord> compras) =>
         compras.OrderByDescending(v => v.DataVenda, StringComparer.Ordinal).First().ValorUnitario;
@@ -705,16 +798,16 @@ else
     /// Abre uma regra já preenchida com o que o histórico mostra: frequência
     /// calculada e o último preço unitário. O usuário confere e salva.
     /// </summary>
-    private void CriarRegraDoHistorico(PnHistorico h)
+    private void CriarRegraDoHistorico(LinhaRegra h)
     {
         _fp = new Part
         {
             Id = "pt-" + Guid.NewGuid().ToString("N")[..8],
             EquipmentId = _e!.Id, Ativo = true,
             Codigo = h.Pn,
-            CicloMeses = h.Meses ?? 12,
-            ValorEstimado = UltimoUnitario(h.Compras),
-            Nome = DescricaoBom(h.Pn) is { Length: > 0 } d ? d : h.Compras[0].ItemVendido,
+            CicloMeses = h.MesesHistorico ?? 12,
+            ValorEstimado = h.Compras.Count > 0 ? UltimoUnitario(h.Compras) : 0,
+            Nome = h.Descricao,
         };
         _editRegraId = _fp.Id; _regraErro = null; _regraMsg = null;
         _parts.Insert(0, _fp);

@@ -126,19 +126,19 @@ public class IntelligenceService
     {
         var parts = Parts.Where(p => p.EquipmentId == equipmentId && p.Ativo).ToList();
 
-        // O partnumber é a chave da peça: com ele, a regra é exata.
+        // O partnumber é a chave da peça. A frequência real de compra (a partir
+        // de 2 compras do mesmo cliente) manda; a regra cadastrada à mão cobre
+        // o que o histórico ainda não mostra.
         var pnVenda = NormPn(partNumber);
         if (pnVenda.Length > 0)
         {
             var regra = parts.FirstOrDefault(p => NormPn(p.Codigo) == pnVenda);
-            if (regra is not null && regra.CicloMeses > 0) return (regra.CicloMeses, regra.Critica);
-
-            // Sem regra cadastrada: a frequência real de compra, se o histórico já mostra.
             if (historico is not null)
             {
                 var (meses, _) = FrequenciaDoHistorico(historico);
-                if (meses is int m) return (m, CycleFor(item).critica);
+                if (meses is int m) return (m, regra?.Critica ?? CycleFor(item).critica);
             }
+            if (regra is not null && regra.CicloMeses > 0) return (regra.CicloMeses, regra.Critica);
         }
 
         // Sem partnumber (histórico antigo): aproximação pelo nome do item.
@@ -170,6 +170,12 @@ public class IntelligenceService
             arr.Add(s);
         }
 
+        // todas as compras de cada peça (equipamento + partnumber), de todas as
+        // plantas: quanto mais vendas, mais precisa a frequência
+        var comprasDaPeca = Sales.Where(s => NormPn(s.PartNumber).Length > 0)
+            .GroupBy(s => $"{s.EquipmentId}::{NormPn(s.PartNumber)}")
+            .ToDictionary(g => g.Key, g => g.ToList());
+
         var opps = new List<Opportunity>();
         foreach (var (key, recs) in groups)
         {
@@ -180,7 +186,9 @@ public class IntelligenceService
             recs.Sort((a, b) => string.CompareOrdinal(a.DataVenda, b.DataVenda));
             var last = recs[^1];
             var item = RotuloItem(last);
-            var (meses, partCritica) = PartCycleFor(last.EquipmentId, last.ItemVendido, last.PartNumber, recs);
+            comprasDaPeca.TryGetValue($"{last.EquipmentId}::{NormPn(last.PartNumber)}", out var historicoDaPeca);
+            var (meses, partCritica) = PartCycleFor(last.EquipmentId, last.ItemVendido, last.PartNumber,
+                historicoDaPeca ?? recs);
 
             var reprog = ov != null && !string.IsNullOrEmpty(ov.Reprograma) ? ov.Reprograma : null;
             var prevista = reprog ?? AddMonths(last.DataVenda, meses);
@@ -496,19 +504,18 @@ public class IntelligenceService
         Regex.Replace(s.Trim().ToLowerInvariant(), @"\s+", " ");
 
     /// <summary>
-    /// Frequência real de compra de uma peça, em meses, tirada do histórico.
-    /// Os intervalos são medidos dentro de cada unidade física (TAG; sem TAG, a
-    /// planta) — senão a compra de uma planta e a de outra, feitas em meses
-    /// vizinhos, pareceriam uma troca a cada dois meses. Várias linhas no mesmo
-    /// dia (mesmo pedido) contam como uma compra só.
-    /// Devolve null enquanto não houver ao menos duas compras na mesma unidade.
+    /// Frequência real de compra de uma peça, em meses, tirada do histórico:
+    /// média dos intervalos entre compras sucessivas do MESMO cliente (planta).
+    /// Ex.: comprou em 12/12/2024 e 12/12/2025 → 12 meses. Cada venda nova entra
+    /// na média, então o número fica mais preciso com o tempo. Os intervalos de
+    /// todas as plantas que compram a peça entram juntos na média, mas nunca se
+    /// mede de uma planta para outra. Linhas no mesmo dia (mesmo pedido) contam
+    /// como uma compra só. Devolve null até existirem 2 compras no mesmo cliente.
     /// </summary>
     public static (int? Meses, int Intervalos) FrequenciaDoHistorico(IEnumerable<SalesRecord> compras)
     {
         var intervalosDias = new List<double>();
-        foreach (var unidade in compras.GroupBy(s =>
-                     !string.IsNullOrWhiteSpace(s.Tag) ? "tag:" + s.Tag.Trim().ToUpperInvariant()
-                                                       : "planta:" + s.ClientUnitId))
+        foreach (var unidade in compras.GroupBy(s => s.ClientUnitId ?? ""))
         {
             var datas = unidade
                 .Select(s => DateTime.TryParse(s.DataVenda, CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) ? d : (DateTime?)null)
@@ -522,19 +529,22 @@ public class IntelligenceService
         return (Math.Max(1, meses), intervalosDias.Count);
     }
 
+    /// <summary>Próxima compra prevista: última compra + frequência (mesma conta do motor).</summary>
+    public static string ProximaCompra(string ultimaIso, int meses) => AddMonths(ultimaIso, meses);
+
     /// <summary>Partnumber comparável: sem espaços e sem diferença de caixa.</summary>
     public static string NormPn(string? pn) =>
         Regex.Replace((pn ?? "").Trim().ToUpperInvariant(), @"\s+", "");
 
     /// <summary>
     /// Série de compras de uma peça num equipamento. Venda com partnumber agrupa
-    /// pelo partnumber; venda antiga, sem ele, continua agrupando pelo nome do
+    /// por cliente (planta) + partnumber; venda antiga, sem ele, continua agrupando pelo nome do
     /// item — mesma chave de antes, para não perder status e reprogramações já
     /// gravados nessas oportunidades.
     /// </summary>
     private static string ChaveSerie(SalesRecord s) =>
         NormPn(s.PartNumber) is { Length: > 0 } pn
-            ? $"{s.EquipmentId}::pn:{pn}"
+            ? $"{s.EquipmentId}::{s.ClientUnitId}::pn:{pn}"   // cada cliente tem a sua próxima compra
             : $"{s.EquipmentId}::{NormItem(s.ItemVendido)}";
 
     /// <summary>Descrição da peça com o partnumber ao lado, quando existe.</summary>
