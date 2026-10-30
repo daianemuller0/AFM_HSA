@@ -135,8 +135,8 @@ public class IntelligenceService
             var regra = parts.FirstOrDefault(p => NormPn(p.Codigo) == pnVenda);
             if (historico is not null)
             {
-                var (meses, _) = FrequenciaDoHistorico(historico);
-                if (meses is int m) return (m, regra?.Critica ?? CycleFor(item).critica);
+                if (FrequenciaDoHistorico(historico).Meses is int m)
+                    return (m, regra?.Critica ?? CycleFor(item).critica);
             }
             if (regra is not null && regra.CicloMeses > 0) return (regra.CicloMeses, regra.Critica);
         }
@@ -504,29 +504,68 @@ public class IntelligenceService
         Regex.Replace(s.Trim().ToLowerInvariant(), @"\s+", " ");
 
     /// <summary>
-    /// Frequência real de compra de uma peça, em meses, tirada do histórico:
-    /// média dos intervalos entre compras sucessivas do MESMO cliente (planta).
-    /// Ex.: comprou em 12/12/2024 e 12/12/2025 → 12 meses. Cada venda nova entra
-    /// na média, então o número fica mais preciso com o tempo. Os intervalos de
-    /// todas as plantas que compram a peça entram juntos na média, mas nunca se
-    /// mede de uma planta para outra. Linhas no mesmo dia (mesmo pedido) contam
-    /// como uma compra só. Devolve null até existirem 2 compras no mesmo cliente.
+    /// Resultado do cálculo de frequência. <see cref="PorCliente"/> diz se os
+    /// intervalos vieram de compras do mesmo cliente (o caso ideal) ou, sem isso,
+    /// de todas as compras do item. Os contadores explicam na tela por que ainda
+    /// não deu para calcular.
     /// </summary>
-    public static (int? Meses, int Intervalos) FrequenciaDoHistorico(IEnumerable<SalesRecord> compras)
+    public record FrequenciaCompra(int? Meses, int Intervalos, bool PorCliente, int ComprasDistintas, int DatasInvalidas);
+
+    /// <summary>
+    /// Frequência real de compra de uma peça, em meses, tirada do histórico.
+    /// Ex.: comprou em 12/12/2024 e 12/12/2025 → 12 meses; cada venda nova entra
+    /// na média e deixa o número mais preciso. Linhas no mesmo dia (mesmo pedido)
+    /// contam como uma compra só.
+    ///  1º) intervalos entre compras do MESMO cliente/planta (compra sem planta
+    ///      identificada conta como do cliente, se só houver um);
+    ///  2º) se nenhum cliente tem 2 compras, intervalos entre todas as compras do
+    ///      item — basta haver 2 compras em datas diferentes.
+    /// </summary>
+    public static FrequenciaCompra FrequenciaDoHistorico(IEnumerable<SalesRecord> compras)
     {
-        var intervalosDias = new List<double>();
-        foreach (var unidade in compras.GroupBy(s => s.ClientUnitId ?? ""))
+        var validas = new List<(string Cliente, DateTime Data)>();
+        var invalidas = 0;
+        foreach (var s in compras)
         {
-            var datas = unidade
-                .Select(s => DateTime.TryParse(s.DataVenda, CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) ? d : (DateTime?)null)
-                .Where(d => d.HasValue).Select(d => d!.Value.Date)
-                .Distinct().OrderBy(d => d).ToList();
-            for (var i = 1; i < datas.Count; i++)
-                intervalosDias.Add((datas[i] - datas[i - 1]).TotalDays);
+            if (DataDaVenda(s.DataVenda) is DateTime d)
+                validas.Add((Regex.Replace((s.ClientUnitId ?? "").Trim().ToUpperInvariant(), @"\s+", " "), d.Date));
+            else invalidas++;
         }
-        if (intervalosDias.Count == 0) return (null, 0);
-        var meses = (int)Math.Round(intervalosDias.Average() / 30.44);
-        return (Math.Max(1, meses), intervalosDias.Count);
+        var distintas = validas.Select(v => v.Data).Distinct().Count();
+
+        // compra sem planta identificada é do cliente, quando só há um cliente
+        var nomeados = validas.Select(v => v.Cliente).Where(c => c.Length > 0).Distinct().ToList();
+        if (nomeados.Count == 1)
+            validas = validas.Select(v => (v.Cliente.Length == 0 ? nomeados[0] : v.Cliente, v.Data)).ToList();
+
+        var porCliente = validas.GroupBy(v => v.Cliente)
+            .SelectMany(g => Intervalos(g.Select(v => v.Data))).ToList();
+        if (porCliente.Count > 0)
+            return new FrequenciaCompra(EmMeses(porCliente), porCliente.Count, true, distintas, invalidas);
+
+        var doItem = Intervalos(validas.Select(v => v.Data)).ToList();
+        if (doItem.Count > 0)
+            return new FrequenciaCompra(EmMeses(doItem), doItem.Count, false, distintas, invalidas);
+
+        return new FrequenciaCompra(null, 0, true, distintas, invalidas);
+    }
+
+    private static IEnumerable<double> Intervalos(IEnumerable<DateTime> datas)
+    {
+        var ordem = datas.Distinct().OrderBy(d => d).ToList();
+        for (var i = 1; i < ordem.Count; i++) yield return (ordem[i] - ordem[i - 1]).TotalDays;
+    }
+
+    private static int EmMeses(List<double> intervalosDias) =>
+        Math.Max(1, (int)Math.Round(intervalosDias.Average() / 30.44));
+
+    /// <summary>Data da venda gravada (ISO); aceita também dd/MM/aaaa por segurança.</summary>
+    private static DateTime? DataDaVenda(string? s)
+    {
+        if (string.IsNullOrWhiteSpace(s)) return null;
+        if (DateTime.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.None, out var d)) return d;
+        if (DateTime.TryParse(s, new CultureInfo("pt-BR"), DateTimeStyles.None, out d)) return d;
+        return null;
     }
 
     /// <summary>Próxima compra prevista: última compra + frequência (mesma conta do motor).</summary>

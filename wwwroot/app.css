@@ -818,3 +818,7 @@ h1 { font-size: 24px; margin: 0 0 4px; color: var(--primary); letter-spacing: -.
 .prox-atrasada { background: #fdeaea; color: #b91c1c; }
 .prox-breve { background: #fef3e2; color: #b45309; }
 .prox-ok { background: #eef4fa; color: #0b4f87; }
+.auto-regra {
+    display: inline-block; font-size: 11px; font-weight: 700; color: #15803d;
+    background: #e6f7ee; border-radius: 20px; padding: 2px 9px; cursor: help;
+}

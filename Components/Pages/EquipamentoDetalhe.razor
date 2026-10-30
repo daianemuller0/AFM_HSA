@@ -67,13 +67,13 @@ else
 
     <div class="dash-title">Regras técnicas de troca (peças e ciclos)
         <span style="margin-left:8px;font-size:12px;font-weight:600;color:var(--muted)">
-            frequência calculada pelo histórico de compras de cada partnumber — fica mais precisa a cada venda
+            a frequência é automática: sai do histórico de compras de cada partnumber e fica mais precisa a cada venda
         </span>
     </div>
     <div class="toolbar tab-toolbar">
         <span style="font-size:12.5px;color:var(--muted)">
-            A partir de <strong style="color:var(--text)">2 compras do mesmo cliente</strong> o sistema calcula a frequência e prevê a próxima compra.
-            Sem histórico suficiente, vale a regra cadastrada.
+            Com <strong style="color:var(--text)">2 compras do item</strong> o sistema calcula a frequência e prevê a próxima compra de cada cliente —
+            não precisa cadastrar regra. Regra manual só para ajustar criticidade e valor, ou para peça que ainda não tem histórico.
         </span>
         <div style="flex:1"></div>
         <button class="btn-primary" @onclick="NovaRegra">+ Adicionar regra</button>
@@ -146,7 +146,11 @@ else
                             @if (l.MesesHistorico is int mh)
                             {
                                 <strong>@Freq(mh)</strong>
-                                <span class="sub-cel">pelo histórico · média de @l.Intervalos intervalo(s)</span>
+                                <span class="sub-cel">automática · média de @l.Freq.Intervalos intervalo(s)</span>
+                                @if (!l.Freq.PorCliente)
+                                {
+                                    <span class="sub-cel">compras de clientes diferentes</span>
+                                }
                                 @if (l.Regra is not null && l.Regra.CicloMeses > 0 && l.Regra.CicloMeses != mh)
                                 {
                                     <span class="sub-cel">regra cadastrada: @l.Regra.CicloMeses meses</span>
@@ -160,7 +164,7 @@ else
                             else
                             {
                                 <span style="color:var(--muted)">—</span>
-                                <span class="sub-cel">precisa de 2 compras do mesmo cliente</span>
+                                <span class="sub-cel">@MotivoSemFrequencia(l.Freq)</span>
                             }
                         </td>
                         <td class="nowrap">
@@ -217,7 +221,7 @@ else
                             }
                             else
                             {
-                                <span class="sem-regra" title="Calculada só pelo histórico. Crie a regra para definir criticidade e valor.">sem regra</span>
+                                <span class="auto-regra" title="Calculada automaticamente pelo histórico. Use 'ajustar' só se quiser definir criticidade ou valor.">automática</span>
                             }
                         </td>
                         <td class="right nowrap">
@@ -237,8 +241,8 @@ else
                             }
                             else
                             {
-                                <button class="btn-link" title="Criar a regra com a frequência calculada (dá para ajustar criticidade e valor)"
-                                        @onclick="() => CriarRegraDoHistorico(l)">criar regra</button>
+                                <button class="btn-link" title="Opcional: fixar criticidade, valor ou um ciclo diferente do calculado"
+                                        @onclick="() => CriarRegraDoHistorico(l)">ajustar</button>
                             }
                         </td>
                     </tr>
@@ -718,7 +722,10 @@ else
     /// regra também vira linha, com Regra = null.
     /// </summary>
     private record LinhaRegra(Part? Regra, string Pn, string Descricao, List<SalesRecord> Compras,
-        int? MesesHistorico, int Intervalos, int? Meses, List<ProximaDoCliente> Proximas);
+        IntelligenceService.FrequenciaCompra Freq, int? Meses, List<ProximaDoCliente> Proximas)
+    {
+        public int? MesesHistorico => Freq.Meses;
+    }
 
     /// <summary>
     /// Monta as linhas. Frequência: a do histórico (a partir de 2 compras do
@@ -762,23 +769,41 @@ else
 
     private LinhaRegra NovaLinha(Part? regra, string pn, string desc, List<SalesRecord> compras)
     {
-        var (mh, intervalos) = IntelligenceService.FrequenciaDoHistorico(compras);
-        int? meses = mh;
+        var freq = IntelligenceService.FrequenciaDoHistorico(compras);
+        int? meses = freq.Meses;
         if (meses is null && regra is not null && regra.CicloMeses > 0) meses = regra.CicloMeses;
 
         var proximas = new List<ProximaDoCliente>();
         if (meses is int m)
         {
-            foreach (var cliente in compras.GroupBy(v => v.ClientUnitId ?? ""))
+            // mesma regra do cálculo: compra sem planta identificada é do cliente, se só houver um
+            var nomeados = compras.Select(v => (v.ClientUnitId ?? "").Trim())
+                                  .Where(c => c.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            string Cliente(SalesRecord v)
             {
-                var ultima = cliente.Max(v => v.DataVenda);
+                var c = (v.ClientUnitId ?? "").Trim();
+                return c.Length == 0 && nomeados.Count == 1 ? nomeados[0] : c;
+            }
+
+            foreach (var cliente in compras.GroupBy(Cliente, StringComparer.OrdinalIgnoreCase))
+            {
+                var ultima = cliente.Max(v => v.DataVenda) ?? "";
                 var data = IntelligenceService.ProximaCompra(ultima, m);
                 if (!DateTime.TryParse(data, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt)) continue;
                 proximas.Add(new ProximaDoCliente(cliente.Key, data, (int)(dt.Date - DateTime.Today).TotalDays));
             }
         }
-        return new LinhaRegra(regra, pn, desc, compras, mh, intervalos, meses,
+        return new LinhaRegra(regra, pn, desc, compras, freq, meses,
             proximas.OrderBy(x => x.Data, StringComparer.Ordinal).ToList());
+    }
+
+    /// <summary>Por que a frequência ainda não saiu, em linguagem de gente.</summary>
+    private static string MotivoSemFrequencia(IntelligenceService.FrequenciaCompra f)
+    {
+        if (f.ComprasDistintas == 0 && f.DatasInvalidas > 0)
+            return $"data da venda não reconhecida em {f.DatasInvalidas} registro(s)";
+        if (f.ComprasDistintas <= 1) return "só 1 compra até agora — calcula sozinho na 2ª";
+        return "precisa de 2 compras em datas diferentes";
     }
 
     private static string ClasseProxima(int dias) =>
