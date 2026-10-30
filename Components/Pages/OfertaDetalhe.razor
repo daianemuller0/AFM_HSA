@@ -22,6 +22,17 @@ else
         </div>
     </div>
 
+    @* Cabeçalho completo: controle comercial interno — não sai na impressão para o cliente *@
+    <div class="panel no-print" style="margin-bottom:16px">
+        <div class="dash-title">Cabeçalho <span style="margin-left:8px;font-size:12px;font-weight:600;color:var(--muted)">uso interno · não aparece no documento impresso</span></div>
+        <div class="form3 cab-detalhe">
+            @foreach (var (rot, val) in Cabecalho)
+            {
+                <div><div class="fact-label">@rot</div><div>@Dash(val)</div></div>
+            }
+        </div>
+    </div>
+
     <div class="panel proposal-print">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid var(--primary);padding-bottom:14px;margin-bottom:16px">
             <div>
@@ -29,7 +40,7 @@ else
                 <div style="font-size:12px;color:var(--muted)">Aftermarket Intelligence · Chart Industries</div>
             </div>
             <div style="text-align:right;font-size:12.5px">
-                <div><strong>Oferta:</strong> @_o.OfferCode</div>
+                <div><strong>Proposta:</strong> @_o.OfferCode@(string.IsNullOrWhiteSpace(_o.Revisao) ? "" : $" · Rev. {_o.Revisao}")</div>
                 <div><strong>Data:</strong> @Fmt.Date(_o.OfferDate)</div>
                 <div><strong>Ref.:</strong> @_o.OurReference</div>
             </div>
@@ -85,6 +96,18 @@ else
     [Parameter] public string? Id { get; set; }
     private CommercialOffer? _o;
     private List<CommercialOfferItem> _items = new();
+
+    private IEnumerable<(string, string)> Cabecalho => _o is null ? Array.Empty<(string, string)>() : new (string, string)[]
+    {
+        ("Nome do Cliente", _o.ClientName), ("PV", _o.Pv), ("Data", Fmt.Date(_o.OfferDate)),
+        ("Número da proposta", _o.OfferCode), ("Revisão", _o.Revisao), ("BU", _o.Bu),
+        ("Elaborado por", _o.PreparedBy), ("NCM c/ redução base ICMS", _o.NcmReducaoIcms),
+        ("Segmento (Margem)", _o.SegmentoMargem), ("Venda para", _o.VendaPara), ("Destino", _o.Destino),
+        ("Estado", _o.Estado), ("Reforma", _o.Reforma), ("Prazo de Entrega", _o.PrazoEntrega),
+        ("Cliente com", _o.ClienteCom), ("Fiança/Seguro Garantia", _o.FiancaSeguro), ("Portal", _o.Portal),
+        ("Rep 1", _o.Rep1), ("Rep 2", _o.Rep2), ("Categories", _o.Categories), ("Product", _o.Product),
+        ("Market Segments", _o.MarketSegments),
+    };
 
     protected override void OnInitialized()
     {

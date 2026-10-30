@@ -26,6 +26,25 @@ public class CommercialOffer
     public string Observations { get; set; } = "";
     public string SgiText { get; set; } = "";
     public string TermsText { get; set; } = "";
+    // Cabeçalho da proposta (dados internos de controle comercial)
+    public string Pv { get; set; } = "";
+    public string Revisao { get; set; } = "0";
+    public string Bu { get; set; } = "";
+    public string NcmReducaoIcms { get; set; } = "";
+    public string SegmentoMargem { get; set; } = "";
+    public string VendaPara { get; set; } = "";
+    public string Destino { get; set; } = "";
+    public string Estado { get; set; } = "";
+    public string Reforma { get; set; } = "";
+    public string PrazoEntrega { get; set; } = "";
+    public string ClienteCom { get; set; } = "";
+    public string FiancaSeguro { get; set; } = "";
+    public string Portal { get; set; } = "";
+    public string Rep1 { get; set; } = "";
+    public string Rep2 { get; set; } = "";
+    public string Categories { get; set; } = "";
+    public string Product { get; set; } = "";
+    public string MarketSegments { get; set; } = "";
     // Totais / controle
     public decimal TotalAmount { get; set; }
     public string Status { get; set; } = "Rascunho";

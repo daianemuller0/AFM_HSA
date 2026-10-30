@@ -11,6 +11,8 @@
 @inject NacionalizacaoRepository Nacionais
 @inject SalesRecordRepository Vendas
 @inject OfferRepository OffersRepo
+@inject SegmentRepository Segmentos
+@inject SalespersonRepository Vendedores
 @inject IntelligenceService Intel
 @inject NavigationManager Nav
 
@@ -24,14 +26,74 @@
 <div class="prop-grid">
   <div>
     <div class="panel" style="margin-bottom:16px">
-        <div class="dash-title">Cliente</div>
-        <div class="form3">
-            <label>Cliente / Unidade
+        <div class="dash-title">Cabeçalho
+            <span style="margin-left:8px;font-size:12px;font-weight:600;color:var(--muted)">
+                escolha o cliente da base: nome, segmento, estado e representante vêm preenchidos (dá para alterar)
+            </span>
+        </div>
+        <div class="form3 cabecalho">
+            <label>Cliente / Unidade (da base)
                 <select class="cell" @bind="_unitId" @bind:after="UnidadeMudou">
                     <option value="">Selecione…</option>
                     @foreach (var u in _units) { <option value="@u.Id">@Intel.UnitLabel(u.Id)</option> }
                 </select>
             </label>
+            <label>Nome do Cliente * <input class="cell" @bind="_o.ClientName" /></label>
+            <label>PV <input class="cell" @bind="_o.Pv" /></label>
+
+            <label>Data <input class="cell" type="date" @bind="DataProposta" /></label>
+            <label>Número da proposta * <input class="cell" @bind="_o.OfferCode" /></label>
+            <label>Revisão <input class="cell" @bind="_o.Revisao" list="dl-revisao" /></label>
+
+            <label>BU <input class="cell" @bind="_o.Bu" list="dl-bu" /></label>
+            <label>Elaborado por <input class="cell" @bind="_o.PreparedBy" /></label>
+            <label>NCM c/ redução base ICMS <input class="cell" @bind="_o.NcmReducaoIcms" list="dl-simnao" /></label>
+
+            <label>Segmento (Margem) <input class="cell" @bind="_o.SegmentoMargem" list="dl-segmento" /></label>
+            <label>Venda para <input class="cell" @bind="_o.VendaPara" list="dl-vendapara" /></label>
+            <label>Destino <input class="cell" @bind="_o.Destino" list="dl-destino" /></label>
+
+            <label>Estado
+                <select class="cell" @bind="_o.Estado">
+                    <option value="">—</option>
+                    @foreach (var uf in Ufs) { <option value="@uf">@uf</option> }
+                </select>
+            </label>
+            <label>Reforma <input class="cell" @bind="_o.Reforma" list="dl-simnao" /></label>
+            <label>Prazo de Entrega <input class="cell" @bind="_o.PrazoEntrega" placeholder="ex.: 90 dias" list="dl-prazo" /></label>
+
+            <label>Cliente com <input class="cell" @bind="_o.ClienteCom" list="dl-clientecom" /></label>
+            <label>Fiança/Seguro Garantia <input class="cell" @bind="_o.FiancaSeguro" list="dl-fianca" /></label>
+            <label>Portal <input class="cell" @bind="_o.Portal" list="dl-portal" /></label>
+
+            <label>Rep 1 <input class="cell" @bind="_o.Rep1" list="dl-rep" /></label>
+            <label>Rep 2 <input class="cell" @bind="_o.Rep2" list="dl-rep" /></label>
+            <label>Categories <input class="cell" @bind="_o.Categories" list="dl-categories" /></label>
+
+            <label>Product <input class="cell" @bind="_o.Product" list="dl-product" /></label>
+            <label>Market Segments <input class="cell" @bind="_o.MarketSegments" list="dl-market" /></label>
+        </div>
+
+        @* sugestões: valores já usados em propostas anteriores + opções usuais *@
+        <datalist id="dl-simnao"><option value="Sim" /><option value="Não" /></datalist>
+        <datalist id="dl-revisao">@foreach (var v in Sugestoes(o => o.Revisao, "0", "1", "2")) { <option value="@v" /> }</datalist>
+        <datalist id="dl-bu">@foreach (var v in Sugestoes(o => o.Bu)) { <option value="@v" /> }</datalist>
+        <datalist id="dl-segmento">@foreach (var v in Sugestoes(o => o.SegmentoMargem, _segs)) { <option value="@v" /> }</datalist>
+        <datalist id="dl-vendapara">@foreach (var v in Sugestoes(o => o.VendaPara, "Consumidor final", "Industrialização", "Revenda")) { <option value="@v" /> }</datalist>
+        <datalist id="dl-destino">@foreach (var v in Sugestoes(o => o.Destino)) { <option value="@v" /> }</datalist>
+        <datalist id="dl-prazo">@foreach (var v in Sugestoes(o => o.PrazoEntrega)) { <option value="@v" /> }</datalist>
+        <datalist id="dl-clientecom">@foreach (var v in Sugestoes(o => o.ClienteCom)) { <option value="@v" /> }</datalist>
+        <datalist id="dl-fianca">@foreach (var v in Sugestoes(o => o.FiancaSeguro, "Não", "Fiança", "Seguro Garantia")) { <option value="@v" /> }</datalist>
+        <datalist id="dl-portal">@foreach (var v in Sugestoes(o => o.Portal)) { <option value="@v" /> }</datalist>
+        <datalist id="dl-rep">@foreach (var v in Sugestoes(o => o.Rep1, _nomesVendedores).Concat(Sugestoes(o => o.Rep2)).Distinct()) { <option value="@v" /> }</datalist>
+        <datalist id="dl-categories">@foreach (var v in Sugestoes(o => o.Categories)) { <option value="@v" /> }</datalist>
+        <datalist id="dl-product">@foreach (var v in Sugestoes(o => o.Product)) { <option value="@v" /> }</datalist>
+        <datalist id="dl-market">@foreach (var v in Sugestoes(o => o.MarketSegments)) { <option value="@v" /> }</datalist>
+    </div>
+
+    <div class="panel" style="margin-bottom:16px">
+        <div class="dash-title">Contato e equipamentos</div>
+        <div class="form3">
             <label>A/C (contato) <input class="cell" @bind="_o.AttentionTo" /></label>
             <label>Cidade <input class="cell" @bind="_o.City" /></label>
             <label>Nossa referência <input class="cell" @bind="_o.OurReference" /></label>
@@ -220,7 +282,7 @@
                     @foreach (var p in OfferDefaults.PaymentOptions) { <option value="@p">@p</option> }
                 </select>
             </label>
-            <label>Prazo de entrega <textarea class="cell" @bind="_o.DeliveryTime"></textarea></label>
+            <label>Prazo de entrega (texto da proposta) <textarea class="cell" @bind="_o.DeliveryTime"></textarea></label>
             <label>Validade <input class="cell" @bind="_o.ValidityText" /></label>
             <label>Observações <textarea class="cell" style="min-height:90px" @bind="_o.Observations"></textarea></label>
             <label>Termos e condições <textarea class="cell" @bind="_o.TermsText"></textarea></label>
@@ -277,13 +339,36 @@
     private decimal _preco;
     private string? _erro;
 
+    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+    private List<CommercialOffer> _anteriores = new();
+    private List<string> _segs = new(), _nomesVendedores = new();
+    // último valor preenchido automaticamente: só é trocado se o usuário não mexeu nele
+    private string _autoSeg = "", _autoUf = "", _autoRep = "";
+
+    private static readonly string[] Ufs =
+    {
+        "AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR",
+        "PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO",
+    };
+
     // referências por partnumber, calculadas uma vez por cliente (a base não muda enquanto a tela está aberta)
     private readonly Dictionary<string, ReferenciaPreco> _refs = new();
 
     private static readonly MarkupString Traco = new("<span style=\"color:var(--muted)\">—</span>");
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
+        if (AuthState is not null)
+        {
+            var nome = (await AuthState).User.Identity?.Name;
+            if (!string.IsNullOrWhiteSpace(nome)) _o.PreparedBy = nome;
+        }
+        _o.OfferDate = DateTime.Today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        _anteriores = OffersRepo.All();
+        _o.OfferCode = NumeroSugerido();
+        _o.Revisao = "0";
+        _segs = Segmentos.All().Select(g => g.Nome).ToList();
+        _nomesVendedores = Vendedores.All().Where(v => v.Ativo).Select(v => v.Nome).ToList();
         _units = Units.All();
         _base = Base.All();
         _parts = Pecas.All();
@@ -314,8 +399,48 @@
             _o.ClientName = Intel.CompanyName(u.CompanyId);
             _o.City = u.Cidade;
             _o.ClientUnitId = u.Id;
+            _o.SegmentoMargem = Auto(_o.SegmentoMargem, ref _autoSeg, u.Segmento);
+            _o.Estado = Auto(_o.Estado, ref _autoUf, (u.Estado ?? "").Trim().ToUpperInvariant());
+            var rep = Intel.SalespersonName(u.VendedorId);
+            _o.Rep1 = Auto(_o.Rep1, ref _autoRep, rep == "—" ? "" : rep);
         }
     }
+
+    /// <summary>Número novo que ainda não existe em nenhuma proposta (data e hora + sufixo se preciso).</summary>
+    private string NumeroSugerido()
+    {
+        var baseNum = "OF-" + DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
+        var usados = _anteriores.Select(a => a.OfferCode).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var numero = baseNum;
+        for (var i = 2; usados.Contains(numero); i++) numero = $"{baseNum}-{i}";
+        return numero;
+    }
+
+    /// <summary>Preenche com o valor da base, sem atropelar o que o usuário já digitou.</summary>
+    private static string Auto(string atual, ref string ultimoAuto, string novo)
+    {
+        var podeTrocar = string.IsNullOrWhiteSpace(atual) || atual == ultimoAuto;
+        ultimoAuto = novo ?? "";
+        return podeTrocar ? ultimoAuto : atual;
+    }
+
+    /// <summary>Data da proposta: hoje por padrão; o campo de data do Blazor pede DateOnly.</summary>
+    private DateOnly? DataProposta
+    {
+        get => DateOnly.TryParseExact(_o.OfferDate, "yyyy-MM-dd", CultureInfo.InvariantCulture,
+            DateTimeStyles.None, out var d) ? d : null;
+        set => _o.OfferDate = value?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "";
+    }
+
+    /// <summary>Opções usuais + valores já usados nas propostas anteriores (sem repetir).</summary>
+    private IEnumerable<string> Sugestoes(Func<CommercialOffer, string> campo, params string[] padrao) =>
+        Sugestoes(campo, (IEnumerable<string>)padrao);
+
+    private IEnumerable<string> Sugestoes(Func<CommercialOffer, string> campo, IEnumerable<string> padrao) =>
+        padrao.Concat(_anteriores.Select(campo))
+              .Where(v => !string.IsNullOrWhiteSpace(v))
+              .Select(v => v.Trim())
+              .Distinct(StringComparer.OrdinalIgnoreCase);
 
     private void AlternarEquip(string id)
     {
@@ -521,7 +646,16 @@
 
     private void Salvar()
     {
-        if (string.IsNullOrWhiteSpace(_o.ClientName)) { _erro = "Selecione o cliente."; return; }
+        if (string.IsNullOrWhiteSpace(_o.ClientName)) { _erro = "Informe o nome do cliente."; return; }
+        _o.OfferCode = (_o.OfferCode ?? "").Trim();
+        _o.Revisao = string.IsNullOrWhiteSpace(_o.Revisao) ? "0" : _o.Revisao.Trim();
+        if (_o.OfferCode.Length == 0) { _erro = "Informe o número da proposta."; return; }
+        if (_anteriores.Any(a => string.Equals(a.OfferCode, _o.OfferCode, StringComparison.OrdinalIgnoreCase)
+                              && string.Equals(a.Revisao, _o.Revisao, StringComparison.OrdinalIgnoreCase)))
+        {
+            _erro = $"Já existe a proposta {_o.OfferCode} revisão {_o.Revisao}. Mude o número ou a revisão.";
+            return;
+        }
         var semPreco = _items.Count(i => i.UnitPrice <= 0);
         if (semPreco > 0)
         {
@@ -530,10 +664,9 @@
         }
         var now = DateTime.Now;
         _o.Id = Guid.NewGuid().ToString("N");
-        _o.OfferCode = "OF-" + now.ToString("yyyyMMdd-HHmmss");
         _o.EquipmentId = string.Join(";", _equipIds);
-        _o.OfferDate = now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-        _o.CreatedAt = _o.OfferDate;
+        if (string.IsNullOrWhiteSpace(_o.OfferDate)) _o.OfferDate = now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        _o.CreatedAt = now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         _o.OurReference = string.IsNullOrWhiteSpace(_o.OurReference) ? _o.OfferCode : _o.OurReference;
         _o.TotalAmount = Total;
         OffersRepo.Save(_o);
