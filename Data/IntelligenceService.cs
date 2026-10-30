@@ -184,7 +184,7 @@ public class IntelligenceService
             overrides.TryGetValue(id, out var ov);
             if (ov != null && ov.Deleted && !includeDeleted) continue;
 
-            recs.Sort((a, b) => string.CompareOrdinal(a.DataVenda, b.DataVenda));
+            recs.Sort((a, b) => Nullable.Compare(DataDaVenda(a.DataVenda), DataDaVenda(b.DataVenda)));
             var last = recs[^1];
             var item = RotuloItem(last);
             comprasDaPeca.TryGetValue($"{last.EquipmentId}::{NormPn(last.PartNumber)}", out var historicoDaPeca);
@@ -478,12 +478,12 @@ public class IntelligenceService
         foreach (var recs in groups.Values)
         {
             if (recs.Count < 2) continue;
-            recs.Sort((a, b) => string.CompareOrdinal(a.DataVenda, b.DataVenda));
+            recs.Sort((a, b) => Nullable.Compare(DataDaVenda(a.DataVenda), DataDaVenda(b.DataVenda)));
             var prev = recs[^2];
             var atual = recs[^1];
             var (meses, _) = PartCycleFor(prev.EquipmentId, prev.ItemVendido, prev.PartNumber, recs.Take(recs.Count - 1));
-            if (!DateTime.TryParse(AddMonths(prev.DataVenda, meses), CultureInfo.InvariantCulture, DateTimeStyles.None, out var previsto)) continue;
-            if (!DateTime.TryParse(atual.DataVenda, CultureInfo.InvariantCulture, DateTimeStyles.None, out var real)) continue;
+            if (DataDaVenda(AddMonths(prev.DataVenda, meses)) is not DateTime previsto) continue;
+            if (DataDaVenda(atual.DataVenda) is not DateTime real) continue;
             var erroDias = Math.Abs((previsto - real).TotalDays);
             series++;
             somaErro += erroDias;
@@ -578,6 +578,11 @@ public class IntelligenceService
     private static string ChaveCliente(string? id) =>
         Regex.Replace((id ?? "").Trim().ToUpperInvariant(), @"\s+", " ");
 
+    /// <summary>Ano de instalação de uma unidade (campo do cadastro ou o da planilha-mestre); 0 se não houver.</summary>
+    public static int AnoDaUnidade(InstalledBase b) =>
+        b.AnoInstalacao > 0 ? b.AnoInstalacao
+        : int.TryParse(new string((b.InstallYear ?? "").Where(char.IsDigit).Take(4).ToArray()), out var y) ? y : 0;
+
     /// <summary>
     /// Ano de instalação do equipamento que recebeu um grupo de compras: pela
     /// unidade com o mesmo serial ou TAG; sem isso, pela planta (a instalação
@@ -587,9 +592,7 @@ public class IntelligenceService
     public static int? AnoInstalacao(IEnumerable<InstalledBase> instalados, IReadOnlyList<SalesRecord> compras)
     {
         var unidades = instalados.ToList();
-        static int Ano(InstalledBase b) =>
-            b.AnoInstalacao > 0 ? b.AnoInstalacao
-            : int.TryParse(new string((b.InstallYear ?? "").Where(char.IsDigit).Take(4).ToArray()), out var y) ? y : 0;
+        static int Ano(InstalledBase b) => AnoDaUnidade(b);
 
         foreach (var v in compras)
         {
@@ -624,12 +627,21 @@ public class IntelligenceService
     private static int EmMeses(List<double> intervalosDias) =>
         Math.Max(1, (int)Math.Round(intervalosDias.Average() / 30.44));
 
-    /// <summary>Data da venda gravada (ISO); aceita também dd/MM/aaaa por segurança.</summary>
-    private static DateTime? DataDaVenda(string? s)
+    private static readonly string[] FormatosIso =
+        { "yyyy-MM-dd", "yyyy-MM-ddTHH:mm:ss", "yyyy-MM-dd HH:mm:ss", "yyyy-MM-ddTHH:mm:ss.FFFFFFF" };
+    private static readonly CultureInfo PtBr = new("pt-BR");
+
+    /// <summary>
+    /// Data gravada: o padrão é ISO (aaaa-MM-dd); aceita também dd/MM/aaaa, que é
+    /// como a data chega quando a planilha a traz como texto. A ordem importa:
+    /// o formato "invariante" leria 12/03/2025 como 3 de dezembro.
+    /// </summary>
+    public static DateTime? DataDaVenda(string? s)
     {
         if (string.IsNullOrWhiteSpace(s)) return null;
-        if (DateTime.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.None, out var d)) return d;
-        if (DateTime.TryParse(s, new CultureInfo("pt-BR"), DateTimeStyles.None, out d)) return d;
+        s = s.Trim();
+        if (DateTime.TryParseExact(s, FormatosIso, CultureInfo.InvariantCulture, DateTimeStyles.None, out var d)) return d;
+        if (DateTime.TryParse(s, PtBr, DateTimeStyles.None, out d)) return d;
         return null;
     }
 
@@ -663,15 +675,13 @@ public class IntelligenceService
 
     private static string AddMonths(string iso, int months)
     {
-        if (!DateTime.TryParse(iso, CultureInfo.InvariantCulture, DateTimeStyles.None, out var d))
-            return iso;
+        if (DataDaVenda(iso) is not DateTime d) return iso;
         return d.AddMonths(months).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
     }
 
     private static int DaysBetween(string iso)
     {
-        if (!DateTime.TryParse(iso, CultureInfo.InvariantCulture, DateTimeStyles.None, out var d))
-            return 0;
+        if (DataDaVenda(iso) is not DateTime d) return 0;
         return (int)Math.Round((d - Today).TotalDays);
     }
 

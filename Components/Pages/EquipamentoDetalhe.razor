@@ -40,6 +40,63 @@ else
         <div class="kpi k-po"><div class="kpi-label">Valor potencial 24 meses</div><div class="kpi-value" style="font-size:14px">@Fmt.Brl0(_pot24)</div></div>
     </div>
 
+    var proximas = ProximasCompras;
+    <div class="dash-title">Próximas compras previstas
+        @if (proximas.Count > 0)
+        {
+            var atrasadas = proximas.Count(x => x.Proxima.Dias < 0);
+            var em90 = proximas.Count(x => x.Proxima.Dias >= 0 && x.Proxima.Dias <= 90);
+            <span style="margin-left:8px;font-size:12px;font-weight:600;color:var(--muted)">
+                @if (atrasadas > 0) { <span class="prox-pill prox-atrasada">@atrasadas atrasada(s)</span> }
+                @if (em90 > 0) { <span class="prox-pill prox-breve">@em90 nos próximos 90 dias</span> }
+            </span>
+        }
+    </div>
+    <div class="tabela-rolante">
+    <table class="grid" style="margin-bottom:20px">
+        <thead>
+            <tr>
+                <th>Próxima compra</th><th>Situação</th><th>Partnumber</th><th>Descrição</th>
+                <th>Cliente / Unidade</th><th>Frequência</th><th>Base da previsão</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var (linha, px) in proximas.Take(10))
+            {
+                <tr>
+                    <td class="nowrap"><strong>@DataProxima(px)</strong></td>
+                    <td class="nowrap"><span class="prox-pill @ClasseProxima(px.Dias)">@TextoProxima(px.Dias)</span></td>
+                    <td class="nowrap"><strong>@linha.Pn</strong></td>
+                    <td>@linha.Descricao</td>
+                    <td>@Intel.ClienteDaUnidade(px.ClientUnitId) — @Intel.UnitNome(px.ClientUnitId)</td>
+                    <td class="nowrap">@(linha.Meses is int fm ? Freq(fm) : "—")</td>
+                    <td class="sub-cel" style="display:table-cell">
+                        @if (px.PelaInstalacao is int ai2)
+                        {
+                            <text>1ª compra — instalação em @ai2 + frequência</text>
+                        }
+                        else
+                        {
+                            <text>última compra @Fmt.Date(px.UltimaCompra) + frequência</text>
+                        }
+                    </td>
+                </tr>
+            }
+            @if (proximas.Count > 10)
+            {
+                <tr><td colspan="7" class="sub-cel" style="display:table-cell">+ @(proximas.Count - 10) previsão(ões) — veja todas na coluna "Próxima compra" das regras de troca, abaixo.</td></tr>
+            }
+            @if (proximas.Count == 0)
+            {
+                <tr><td colspan="7" class="empty">
+                    Ainda não há previsão. Ela aparece quando uma peça tem frequência (2 compras, ou 1 compra com o ano de instalação)
+                    ou quando há regra de troca para um partnumber e o equipamento tem ano de instalação.
+                </td></tr>
+            }
+        </tbody>
+    </table>
+    </div>
+
     <div class="dash-title">Cliente / unidade onde está instalado</div>
     <table class="grid" style="margin-bottom:20px">
         <thead>
@@ -193,9 +250,15 @@ else
                                 @foreach (var px in l.Proximas.Take(3))
                                 {
                                     <div class="prox">
-                                        <strong>@Fmt.Date(px.Data)</strong>
+                                        <strong>@DataProxima(px)</strong>
                                         <span class="prox-pill @ClasseProxima(px.Dias)">@TextoProxima(px.Dias)</span>
-                                        <span class="sub-cel">@Intel.ClienteDaUnidade(px.ClientUnitId) — @Intel.UnitNome(px.ClientUnitId)</span>
+                                        <span class="sub-cel">
+                                            @Intel.ClienteDaUnidade(px.ClientUnitId) — @Intel.UnitNome(px.ClientUnitId)
+                                            @if (px.PelaInstalacao is int ai)
+                                            {
+                                                <text> · 1ª compra, pela instalação (@ai)</text>
+                                            }
+                                        </span>
                                     </div>
                                 }
                                 @if (l.Proximas.Count > 3)
@@ -718,8 +781,13 @@ else
 
     // =================== Regras técnicas de troca =========================
 
-    /// <summary>Próxima compra prevista de um cliente (planta) para a peça.</summary>
-    private record ProximaDoCliente(string ClientUnitId, string Data, int Dias);
+    /// <summary>
+    /// Próxima compra prevista de um cliente (planta) para a peça. Com
+    /// <see cref="PelaInstalacao"/>, a planta ainda não comprou: é a 1ª compra,
+    /// prevista pelo ano de instalação (por isso a data é só aproximada).
+    /// </summary>
+    private record ProximaDoCliente(string ClientUnitId, string Data, int Dias, int? PelaInstalacao = null,
+        string UltimaCompra = "");
 
     /// <summary>
     /// Uma linha da tabela de regras: a regra cadastrada (se houver) somada ao
@@ -792,12 +860,32 @@ else
                 return c.Length == 0 && nomeados.Count == 1 ? nomeados[0] : c;
             }
 
+            // quem já comprou: última compra + frequência
             foreach (var cliente in compras.GroupBy(Cliente, StringComparer.OrdinalIgnoreCase))
             {
-                var ultima = cliente.Max(v => v.DataVenda) ?? "";
-                var data = IntelligenceService.ProximaCompra(ultima, m);
-                if (!DateTime.TryParse(data, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt)) continue;
-                proximas.Add(new ProximaDoCliente(cliente.Key, data, (int)(dt.Date - DateTime.Today).TotalDays));
+                var ultima = cliente.Select(v => IntelligenceService.DataDaVenda(v.DataVenda))
+                                    .Where(d => d.HasValue).Max();
+                if (ultima is not DateTime u) continue;
+                var dt = u.Date.AddMonths(m);
+                proximas.Add(new ProximaDoCliente(cliente.Key, Iso(dt), (int)(dt - DateTime.Today).TotalDays,
+                    UltimaCompra: Iso(u.Date)));
+            }
+
+            // peça com regra cadastrada: planta com o equipamento instalado que ainda
+            // não comprou tem a 1ª compra prevista pela instalação (meio do ano, já
+            // que só se sabe o ano). Só com regra, para não encher a tela de
+            // previsões para itens que aquela planta talvez nunca use.
+            if (pn.Length > 0 && regra is not null)
+            {
+                var jaCompraram = proximas.Select(x => x.ClientUnitId).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                foreach (var planta in _base.Where(b => IntelligenceService.AnoDaUnidade(b) > 0)
+                                            .GroupBy(b => b.ClientUnitId ?? "", StringComparer.OrdinalIgnoreCase))
+                {
+                    if (planta.Key.Length == 0 || jaCompraram.Contains(planta.Key)) continue;
+                    var ano = planta.Min(IntelligenceService.AnoDaUnidade);
+                    var dt = new DateTime(ano, 7, 1).AddMonths(m);
+                    proximas.Add(new ProximaDoCliente(planta.Key, Iso(dt), (int)(dt - DateTime.Today).TotalDays, ano));
+                }
             }
         }
         return new LinhaRegra(regra, pn, desc, compras, freq, meses,
@@ -813,6 +901,17 @@ else
             return "só 1 compra e sem ano de instalação — calcula sozinho na 2ª compra ou ao informar o ano";
         return "precisa de 2 compras em datas diferentes";
     }
+
+    private static string Iso(DateTime d) => d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+    /// <summary>Data da próxima compra para a tela: aproximada (só o ano) quando vem da instalação.</summary>
+    private static string DataProxima(ProximaDoCliente p) =>
+        p.PelaInstalacao is null ? Fmt.Date(p.Data) : "≈ " + p.Data[..4];
+
+    /// <summary>Todas as próximas compras do equipamento, da mais urgente para a mais distante.</summary>
+    private List<(LinhaRegra Linha, ProximaDoCliente Proxima)> ProximasCompras =>
+        LinhasRegras.SelectMany(l => l.Proximas.Select(p => (l, p)))
+                    .OrderBy(x => x.p.Dias).ToList();
 
     private static string ClasseProxima(int dias) =>
         dias < 0 ? "prox-atrasada" : dias <= 90 ? "prox-breve" : "prox-ok";
