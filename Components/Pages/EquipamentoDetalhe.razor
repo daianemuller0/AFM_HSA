@@ -763,7 +763,8 @@ else
     private LinhaRegra NovaLinha(Part? regra, string pn, string desc, List<SalesRecord> compras)
     {
         var (mh, intervalos) = IntelligenceService.FrequenciaDoHistorico(compras);
-        int? meses = mh ?? (regra is not null && regra.CicloMeses > 0 ? regra.CicloMeses : null);
+        int? meses = mh;
+        if (meses is null && regra is not null && regra.CicloMeses > 0) meses = regra.CicloMeses;
 
         var proximas = new List<ProximaDoCliente>();
         if (meses is int m)
@@ -783,13 +784,15 @@ else
     private static string ClasseProxima(int dias) =>
         dias < 0 ? "prox-atrasada" : dias <= 90 ? "prox-breve" : "prox-ok";
 
-    private static string TextoProxima(int dias) => dias switch
+    // Sem "switch" com padrões "< 0" / "<= 90": no @code do Razor, linha que
+    // começa com "<" é lida como tag HTML e quebra a compilação da página.
+    private static string TextoProxima(int dias)
     {
-        < 0 => $"atrasada há {-dias} dia(s)",
-        0 => "hoje",
-        <= 90 => $"em {dias} dia(s)",
-        _ => $"em ~{Math.Round(dias / 30.44)} meses",
-    };
+        if (dias < 0) return $"atrasada há {-dias} dia(s)";
+        if (dias == 0) return "hoje";
+        if (dias <= 90) return $"em {dias} dia(s)";
+        return $"em ~{Math.Round(dias / 30.44)} meses";
+    }
 
     private static decimal UltimoUnitario(List<SalesRecord> compras) =>
         compras.OrderByDescending(v => v.DataVenda, StringComparer.Ordinal).First().ValorUnitario;
