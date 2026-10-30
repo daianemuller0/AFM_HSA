@@ -121,7 +121,8 @@ public class IntelligenceService
         return (48, false);
     }
 
-    private (int meses, bool critica) PartCycleFor(string equipmentId, string item, string partNumber = "")
+    private (int meses, bool critica) PartCycleFor(string equipmentId, string item, string partNumber = "",
+        IEnumerable<SalesRecord>? historico = null)
     {
         var parts = Parts.Where(p => p.EquipmentId == equipmentId && p.Ativo).ToList();
 
@@ -131,6 +132,13 @@ public class IntelligenceService
         {
             var regra = parts.FirstOrDefault(p => NormPn(p.Codigo) == pnVenda);
             if (regra is not null && regra.CicloMeses > 0) return (regra.CicloMeses, regra.Critica);
+
+            // Sem regra cadastrada: a frequência real de compra, se o histórico já mostra.
+            if (historico is not null)
+            {
+                var (meses, _) = FrequenciaDoHistorico(historico);
+                if (meses is int m) return (m, CycleFor(item).critica);
+            }
         }
 
         // Sem partnumber (histórico antigo): aproximação pelo nome do item.
@@ -172,7 +180,7 @@ public class IntelligenceService
             recs.Sort((a, b) => string.CompareOrdinal(a.DataVenda, b.DataVenda));
             var last = recs[^1];
             var item = RotuloItem(last);
-            var (meses, partCritica) = PartCycleFor(last.EquipmentId, last.ItemVendido, last.PartNumber);
+            var (meses, partCritica) = PartCycleFor(last.EquipmentId, last.ItemVendido, last.PartNumber, recs);
 
             var reprog = ov != null && !string.IsNullOrEmpty(ov.Reprograma) ? ov.Reprograma : null;
             var prevista = reprog ?? AddMonths(last.DataVenda, meses);
@@ -464,7 +472,7 @@ public class IntelligenceService
             recs.Sort((a, b) => string.CompareOrdinal(a.DataVenda, b.DataVenda));
             var prev = recs[^2];
             var atual = recs[^1];
-            var (meses, _) = PartCycleFor(prev.EquipmentId, prev.ItemVendido, prev.PartNumber);
+            var (meses, _) = PartCycleFor(prev.EquipmentId, prev.ItemVendido, prev.PartNumber, recs.Take(recs.Count - 1));
             if (!DateTime.TryParse(AddMonths(prev.DataVenda, meses), CultureInfo.InvariantCulture, DateTimeStyles.None, out var previsto)) continue;
             if (!DateTime.TryParse(atual.DataVenda, CultureInfo.InvariantCulture, DateTimeStyles.None, out var real)) continue;
             var erroDias = Math.Abs((previsto - real).TotalDays);
@@ -486,6 +494,33 @@ public class IntelligenceService
     // ---- helpers de data e texto -----------------------------------------
     private static string NormItem(string s) =>
         Regex.Replace(s.Trim().ToLowerInvariant(), @"\s+", " ");
+
+    /// <summary>
+    /// Frequência real de compra de uma peça, em meses, tirada do histórico.
+    /// Os intervalos são medidos dentro de cada unidade física (TAG; sem TAG, a
+    /// planta) — senão a compra de uma planta e a de outra, feitas em meses
+    /// vizinhos, pareceriam uma troca a cada dois meses. Várias linhas no mesmo
+    /// dia (mesmo pedido) contam como uma compra só.
+    /// Devolve null enquanto não houver ao menos duas compras na mesma unidade.
+    /// </summary>
+    public static (int? Meses, int Intervalos) FrequenciaDoHistorico(IEnumerable<SalesRecord> compras)
+    {
+        var intervalosDias = new List<double>();
+        foreach (var unidade in compras.GroupBy(s =>
+                     !string.IsNullOrWhiteSpace(s.Tag) ? "tag:" + s.Tag.Trim().ToUpperInvariant()
+                                                       : "planta:" + s.ClientUnitId))
+        {
+            var datas = unidade
+                .Select(s => DateTime.TryParse(s.DataVenda, CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) ? d : (DateTime?)null)
+                .Where(d => d.HasValue).Select(d => d!.Value.Date)
+                .Distinct().OrderBy(d => d).ToList();
+            for (var i = 1; i < datas.Count; i++)
+                intervalosDias.Add((datas[i] - datas[i - 1]).TotalDays);
+        }
+        if (intervalosDias.Count == 0) return (null, 0);
+        var meses = (int)Math.Round(intervalosDias.Average() / 30.44);
+        return (Math.Max(1, meses), intervalosDias.Count);
+    }
 
     /// <summary>Partnumber comparável: sem espaços e sem diferença de caixa.</summary>
     public static string NormPn(string? pn) =>

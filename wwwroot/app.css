@@ -789,3 +789,20 @@ h1 { font-size: 24px; margin: 0 0 4px; color: var(--primary); letter-spacing: -.
 }
 .nac-sim { background: #e6f7ee; color: #15803d; }
 .nac-nao { background: #f1f4f8; color: #64748b; }
+
+/* ===== Ações destrutivas (limpar histórico) e linhas vindas do histórico ===== */
+.btn-perigo { color: #b91c1c; border-color: #f3c4c4; }
+.btn-perigo:hover { background: #fdeaea; border-color: #e7a3a3; }
+.btn-perigo-cheio { background: #b91c1c; border-color: #b91c1c; }
+.btn-perigo-cheio:hover { background: #991b1b; }
+.painel-perigo {
+    background: #fff5f5; border: 1px solid #f3c4c4; border-radius: var(--radius-sm);
+    padding: 14px 16px; margin-bottom: 12px;
+}
+.painel-perigo-titulo { font-weight: 700; color: #991b1b; margin-bottom: 4px; }
+.painel-perigo p { margin: 0 0 12px; font-size: 13px; color: #7f1d1d; }
+.linha-historico > td { background: #fbfdff; }
+.sem-regra {
+    display: inline-block; font-size: 11px; font-weight: 700; color: #0b4f87;
+    background: #eef4fa; border-radius: 20px; padding: 2px 9px;
+}

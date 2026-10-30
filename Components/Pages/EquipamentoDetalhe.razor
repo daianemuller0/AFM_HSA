@@ -14,6 +14,7 @@
 @inject ImportService Importer
 @inject IntelligenceService Intel
 @inject IJSRuntime JS
+@inject Microsoft.Extensions.Configuration.IConfiguration Config
 
 <PageTitle>Equipamento · AFM HSA</PageTitle>
 
@@ -66,7 +67,7 @@ else
 
     <div class="dash-title">Regras técnicas de troca (peças e ciclos)
         <span style="margin-left:8px;font-size:12px;font-weight:600;color:var(--muted)">
-            por partnumber — é ele que liga a regra às vendas
+            por partnumber · sem regra cadastrada, a frequência é calculada pelo histórico de compras
         </span>
     </div>
     <div class="toolbar tab-toolbar">
@@ -136,7 +137,13 @@ else
                         </td>
                         <td>@SeloNacional(p.Codigo)</td>
                         <td>@(DescricaoBom(p.Codigo) is { Length: > 0 } d ? d : p.Nome)</td>
-                        <td class="nowrap">@Freq(p.CicloMeses)</td>
+                        <td class="nowrap">
+                            @Freq(p.CicloMeses)
+                            @if (FrequenciaDoPn(p.Codigo) is (int mh, var nIntervalos))
+                            {
+                                <span class="sub-cel">pelo histórico: ~@mh meses (@nIntervalos intervalo(s))</span>
+                            }
+                        </td>
                         <td class="nowrap">
                             @if (compras.Count > 0)
                             {
@@ -165,7 +172,44 @@ else
                     </tr>
                 }
             }
-            @if (_parts.Count == 0) { <tr><td colspan="8" class="empty">Nenhuma regra de troca cadastrada. Use "Adicionar regra" e escolha o partnumber do BOM.</td></tr> }
+            @* Partnumbers comprados que ainda não têm regra: frequência calculada pelo histórico *@
+            @foreach (var h in PnsSoNoHistorico)
+            {
+                <tr class="linha-historico">
+                    <td class="nowrap"><strong>@h.Pn</strong></td>
+                    <td>@SeloNacional(h.Pn)</td>
+                    <td>@(DescricaoBom(h.Pn) is { Length: > 0 } dh ? dh : h.Compras[0].ItemVendido)</td>
+                    <td class="nowrap">
+                        @if (h.Meses is int m)
+                        {
+                            @Freq(m)
+                            <span class="sub-cel">calculada pelo histórico · @h.Intervalos intervalo(s)</span>
+                        }
+                        else
+                        {
+                            <span style="color:var(--muted)">—</span>
+                            <span class="sub-cel">precisa de 2 compras na mesma unidade</span>
+                        }
+                    </td>
+                    <td class="nowrap">
+                        <span class="badge st-ok">@h.Compras.Count compra(s)</span>
+                        <span class="sub-cel">última em @Fmt.Date(h.Compras.Max(v => v.DataVenda))</span>
+                    </td>
+                    <td class="right nowrap">
+                        @(UltimoUnitario(h.Compras) is decimal u && u > 0 ? Fmt.Brl0(u) : "—")
+                        <span class="sub-cel">última compra</span>
+                    </td>
+                    <td><span class="sem-regra">sem regra</span></td>
+                    <td class="right nowrap">
+                        <button class="btn-link" title="Transformar a frequência calculada em regra (dá para ajustar)"
+                                @onclick="() => CriarRegraDoHistorico(h)">criar regra</button>
+                    </td>
+                </tr>
+            }
+            @if (_parts.Count == 0 && PnsSoNoHistorico.Count == 0)
+            {
+                <tr><td colspan="8" class="empty">Nenhuma regra de troca e nenhuma compra com partnumber. Use "Adicionar regra" ou suba o histórico.</td></tr>
+            }
         </tbody>
     </table>
 
@@ -194,8 +238,30 @@ else
         <label class="chk-inline">
             <input type="checkbox" @bind="_histSubstituir" /> substituir o histórico deste equipamento
         </label>
+        @if (_ehAdmin && _sales.Count > 0)
+        {
+            <button class="btn-ghost btn-perigo" @onclick="AbrirLimpeza">🗑 Limpar histórico</button>
+        }
         <button class="btn-primary" @onclick="NovaVenda">+ Adicionar registro</button>
     </div>
+    @if (_limparAberto)
+    {
+        <div class="painel-perigo">
+            <div class="painel-perigo-titulo">Apagar todo o histórico Aftermarket deste equipamento</div>
+            <p>
+                Isso remove os <strong>@_sales.Count registro(s)</strong> de <strong>@_e.Modelo</strong>,
+                de todas as plantas. As oportunidades calculadas a partir deles também somem.
+                Se quiser guardar uma cópia, use <strong>Baixar Excel</strong> antes.
+            </p>
+            <div class="toolbar" style="margin:0">
+                <input class="cell" type="password" style="max-width:240px" placeholder="Senha de administrador"
+                       @bind="_senhaLimpeza" @bind:event="oninput" @onkeyup="TeclaSenha" />
+                <button class="btn-primary btn-perigo-cheio" @onclick="LimparHistorico">Apagar histórico</button>
+                <button class="btn-ghost" @onclick="FecharLimpeza">Cancelar</button>
+                @if (_limpezaErro is not null) { <span class="alert-error" style="padding:6px 10px;margin:0">@_limpezaErro</span> }
+            </div>
+        </div>
+    }
     @if (_histBusca.Trim().Length > 0)
     {
         <div class="busca-aviso">
@@ -518,7 +584,20 @@ else
     private string? _editRegraId, _confirmRegraId, _regraMsg, _regraErro;
     private Part _fp = new();
 
-    protected override void OnInitialized() => Carregar();
+    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+
+    /// <summary>Limpar o histórico é função de administrador.</summary>
+    private bool _ehAdmin;
+    private bool _limparAberto;
+    private string _senhaLimpeza = "";
+    private string? _limpezaErro;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthState is not null)
+            _ehAdmin = (await AuthState).User.IsInRole("admin");
+        Carregar();
+    }
 
     private void Carregar()
     {
@@ -590,6 +669,56 @@ else
     }
 
     // =================== Regras técnicas de troca =========================
+
+    /// <summary>Partnumber comprado que ainda não tem regra cadastrada.</summary>
+    private record PnHistorico(string Pn, List<SalesRecord> Compras, int? Meses, int Intervalos);
+
+    /// <summary>Frequência real de compra do partnumber neste equipamento.</summary>
+    private (int? Meses, int Intervalos) FrequenciaDoPn(string? pn) =>
+        IntelligenceService.FrequenciaDoHistorico(ComprasDoPn(pn));
+
+    private List<PnHistorico> PnsSoNoHistorico
+    {
+        get
+        {
+            var comRegra = _parts.Select(p => IntelligenceService.NormPn(p.Codigo))
+                                 .Where(x => x.Length > 0).ToHashSet();
+            return _sales
+                .Where(v => !string.IsNullOrWhiteSpace(v.PartNumber))
+                .GroupBy(v => IntelligenceService.NormPn(v.PartNumber))
+                .Where(g => !comRegra.Contains(g.Key))
+                .Select(g =>
+                {
+                    var compras = g.ToList();
+                    var (meses, intervalos) = IntelligenceService.FrequenciaDoHistorico(compras);
+                    return new PnHistorico(compras[0].PartNumber.Trim(), compras, meses, intervalos);
+                })
+                .OrderBy(h => h.Pn, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+    }
+
+    private static decimal UltimoUnitario(List<SalesRecord> compras) =>
+        compras.OrderByDescending(v => v.DataVenda, StringComparer.Ordinal).First().ValorUnitario;
+
+    /// <summary>
+    /// Abre uma regra já preenchida com o que o histórico mostra: frequência
+    /// calculada e o último preço unitário. O usuário confere e salva.
+    /// </summary>
+    private void CriarRegraDoHistorico(PnHistorico h)
+    {
+        _fp = new Part
+        {
+            Id = "pt-" + Guid.NewGuid().ToString("N")[..8],
+            EquipmentId = _e!.Id, Ativo = true,
+            Codigo = h.Pn,
+            CicloMeses = h.Meses ?? 12,
+            ValorEstimado = UltimoUnitario(h.Compras),
+            Nome = DescricaoBom(h.Pn) is { Length: > 0 } d ? d : h.Compras[0].ItemVendido,
+        };
+        _editRegraId = _fp.Id; _regraErro = null; _regraMsg = null;
+        _parts.Insert(0, _fp);
+    }
 
     private void NovaRegra()
     {
@@ -921,6 +1050,45 @@ else
         }).ToList();
         var bytes = Planilha.Xlsx("Historico", HistHeader, linhas);
         await Baixar($"Historico_{Arquivo(_e!)}.xlsx", bytes);
+    }
+
+    private void AbrirLimpeza()
+    {
+        _limparAberto = true; _senhaLimpeza = ""; _limpezaErro = null; _histMsg = null;
+    }
+
+    private void FecharLimpeza()
+    {
+        _limparAberto = false; _senhaLimpeza = ""; _limpezaErro = null;
+    }
+
+    private void TeclaSenha(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") LimparHistorico();
+    }
+
+    /// <summary>
+    /// Apaga o histórico deste equipamento. Exige perfil admin e a senha de
+    /// limpeza (Admin:SenhaLimpeza no appsettings) — a checagem é feita aqui no
+    /// servidor, não só escondendo o botão.
+    /// </summary>
+    private void LimparHistorico()
+    {
+        if (!_ehAdmin) { _limpezaErro = "Só o administrador pode limpar o histórico."; return; }
+        var senha = Config["Admin:SenhaLimpeza"] ?? "howden2026";
+        if (_senhaLimpeza != senha)
+        {
+            _limpezaErro = "Senha incorreta.";
+            _senhaLimpeza = "";
+            return;
+        }
+
+        var n = Vendas.DeleteByEquip(_e!.Id);
+        FecharLimpeza();
+        _editVendaId = null; _confirmVendaId = null; _histBusca = "";
+        _histMsg = $"Histórico apagado: {n} registro(s) removido(s)."; _histOk = true;
+        Intel.Invalidate();
+        Carregar();
     }
 
     private async Task SubirHistorico(InputFileChangeEventArgs e)

@@ -714,6 +714,10 @@ public class ImportService
     private static string GetDate(string[] r, Dictionary<string, int> cols, params string[] names)
     {
         var s = Get(r, cols, names);
+        // data que chega como número serial do Excel (ex.: 45123 = 2023-07-16)
+        if (double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var serial)
+            && serial is > 20000 and < 80000)
+            return DateTime.FromOADate(serial).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         if (DateTime.TryParse(s, new CultureInfo("pt-BR"), DateTimeStyles.None, out var d) ||
             DateTime.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.None, out d))
             return d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
