@@ -72,7 +72,8 @@ else
     </div>
     <div class="toolbar tab-toolbar">
         <span style="font-size:12.5px;color:var(--muted)">
-            Com <strong style="color:var(--text)">2 compras do item</strong> o sistema calcula a frequência e prevê a próxima compra de cada cliente —
+            A instalação conta como marco zero: <strong style="color:var(--text)">instalado em 2016 e 1ª compra em 2020 = 4 anos</strong>.
+            Cada compra seguinte refina a média e o sistema prevê a próxima compra de cada cliente —
             não precisa cadastrar regra. Regra manual só para ajustar criticidade e valor, ou para peça que ainda não tem histórico.
         </span>
         <div style="flex:1"></div>
@@ -147,6 +148,10 @@ else
                             {
                                 <strong>@Freq(mh)</strong>
                                 <span class="sub-cel">automática · média de @l.Freq.Intervalos intervalo(s)</span>
+                                @if (l.Freq.AnoInstalacao is int anoInst)
+                                {
+                                    <span class="sub-cel">contando desde a instalação (@anoInst)</span>
+                                }
                                 @if (!l.Freq.PorCliente)
                                 {
                                     <span class="sub-cel">compras de clientes diferentes</span>
@@ -769,7 +774,9 @@ else
 
     private LinhaRegra NovaLinha(Part? regra, string pn, string desc, List<SalesRecord> compras)
     {
-        var freq = IntelligenceService.FrequenciaDoHistorico(compras);
+        // a instalação conta como marco zero (instalado em 2016, 1ª compra em 2020 → 4 anos)
+        var freq = IntelligenceService.FrequenciaDoHistorico(compras,
+            c => IntelligenceService.AnoInstalacao(_base, c));
         int? meses = freq.Meses;
         if (meses is null && regra is not null && regra.CicloMeses > 0) meses = regra.CicloMeses;
 
@@ -802,7 +809,8 @@ else
     {
         if (f.ComprasDistintas == 0 && f.DatasInvalidas > 0)
             return $"data da venda não reconhecida em {f.DatasInvalidas} registro(s)";
-        if (f.ComprasDistintas <= 1) return "só 1 compra até agora — calcula sozinho na 2ª";
+        if (f.ComprasDistintas <= 1)
+            return "só 1 compra e sem ano de instalação — calcula sozinho na 2ª compra ou ao informar o ano";
         return "precisa de 2 compras em datas diferentes";
     }
 

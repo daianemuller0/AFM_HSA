@@ -135,7 +135,8 @@ public class IntelligenceService
             var regra = parts.FirstOrDefault(p => NormPn(p.Codigo) == pnVenda);
             if (historico is not null)
             {
-                if (FrequenciaDoHistorico(historico).Meses is int m)
+                var instalados = Base.Where(b => b.EquipmentId == equipmentId).ToList();
+                if (FrequenciaDoHistorico(historico, c => AnoInstalacao(instalados, c)).Meses is int m)
                     return (m, regra?.Critica ?? CycleFor(item).critica);
             }
             if (regra is not null && regra.CicloMeses > 0) return (regra.CicloMeses, regra.Critica);
@@ -509,26 +510,37 @@ public class IntelligenceService
     /// de todas as compras do item. Os contadores explicam na tela por que ainda
     /// não deu para calcular.
     /// </summary>
-    public record FrequenciaCompra(int? Meses, int Intervalos, bool PorCliente, int ComprasDistintas, int DatasInvalidas);
+    public record FrequenciaCompra(int? Meses, int Intervalos, bool PorCliente, int ComprasDistintas,
+        int DatasInvalidas, int? AnoInstalacao = null);
 
     /// <summary>
     /// Frequência real de compra de uma peça, em meses, tirada do histórico.
     /// Ex.: comprou em 12/12/2024 e 12/12/2025 → 12 meses; cada venda nova entra
     /// na média e deixa o número mais preciso. Linhas no mesmo dia (mesmo pedido)
     /// contam como uma compra só.
-    ///  1º) intervalos entre compras do MESMO cliente/planta (compra sem planta
+    ///
+    /// A instalação é o marco zero: o primeiro intervalo vai do ano de
+    /// instalação até a primeira compra (instalado em 2016, primeira compra em
+    /// 2020 → 4 anos). Como só se sabe o ano, a conta é em anos cheios — o
+    /// marco usa o mesmo dia/mês da primeira compra. Com isso, uma compra só já
+    /// dá frequência quando o ano de instalação é conhecido.
+    ///
+    ///  1º) intervalos dentro do MESMO cliente/planta (compra sem planta
     ///      identificada conta como do cliente, se só houver um);
-    ///  2º) se nenhum cliente tem 2 compras, intervalos entre todas as compras do
-    ///      item — basta haver 2 compras em datas diferentes.
+    ///  2º) se nenhum cliente fecha um intervalo, intervalos entre todas as
+    ///      compras do item — basta haver 2 compras em datas diferentes.
     /// </summary>
-    public static FrequenciaCompra FrequenciaDoHistorico(IEnumerable<SalesRecord> compras)
+    /// <param name="anoInstalacao">Ano de instalação do equipamento que recebeu as
+    /// compras de um cliente (null quando não se sabe).</param>
+    public static FrequenciaCompra FrequenciaDoHistorico(IEnumerable<SalesRecord> compras,
+        Func<IReadOnlyList<SalesRecord>, int?>? anoInstalacao = null)
     {
-        var validas = new List<(string Cliente, DateTime Data)>();
+        var validas = new List<(string Cliente, DateTime Data, SalesRecord Venda)>();
         var invalidas = 0;
         foreach (var s in compras)
         {
             if (DataDaVenda(s.DataVenda) is DateTime d)
-                validas.Add((Regex.Replace((s.ClientUnitId ?? "").Trim().ToUpperInvariant(), @"\s+", " "), d.Date));
+                validas.Add((ChaveCliente(s.ClientUnitId), d.Date, s));
             else invalidas++;
         }
         var distintas = validas.Select(v => v.Data).Distinct().Count();
@@ -536,18 +548,71 @@ public class IntelligenceService
         // compra sem planta identificada é do cliente, quando só há um cliente
         var nomeados = validas.Select(v => v.Cliente).Where(c => c.Length > 0).Distinct().ToList();
         if (nomeados.Count == 1)
-            validas = validas.Select(v => (v.Cliente.Length == 0 ? nomeados[0] : v.Cliente, v.Data)).ToList();
+            validas = validas.Select(v => (v.Cliente.Length == 0 ? nomeados[0] : v.Cliente, v.Data, v.Venda)).ToList();
 
-        var porCliente = validas.GroupBy(v => v.Cliente)
-            .SelectMany(g => Intervalos(g.Select(v => v.Data))).ToList();
+        var porCliente = new List<double>();
+        int? anoUsado = null;
+        foreach (var g in validas.GroupBy(v => v.Cliente))
+        {
+            var datas = g.Select(v => v.Data).Distinct().OrderBy(d => d).ToList();
+            var ano = anoInstalacao?.Invoke(g.Select(v => v.Venda).ToList());
+            if (ano is int a && a > 1900 && a < datas[0].Year)
+            {
+                var primeira = datas[0];
+                var dia = Math.Min(primeira.Day, DateTime.DaysInMonth(a, primeira.Month));
+                datas.Insert(0, new DateTime(a, primeira.Month, dia));   // marco zero: a instalação
+                anoUsado = anoUsado is int u ? Math.Min(u, a) : a;
+            }
+            porCliente.AddRange(Intervalos(datas));
+        }
         if (porCliente.Count > 0)
-            return new FrequenciaCompra(EmMeses(porCliente), porCliente.Count, true, distintas, invalidas);
+            return new FrequenciaCompra(EmMeses(porCliente), porCliente.Count, true, distintas, invalidas, anoUsado);
 
         var doItem = Intervalos(validas.Select(v => v.Data)).ToList();
         if (doItem.Count > 0)
             return new FrequenciaCompra(EmMeses(doItem), doItem.Count, false, distintas, invalidas);
 
         return new FrequenciaCompra(null, 0, true, distintas, invalidas);
+    }
+
+    private static string ChaveCliente(string? id) =>
+        Regex.Replace((id ?? "").Trim().ToUpperInvariant(), @"\s+", " ");
+
+    /// <summary>
+    /// Ano de instalação do equipamento que recebeu um grupo de compras: pela
+    /// unidade com o mesmo serial ou TAG; sem isso, pela planta (a instalação
+    /// mais antiga dela, se houver mais de uma unidade); e, se o equipamento só
+    /// está instalado numa planta, por ela. Null quando não dá para saber.
+    /// </summary>
+    public static int? AnoInstalacao(IEnumerable<InstalledBase> instalados, IReadOnlyList<SalesRecord> compras)
+    {
+        var unidades = instalados.ToList();
+        static int Ano(InstalledBase b) =>
+            b.AnoInstalacao > 0 ? b.AnoInstalacao
+            : int.TryParse(new string((b.InstallYear ?? "").Where(char.IsDigit).Take(4).ToArray()), out var y) ? y : 0;
+
+        foreach (var v in compras)
+        {
+            var porSerie = unidades.FirstOrDefault(b => !string.IsNullOrWhiteSpace(v.SerialNo)
+                && string.Equals(b.SerialNo?.Trim(), v.SerialNo.Trim(), StringComparison.OrdinalIgnoreCase) && Ano(b) > 0);
+            if (porSerie is not null) return Ano(porSerie);
+        }
+        foreach (var v in compras)
+        {
+            var porTag = unidades.Where(b => !string.IsNullOrWhiteSpace(v.Tag) && Ano(b) > 0
+                && string.Equals(b.Tag?.Trim(), v.Tag.Trim(), StringComparison.OrdinalIgnoreCase)).ToList();
+            var naPlanta = porTag.FirstOrDefault(b => ChaveCliente(b.ClientUnitId) == ChaveCliente(v.ClientUnitId));
+            if (naPlanta is not null) return Ano(naPlanta);
+            if (porTag.Count == 1) return Ano(porTag[0]);
+        }
+
+        var plantas = compras.Select(v => ChaveCliente(v.ClientUnitId)).Where(c => c.Length > 0).Distinct().ToList();
+        var daPlanta = unidades.Where(b => Ano(b) > 0 && plantas.Contains(ChaveCliente(b.ClientUnitId))).ToList();
+        if (daPlanta.Count > 0) return daPlanta.Min(Ano);
+
+        var plantasDoEquip = unidades.Where(b => Ano(b) > 0).Select(b => ChaveCliente(b.ClientUnitId)).Distinct().ToList();
+        if (plantas.Count == 0 && plantasDoEquip.Count == 1) return unidades.Where(b => Ano(b) > 0).Min(Ano);
+        return null;
     }
 
     private static IEnumerable<double> Intervalos(IEnumerable<DateTime> datas)
