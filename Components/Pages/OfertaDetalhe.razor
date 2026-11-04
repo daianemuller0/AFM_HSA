@@ -112,14 +112,17 @@ else
 
     private IEnumerable<(string, string)> Cabecalho => _o is null ? Array.Empty<(string, string)>() : new (string, string)[]
     {
-        ("Nome do Cliente", _o.ClientName), ("PV", _o.Pv), ("Data", Fmt.Date(_o.OfferDate)),
-        ("Número da proposta", _o.OfferCode), ("Revisão", _o.Revisao), ("BU", _o.Bu),
-        ("Elaborado por", _o.PreparedBy), ("NCM c/ redução base ICMS", _o.NcmReducaoIcms),
-        ("Segmento (Margem)", _o.SegmentoMargem), ("Venda para", _o.VendaPara), ("Destino", _o.Destino),
-        ("País", _o.Pais), ("Estado", _o.Estado), ("Benefício", _o.Beneficio), ("Reforma", _o.Reforma), ("Prazo de Entrega", _o.PrazoEntrega),
-        ("Cliente com", _o.ClienteCom), ("Fiança/Seguro Garantia", _o.FiancaSeguro), ("Portal", _o.Portal),
+        // na ordem do cabeçalho da planilha de pricing (colunas D, I e O)
+        ("Nome do Cliente", _o.ClientName), ("PV", _o.Pv), ("Ano", _o.Ano), ("Número da Proposta", _o.OfferCode),
+        ("Revisão", _o.Revisao), ("BU", _o.Bu), ("Elaborado por", _o.PreparedBy),
+        ("NCM c/redução base ICMS", _o.NcmReducaoIcms),
+        ("Segmento (margem)", _o.SegmentoMargem), ("Venda para", _o.VendaPara), ("Destino", _o.Destino),
+        ("Estado", _o.Estado), ("Reforma", _o.Reforma),
+        ("Prazo de Entrega", PricingDaProposta.PrazoEmDias(_o.PrazoEntrega) is > 0 and var dias ? $"{dias} dias" : _o.PrazoEntrega),
+        ("Cliente com", _o.ClienteCom), ("Contém produto IC?", _o.ContemProdutoIc),
+        ("Fiança/Seguro Garantia", _o.FiancaSeguro), ("Portal", _o.Portal),
         ("Rep 1", _o.Rep1), ("Rep 2", _o.Rep2), ("Categories", _o.Categories), ("Product", _o.Product),
-        ("Market Segments", _o.MarketSegments),
+        ("Market Segments", _o.MarketSegments), ("Data do Pricing", Fmt.Date(_o.OfferDate)),
         ("Importação", _o.ImportacaoModo switch { "total" => "Por total", "item" => "Por item", _ => "" }),
         ("Moeda / taxa cambial", _o.TaxaCambio > 0 ? $"{_o.Moeda} · R$ {_o.TaxaCambio.ToString("0.####", new System.Globalization.CultureInfo("pt-BR"))}" : ""),
     };
@@ -129,11 +132,14 @@ else
 
     private IEnumerable<(string, string)> Pricing => _o is null ? Array.Empty<(string, string)>() : new (string, string)[]
     {
-        ("Cálculo", _o.PricingModo == "preco" ? $"pelo preço-meta ({Fmt.Brl(_o.PrecoMeta)})" : $"pela margem alvo ({Pct(_o.MargemAlvo)})"),
+        ("Montar preço", _o.PricingModo == "preco" ? $"a partir do preço ({Fmt.Brl(_o.PrecoMeta)})" : $"a partir da margem ({Pct(_o.MargemAlvo)})"),
         ("Risco adicional", Pct(_o.RiscoAdicional)), ("Margem de negociação", Pct(_o.MargemNegociacao)),
+        ("Fiança", Textos.Igual(_o.FiancaSeguro, "Sim")
+            ? $"{(_o.TipoGarantia.Length > 0 ? _o.TipoGarantia : "tipo não escolhido")} · {Pct(_o.FiancaPercentual)} da venda" : "não"),
         ("Custo total dos itens", Fmt.Brl(_o.PricingCusto)), ("Markup", _o.PricingMarkup.ToString("N4", PtBr)),
         ("Venda líquida do pricing (sem impostos)", Fmt.Brl(_o.PricingVendaLiquida)),
-        ("Margem do pricing", Pct(_o.PricingMargem)), ("Preço com impostos do pricing", Fmt.Brl(_o.PricingPrecoImpostos)),
+        ("Project Margin do pricing", Pct(_o.PricingMargem)),
+        ("Venda com PIS, COFINS, ICMS e IPI", _o.PricingPrecoImpostos > 0 ? Fmt.Brl(_o.PricingPrecoImpostos) : "—"),
         ("Margem com os preços da proposta", MargemDosPrecos() is decimal m ? Pct(m) : ""),
     };
 

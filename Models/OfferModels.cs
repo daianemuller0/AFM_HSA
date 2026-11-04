@@ -52,15 +52,20 @@ public class CommercialOffer
     public string ImportacaoModo { get; set; } = "";
     public string Moeda { get; set; } = "EUR";
     public decimal TaxaCambio { get; set; }
-    // Pricing (fórmula do axiaisvent — Data/CalculoPricing.cs). Percentuais em
-    // fração: 0,52 = 52%. País e Benefício entram nos impostos.
-    public string Pais { get; set; } = "Brasil";
-    public string Beneficio { get; set; } = "Sem benefício";
-    public decimal RiscoAdicional { get; set; } = CalculoPricing.RiscoAdicionalPadrao;
+    // Campos do cabeçalho do pricing que não estavam acima
+    public string Ano { get; set; } = "";
+    public string ContemProdutoIc { get; set; } = "";
+    // Pricing (planilha R_HSAXYZ0000-0 — Data/CalculoPricing.cs). Percentuais em
+    // fração: 0,52 = 52%.
+    public decimal RiscoAdicional { get; set; } = CalculoPricing.RiscoPadrao;
     public decimal MargemNegociacao { get; set; } = CalculoPricing.MargemNegociacaoPadrao;
+    /// <summary>Tipo de seguro garantia / carta fiança (R46), quando há fiança.</summary>
+    public string TipoGarantia { get; set; } = "";
+    /// <summary>% da venda coberto pela fiança (N49).</summary>
+    public decimal FiancaPercentual { get; set; } = CalculoPricing.FiancaPercentualPadrao;
     /// <summary>"margem" (calcula o preço pela margem alvo) ou "preco" (a margem sai do preço-meta).</summary>
     public string PricingModo { get; set; } = "margem";
-    public decimal MargemAlvo { get; set; } = PricingDaProposta.MargemAlvoPadrao;
+    public decimal MargemAlvo { get; set; } = ListasDoPricing.MargemPadraoDo("AFM");
     /// <summary>Venda líquida (sem impostos) que o cliente aceita, no modo "preco".</summary>
     public decimal PrecoMeta { get; set; }
     // Resultado do pricing no momento em que a proposta foi salva (para consulta).

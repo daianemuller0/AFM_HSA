@@ -3,51 +3,32 @@ using AfmHsa.Models;
 namespace AfmHsa.Data;
 
 /// <summary>
-/// Liga a Gerar Proposta do AFM à fórmula de pricing copiada do axiaisvent
-/// (<see cref="CalculoPricing"/>) — faz aqui o papel do EntradaDe/Da de lá.
+/// Liga a Gerar Proposta ao pricing do AFM (<see cref="CalculoPricing"/>).
+/// O cabeçalho da proposta tem os mesmos campos e as mesmas listas do
+/// cabeçalho da planilha, então aqui só se converte (Sim/Não, prazo em dias,
+/// nome do representante) e se aponta o que falta preencher.
 ///
-/// O cabeçalho do AFM continua com as opções do AFM (texto livre com
-/// sugestões); este arquivo traduz o que foi digitado para o que a fórmula
-/// entende, sem mexer na conta. O custo total é a soma dos itens: custo de
-/// importação quando o item é importado, senão a referência de custo
-/// (Valor BR) da lista de Nacionalização.
+/// O custo total é a soma dos itens: custo de importação quando o item é
+/// importado, senão a referência de custo (Valor BR) da lista de Nacionalização.
 /// </summary>
 public static class PricingDaProposta
 {
-    /// <summary>Margem alvo padrão do AFM: 52% (no axiaisvent é 28%). Editável na proposta.</summary>
-    public const decimal MargemAlvoPadrao = 0.52m;
+    /// <summary>Margem pedida padrão do segmento (BD_pricing: AFM 52%, NB 32%, Intercompany 28%, Service 50%).</summary>
+    public static decimal MargemPadrao(string segmento) => ListasDoPricing.MargemPadraoDo(segmento);
 
-    public static string PaisOuBrasil(string? pais) =>
-        string.IsNullOrWhiteSpace(pais) ? "Brasil" : pais.Trim();
-
-    /// <summary>
-    /// Destino do AFM → destino do pricing. A fórmula só reconhece
-    /// "Nacional", "Exportação…" e "…Back to Back…"; vazio ou qualquer outro
-    /// texto no Brasil é venda nacional, e fora do Brasil é exportação.
-    /// </summary>
-    public static string DestinoDoPricing(string? destino, string? pais)
+    /// <summary>"90", "90 dias", "90d" → 90. Vazio ou sem número → 0.</summary>
+    public static int PrazoEmDias(string? prazo)
     {
-        var d = Textos.Simples(destino);
-        var exporta = d.Contains("export");
-        if (d.Contains("back to back"))
-            return exporta ? "Exportação com Back to Back" : "Back to Back 100% importado";
-        if (exporta || !ListasDoPricing.TemImpostosBrasileiros(PaisOuBrasil(pais))) return "Exportação";
-        return "Nacional";
+        var digitos = new string((prazo ?? "").Trim().TakeWhile(char.IsDigit).ToArray());
+        return int.TryParse(digitos, out var d) ? d : 0;
     }
 
-    private static readonly HashSet<string> Negativos =
-        new() { "", "nao", "n", "-", "—", "nenhum", "nenhuma", "sem", "sem portal", "n/a", "na" };
-
-    /// <summary>Portal (0,7%): qualquer valor, menos vazio, "Não" ou "Nenhum".</summary>
-    public static bool TemPortal(string? portal) => !Negativos.Contains(Textos.Simples(portal));
-
-    /// <summary>Fiança/seguro garantia: "Fiança", "Seguro Garantia" ou "Sim" contam; "Não" e vazio, não.</summary>
-    public static bool TemFianca(string? fianca) => !Negativos.Contains(Textos.Simples(fianca));
+    private static bool Sim(string? valor) => Textos.Igual(valor, "Sim");
 
     /// <summary>
-    /// O representante com o nome exato da tabela de comissões (a fórmula
-    /// compara letra por letra). Aceita o nome digitado sem acento ou com
-    /// outra caixa; quem não está na tabela segue como está e fica sem comissão.
+    /// O nome exato da tabela de representantes (a planilha compara letra por
+    /// letra). Aceita o nome sem acento ou com outra caixa; quem não está na
+    /// tabela segue como está e fica sem comissão.
     /// </summary>
     public static string Representante(string? nome)
     {
@@ -57,30 +38,30 @@ public static class PricingDaProposta
             ?? n;
     }
 
-    public static decimal ComissaoDe(string? nome) =>
-        ListasDoPricing.ComissaoDoRepresentante(Representante(nome));
+    public static decimal ComissaoDe(string? nome, string? segmento) =>
+        ListasDoPricing.ComissaoDoRepresentante(Representante(nome), (segmento ?? "").Trim());
 
-    public static CalculoPricing.Entrada EntradaDe(CommercialOffer o, decimal custoTotal)
-    {
-        var pais = PaisOuBrasil(o.Pais);
-        return new CalculoPricing.Entrada(
-            CustoTotal: custoTotal,
-            RiscoAdicional: o.RiscoAdicional,
-            MargemNegociacao: o.MargemNegociacao,
-            Destino: DestinoDoPricing(o.Destino, pais),
-            Estado: ListasDoPricing.EstadoDoPricing(pais, o.Estado ?? ""),
-            VendaPara: o.VendaPara ?? "",
-            Beneficio: ListasDoPricing.TemImpostosBrasileiros(pais) && !string.IsNullOrWhiteSpace(o.Beneficio)
-                ? o.Beneficio : "Sem benefício",
-            Bu: ListasDoPricing.CodigoDaBu(o.Bu),
-            ComPortal: TemPortal(o.Portal),
-            Rep1: Representante(o.Rep1),
-            Rep2: Representante(o.Rep2),
-            ComFianca: TemFianca(o.FiancaSeguro),
-            Pais: pais);
-    }
+    public static CalculoPricing.Entrada EntradaDe(CommercialOffer o, decimal custoTotal) => new(
+        CustoTotal: custoTotal,
+        Segmento: (o.SegmentoMargem ?? "").Trim(),
+        Product: o.Product ?? "",
+        RiscoAdicional: o.RiscoAdicional,
+        MargemNegociacao: o.MargemNegociacao,
+        Bu: (o.Bu ?? "").Trim(),
+        NcmReducaoIcms: Sim(o.NcmReducaoIcms),
+        VendaPara: o.VendaPara ?? "",
+        Destino: o.Destino ?? "",
+        Estado: o.Estado ?? "",
+        ClienteCom: o.ClienteCom ?? "",
+        PrazoEntregaDias: PrazoEmDias(o.PrazoEntrega),
+        ComFianca: Sim(o.FiancaSeguro),
+        TipoGarantia: o.TipoGarantia ?? "",
+        FiancaPercentual: o.FiancaPercentual,
+        Portal: o.Portal ?? "",
+        Rep1: Representante(o.Rep1),
+        Rep2: Representante(o.Rep2));
 
-    /// <summary>O pricing da proposta, pelo modo escolhido (margem alvo ou preço-meta).</summary>
+    /// <summary>O pricing da proposta, pelo modo escolhido (margem pedida ou preço-meta).</summary>
     public static CalculoPricing.Resultado Da(CommercialOffer o, decimal custoTotal)
     {
         var e = EntradaDe(o, custoTotal);
@@ -90,31 +71,72 @@ public static class PricingDaProposta
     }
 
     /// <summary>
+    /// Campos do cabeçalho que o pricing usa e ainda estão vazios — na
+    /// planilha eles aparecem como "preencher". A conta sai mesmo assim, com
+    /// o que a planilha faz nesse caso (portal 0,45%, coluna de ICMS da HSA-ES…).
+    /// </summary>
+    public static List<string> Pendencias(CommercialOffer o)
+    {
+        var p = new List<string>();
+        void Se(bool vazio, string campo) { if (vazio) p.Add(campo); }
+        bool V(string? s) => string.IsNullOrWhiteSpace(s);
+        Se(V(o.SegmentoMargem), "Segmento (margem)");
+        Se(V(o.Bu), "BU");
+        Se(V(o.NcmReducaoIcms), "NCM c/redução base ICMS");
+        Se(V(o.VendaPara), "Venda para");
+        Se(V(o.Destino), "Destino");
+        Se(V(o.Estado), "Estado");
+        Se(V(o.ClienteCom), "Cliente com");
+        Se(V(o.FiancaSeguro), "Fiança/Seguro Garantia");
+        Se(V(o.Portal), "Portal");
+        if (Sim(o.FiancaSeguro))
+        {
+            Se(V(o.TipoGarantia), "tipo de garantia");
+            Se(PrazoEmDias(o.PrazoEntrega) <= 0, "Prazo de Entrega (dias)");
+        }
+        return p;
+    }
+
+    /// <summary>
+    /// Segmento do cliente na base (texto livre: "Mineração", "Cimento"…) → o
+    /// Market Segment da planilha, quando dá para reconhecer. Vazio quando não dá.
+    /// A ordem importa: "petroquímica" antes de "química".
+    /// </summary>
+    public static string MarketSegmentDo(string? segmentoDaBase)
+    {
+        var t = Textos.Simples(segmentoDaBase);
+        if (t.Length == 0) return "";
+        (string[] Chaves, string Mercado)[] mapa =
+        {
+            (new[] { "petroquim", "petrochem" }, "Industrial - Petrochemical"),
+            (new[] { "quimic", "chemical" }, "Industrial - Chemicals"),
+            (new[] { "minera", "mining" }, "Mining"),
+            (new[] { "carvao", "coal" }, "Coal"),
+            (new[] { "cimento", "cement" }, "Industrial - Cement"),
+            (new[] { "siderur", "metalur", "aco", "metal", "steel" }, "Industrial - Metals Processing"),
+            (new[] { "aliment", "bebida", "food" }, "Industrial - Food & Beverages"),
+            (new[] { "etanol", "ethanol", "sucro", "acucar", "usina" }, "Industrial - Other Industries - Ethanol"),
+            (new[] { "fertiliz" }, "Industrial - Other Industries - Fertilizer"),
+            (new[] { "vidro", "glass" }, "Industrial - Other Industries - Glass"),
+            (new[] { "papel", "celulose", "pulp" }, "Industrial - Other Industries - Pulp and Paper"),
+            (new[] { "refinar", "refinery" }, "Energy & Renewable Power - Refinery"),
+            (new[] { "hidrogen", "hydrogen" }, "Energy & Renewable Power - Other Hydrogen"),
+            (new[] { "tunel", "tunnel", "metro" }, "Infrastructure & Mobility - Tunnel"),
+            (new[] { "saneamento", "agua", "water" }, "Infrastructure & Mobility - Water (Municipal)"),
+            (new[] { "naval", "marin", "porto" }, "Infrastructure & Mobility - Marine"),
+            (new[] { "ferrovi", "transporte" }, "Infrastructure & Mobility - Transportation"),
+            (new[] { "energia", "termel", "power", "eletric" }, "Energy & Renewable Power - Other"),
+        };
+        foreach (var (chaves, mercado) in mapa)
+            if (chaves.Any(c => t.Contains(c))) return mercado;
+        return "";
+    }
+
+    /// <summary>
     /// Preço unitário sugerido de um item: o custo dele com o mesmo fator do
     /// pricing (venda líquida ÷ custo total). É preço SEM impostos, como a
     /// proposta informa ("Impostos … não incluídos").
     /// </summary>
     public static decimal PrecoUnitario(decimal custoUnitario, CalculoPricing.Resultado r) =>
         r.CustoTotal <= 0 ? 0 : Math.Round(custoUnitario * r.VendaLiquida / r.CustoTotal, 2);
-
-    /// <summary>
-    /// Os avisos da fórmula, na linguagem do AFM. Os que falam da planilha do
-    /// axiaisvent (o "#VALOR!" do segmento NB, a fiança que "o Excel soma")
-    /// viram o que vale aqui, já que o AFM não gera aquela planilha.
-    /// </summary>
-    public static List<string> Avisos(CalculoPricing.Resultado r, CommercialOffer o)
-    {
-        var lista = new List<string>();
-        foreach (var a in r.Avisos)
-        {
-            if (a.StartsWith("Segmento NB")) continue;   // IPI zero: explicado fixo no painel
-            if (a.StartsWith("Estado \"\""))
-                lista.Add("Informe o Estado no cabeçalho: sem ele o preço com impostos sai sem ICMS.");
-            else if (a.StartsWith("Fiança"))
-                lista.Add($"Fiança/seguro garantia (\"{o.FiancaSeguro}\"): o custo dela não entra nesta conta — some à parte.");
-            else
-                lista.Add(a);
-        }
-        return lista;
-    }
 }

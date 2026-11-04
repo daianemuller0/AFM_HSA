@@ -29,61 +29,151 @@
     <div class="panel" style="margin-bottom:16px">
         <div class="dash-title">Cabeçalho
             <span style="margin-left:8px;font-size:12px;font-weight:600;color:var(--muted)">
-                escolha o cliente da base: nome, segmento, estado e representante vêm preenchidos (dá para alterar)
+                os mesmos campos e listas do cabeçalho da planilha de pricing · escolha o cliente da base para trazer nome, estado e mercado
             </span>
         </div>
-        <div class="form3 cabecalho">
+        <div class="cab-topo">
             <label>Cliente / Unidade (da base)
                 <select class="cell" @bind="_unitId" @bind:after="UnidadeMudou">
                     <option value="">Selecione…</option>
                     @foreach (var u in _units) { <option value="@u.Id">@Intel.UnitLabel(u.Id)</option> }
                 </select>
             </label>
-            <label>Nome do Cliente * <input class="cell" @bind="_o.ClientName" /></label>
-            <label>PV <input class="cell" @bind="_o.Pv" /></label>
-
-            <label>Data <input class="cell" type="date" @bind="DataProposta" /></label>
-            <label>Número da proposta * <input class="cell" @bind="_o.OfferCode" /></label>
-            <label>Revisão <input class="cell" @bind="_o.Revisao" list="dl-revisao" /></label>
-
-            <label>BU <input class="cell" @bind="_o.Bu" list="dl-bu" /></label>
-            <label>Elaborado por <input class="cell" @bind="_o.PreparedBy" /></label>
-            <label>NCM c/ redução base ICMS <input class="cell" @bind="_o.NcmReducaoIcms" list="dl-simnao" /></label>
-
-            <label>Segmento (Margem) <input class="cell" @bind="_o.SegmentoMargem" list="dl-segmento" /></label>
-            <label>Venda para <input class="cell" @bind="_o.VendaPara" list="dl-vendapara" /></label>
-            <label>Destino <input class="cell" @bind="_o.Destino" list="dl-destino" /></label>
-
-            <label>País
-                <select class="cell" @bind="_o.Pais">
-                    @foreach (var p in ListasDoPricing.Paises) { <option value="@p">@p</option> }
-                </select>
-            </label>
-            <label>Estado
-                <select class="cell" @bind="_o.Estado" disabled="@(!NoBrasil)">
-                    <option value="">—</option>
-                    @foreach (var uf in Ufs) { <option value="@uf">@uf</option> }
-                </select>
-            </label>
-            <label>Benefício
-                <select class="cell" @bind="_o.Beneficio" disabled="@(!NoBrasil)">
-                    @foreach (var b in ListasDoPricing.Beneficios) { <option value="@b">@b</option> }
-                </select>
-            </label>
-
-            <label>Reforma <input class="cell" @bind="_o.Reforma" list="dl-simnao" /></label>
-            <label>Prazo de Entrega <input class="cell" @bind="_o.PrazoEntrega" placeholder="ex.: 90 dias" list="dl-prazo" /></label>
-
-            <label>Cliente com <input class="cell" @bind="_o.ClienteCom" list="dl-clientecom" /></label>
-            <label>Fiança/Seguro Garantia <input class="cell" @bind="_o.FiancaSeguro" list="dl-fianca" /></label>
-            <label>Portal <input class="cell" @bind="_o.Portal" list="dl-portal" /></label>
-
-            <label>Rep 1 <input class="cell" @bind="_o.Rep1" list="dl-rep" />@SeloComissao(_o.Rep1)</label>
-            <label>Rep 2 <input class="cell" @bind="_o.Rep2" list="dl-rep" />@SeloComissao(_o.Rep2)</label>
-            <label>Categories <input class="cell" @bind="_o.Categories" list="dl-categories" /></label>
-
-            <label>Product <input class="cell" @bind="_o.Product" list="dl-product" /></label>
-            <label>Market Segments <input class="cell" @bind="_o.MarketSegments" list="dl-market" /></label>
+            <label>Data do Pricing <input class="cell" type="date" @bind="DataProposta" /></label>
+        </div>
+        <div class="cab-pricing">
+            <div class="cab-col">
+                <label>Nome do Cliente * <input class="cell" @bind="_o.ClientName" /></label>
+                <label>PV <input class="cell" @bind="_o.Pv" /></label>
+                <label>Ano <input class="cell" type="number" min="2000" max="2100" @bind="_o.Ano" /></label>
+                <label>Número da Proposta * <input class="cell" @bind="_o.OfferCode" /></label>
+                <label>Revisão <input class="cell" @bind="_o.Revisao" list="dl-revisao" /></label>
+                <label>BU
+                    <select class="cell" @bind="_o.Bu">
+                        <option value="">preencher</option>
+                        @foreach (var (cod, rot) in ListasDoPricing.Bus) { <option value="@cod">@rot</option> }
+                        @ForaDaLista(_o.Bu, ListasDoPricing.Bus.Select(b => b.Codigo))
+                    </select>
+                </label>
+                <label>Elaborado por <input class="cell" @bind="_o.PreparedBy" /></label>
+                <label>NCM c/redução base ICMS
+                    <select class="cell" @bind="_o.NcmReducaoIcms">
+                        <option value="">preencher</option>
+                        @foreach (var v in ListasDoPricing.SimNao) { <option value="@v">@v</option> }
+                        @ForaDaLista(_o.NcmReducaoIcms, ListasDoPricing.SimNao)
+                    </select>
+                </label>
+            </div>
+            <div class="cab-col">
+                <label>Segmento (margem)
+                    <select class="cell" @bind="_o.SegmentoMargem" @bind:after="SegmentoOuProdutoMudou">
+                        <option value="">preencher</option>
+                        @foreach (var (nome, margem) in ListasDoPricing.Segmentos) { <option value="@nome">@nome (margem padrão @Pct(margem))</option> }
+                        @ForaDaLista(_o.SegmentoMargem, ListasDoPricing.Segmentos.Select(x => x.Nome))
+                    </select>
+                </label>
+                <label>Venda para
+                    <select class="cell" @bind="_o.VendaPara">
+                        <option value="">preencher</option>
+                        @foreach (var v in ListasDoPricing.VendaPara) { <option value="@v">@v</option> }
+                        @ForaDaLista(_o.VendaPara, ListasDoPricing.VendaPara)
+                    </select>
+                </label>
+                <label>Destino
+                    <select class="cell" @bind="_o.Destino" @bind:after="DestinoMudou">
+                        <option value="">preencher</option>
+                        @foreach (var v in ListasDoPricing.Destinos) { <option value="@v">@v</option> }
+                        @ForaDaLista(_o.Destino, ListasDoPricing.Destinos)
+                    </select>
+                </label>
+                <label>Estado
+                    <select class="cell" @bind="_o.Estado">
+                        <option value="">preencher</option>
+                        @foreach (var v in ListasDoPricing.EstadosDo(_o.Destino)) { <option value="@v">@v</option> }
+                        @ForaDaLista(_o.Estado, ListasDoPricing.EstadosDo(_o.Destino))
+                    </select>
+                </label>
+                <label>Reforma
+                    <select class="cell" @bind="_o.Reforma">
+                        <option value="">preencher</option>
+                        @foreach (var v in ListasDoPricing.SimNao) { <option value="@v">@v</option> }
+                        @ForaDaLista(_o.Reforma, ListasDoPricing.SimNao)
+                    </select>
+                </label>
+                <label>Prazo de Entrega
+                    <span class="com-sufixo">
+                        <input class="cell num" type="number" min="0" step="1" placeholder="0"
+                               value="@(PricingDaProposta.PrazoEmDias(_o.PrazoEntrega) is > 0 and var dias ? dias.ToString() : "")"
+                               @onchange="MudarPrazo" />
+                        <span>dias</span>
+                    </span>
+                </label>
+                <label>Cliente com
+                    <select class="cell" @bind="_o.ClienteCom">
+                        <option value="">preencher</option>
+                        @foreach (var v in ListasDoPricing.RegimeCliente) { <option value="@v">@v</option> }
+                        @ForaDaLista(_o.ClienteCom, ListasDoPricing.RegimeCliente)
+                    </select>
+                </label>
+                <label>Contém produto IC?
+                    <select class="cell" @bind="_o.ContemProdutoIc">
+                        <option value="">preencher</option>
+                        @foreach (var v in ListasDoPricing.SimNao) { <option value="@v">@v</option> }
+                        @ForaDaLista(_o.ContemProdutoIc, ListasDoPricing.SimNao)
+                    </select>
+                </label>
+            </div>
+            <div class="cab-col">
+                <label>Fiança/Seguro Garantia
+                    <select class="cell" @bind="_o.FiancaSeguro">
+                        <option value="">preencher</option>
+                        @foreach (var v in ListasDoPricing.SimNao) { <option value="@v">@v</option> }
+                        @ForaDaLista(_o.FiancaSeguro, ListasDoPricing.SimNao)
+                    </select>
+                </label>
+                <label>Portal
+                    <select class="cell" @bind="_o.Portal">
+                        <option value="">preencher</option>
+                        @foreach (var v in ListasDoPricing.Portais) { <option value="@v.Nome">@RotuloPortal(v)</option> }
+                        @ForaDaLista(_o.Portal, ListasDoPricing.Portais.Select(x => x.Nome))
+                    </select>
+                </label>
+                <label>Rep 1
+                    <select class="cell" @bind="_o.Rep1">
+                        @foreach (var r in ListasDoPricing.Representantes) { <option value="@r.Nome">@r.Nome</option> }
+                        @ForaDaLista(_o.Rep1, ListasDoPricing.Representantes.Select(x => x.Nome))
+                    </select>
+                    @SeloComissao(_o.Rep1)
+                </label>
+                <label>Rep 2
+                    <select class="cell" @bind="_o.Rep2">
+                        @foreach (var r in ListasDoPricing.Representantes) { <option value="@r.Nome">@r.Nome</option> }
+                        @ForaDaLista(_o.Rep2, ListasDoPricing.Representantes.Select(x => x.Nome))
+                    </select>
+                    @SeloComissao(_o.Rep2)
+                </label>
+                <label>Categories
+                    <select class="cell" @bind="_o.Categories" @bind:after="CategoriaMudou">
+                        <option value="">—</option>
+                        @foreach (var (cat, _) in ListasDoPricing.Categorias) { <option value="@cat">@cat</option> }
+                        @ForaDaLista(_o.Categories, ListasDoPricing.Categorias.Select(x => x.Categoria))
+                    </select>
+                </label>
+                <label>Product
+                    <select class="cell" @bind="_o.Product" @bind:after="SegmentoOuProdutoMudou" disabled="@(ListasDoPricing.ProdutosDa(_o.Categories).Length == 0)">
+                        <option value="">@(_o.Categories.Length == 0 ? "escolha a categoria" : "—")</option>
+                        @foreach (var v in ListasDoPricing.ProdutosDa(_o.Categories)) { <option value="@v">@v</option> }
+                        @ForaDaLista(_o.Product, ListasDoPricing.ProdutosDa(_o.Categories))
+                    </select>
+                </label>
+                <label>Market Segments
+                    <select class="cell" @bind="_o.MarketSegments">
+                        <option value="">—</option>
+                        @foreach (var v in ListasDoPricing.MarketSegments) { <option value="@v">@v</option> }
+                        @ForaDaLista(_o.MarketSegments, ListasDoPricing.MarketSegments)
+                    </select>
+                </label>
+            </div>
         </div>
 
         @if (_items.Any(i => i.Importado))
@@ -185,22 +275,8 @@
             </div>
         }
 
-        @* sugestões: valores já usados em propostas anteriores + opções usuais *@
-        <datalist id="dl-simnao"><option value="Sim" /><option value="Não" /></datalist>
+        @* revisão: valores já usados em propostas anteriores + opções usuais *@
         <datalist id="dl-revisao">@foreach (var v in Sugestoes(o => o.Revisao, "0", "1", "2")) { <option value="@v" /> }</datalist>
-        <datalist id="dl-bu">@foreach (var v in Sugestoes(o => o.Bu)) { <option value="@v" /> }</datalist>
-        <datalist id="dl-segmento">@foreach (var v in Sugestoes(o => o.SegmentoMargem, _segs)) { <option value="@v" /> }</datalist>
-        <datalist id="dl-vendapara">@foreach (var v in Sugestoes(o => o.VendaPara, "Consumidor final", "Industrialização", "Revenda")) { <option value="@v" /> }</datalist>
-        <datalist id="dl-destino">@foreach (var v in Sugestoes(o => o.Destino)) { <option value="@v" /> }</datalist>
-        <datalist id="dl-prazo">@foreach (var v in Sugestoes(o => o.PrazoEntrega)) { <option value="@v" /> }</datalist>
-        <datalist id="dl-clientecom">@foreach (var v in Sugestoes(o => o.ClienteCom)) { <option value="@v" /> }</datalist>
-        <datalist id="dl-fianca">@foreach (var v in Sugestoes(o => o.FiancaSeguro, "Não", "Fiança", "Seguro Garantia")) { <option value="@v" /> }</datalist>
-        <datalist id="dl-portal">@foreach (var v in Sugestoes(o => o.Portal)) { <option value="@v" /> }</datalist>
-        @* representantes com comissão (tabela do pricing) + vendedores + nomes já usados *@
-        <datalist id="dl-rep">@foreach (var v in Sugestoes(o => o.Rep1, ListasDoPricing.Representantes.Select(r => r.Nome).Concat(_nomesVendedores)).Concat(Sugestoes(o => o.Rep2)).Distinct()) { <option value="@v" /> }</datalist>
-        <datalist id="dl-categories">@foreach (var v in Sugestoes(o => o.Categories)) { <option value="@v" /> }</datalist>
-        <datalist id="dl-product">@foreach (var v in Sugestoes(o => o.Product)) { <option value="@v" /> }</datalist>
-        <datalist id="dl-market">@foreach (var v in Sugestoes(o => o.MarketSegments)) { <option value="@v" /> }</datalist>
     </div>
 
     <div class="panel" style="margin-bottom:16px">
@@ -421,40 +497,45 @@
         var entrada = PricingDaProposta.EntradaDe(_o, custos.Total);
         var pr = PricingDaProposta.Da(_o, custos.Total);
         var margemPrecos = MargemDosPrecos(custos);
+        var pendencias = PricingDaProposta.Pendencias(_o);
+        var riscoPadrao = CalculoPricing.RiscoPadraoDo(_o.SegmentoMargem, _o.Product);
+        var margemPadrao = ListasDoPricing.MargemPadraoDo(_o.SegmentoMargem);
     }
     <div class="panel pricing" style="margin-bottom:16px">
         <div class="dash-title">Pricing
             <span style="margin-left:8px;font-size:12px;font-weight:600;color:var(--muted)">
-                custo dos itens → risco → markup → comissões e percentuais → venda líquida → impostos · fórmula do pricing do axiaisvent
+                a mesma conta da aba PRICING da planilha R_HSAXYZ0000-0 · usa os campos do cabeçalho acima
             </span>
         </div>
         <div class="pricing-campos">
             <label>Risco adicional (%)
                 <input class="cell num" type="number" min="0" step="0.01" value="@Pct100(_o.RiscoAdicional)"
                        @onchange="e => _o.RiscoAdicional = Fracao(e, _o.RiscoAdicional)" />
+                <small class="pricing-dica">padrão @Pct(riscoPadrao)@(riscoPadrao == CalculoPricing.RiscoReduzido ? " (NB com este produto)" : "")</small>
             </label>
             <label>Margem de negociação (%)
                 <input class="cell num" type="number" min="0" step="0.01" value="@Pct100(_o.MargemNegociacao)"
                        @onchange="e => _o.MargemNegociacao = Fracao(e, _o.MargemNegociacao)" />
+                <small class="pricing-dica">padrão @Pct(CalculoPricing.MargemNegociacaoPadrao)</small>
             </label>
             <div class="pricing-modo-campo">
-                <span>Calcular o preço</span>
+                <span>Montar preço</span>
                 <div class="pricing-modo">
-                    <button class="@(PelaMargem ? "btn-primary" : "btn-ghost")" @onclick='() => _o.PricingModo = "margem"'>pela margem</button>
-                    <button class="@(PelaMargem ? "btn-ghost" : "btn-primary")" @onclick='() => _o.PricingModo = "preco"'>pelo preço-meta</button>
+                    <button class="@(PelaMargem ? "btn-primary" : "btn-ghost")" @onclick='() => _o.PricingModo = "margem"'>a partir da margem</button>
+                    <button class="@(PelaMargem ? "btn-ghost" : "btn-primary")" @onclick='() => _o.PricingModo = "preco"'>a partir do preço</button>
                 </div>
             </div>
             @if (PelaMargem)
             {
-                <label>Margem alvo (%)
+                <label>Margem pedida (%)
                     <input class="cell num" type="number" min="0" max="99" step="0.1" value="@Pct100(_o.MargemAlvo)"
                            @onchange="e => _o.MargemAlvo = Fracao(e, _o.MargemAlvo)" />
-                    <small class="pricing-dica">padrão @Pct(PricingDaProposta.MargemAlvoPadrao)</small>
+                    <small class="pricing-dica">padrão do segmento @(_o.SegmentoMargem.Length > 0 ? _o.SegmentoMargem : "(preencher)"): @Pct(margemPadrao)</small>
                 </label>
             }
             else
             {
-                <label>Preço-meta: venda líquida (R$)
+                <label>Preço de venda: venda líquida (R$)
                     <input class="cell num" type="number" min="0" step="0.01" placeholder="quanto o cliente aceita"
                            value="@(_o.PrecoMeta > 0 ? _o.PrecoMeta.ToString(CultureInfo.InvariantCulture) : "")"
                            @onchange="e => _o.PrecoMeta = Numero(e) is decimal v && v > 0 ? v : 0" />
@@ -462,6 +543,33 @@
                 </label>
             }
         </div>
+
+        @if (Textos.Igual(_o.FiancaSeguro, "Sim"))
+        {
+            <div class="pricing-campos pricing-fianca">
+                <label>Tipo de garantia
+                    <select class="cell" @bind="_o.TipoGarantia">
+                        <option value="">preencher (5% a.a.)</option>
+                        @foreach (var (nome, taxa) in ListasDoPricing.TiposGarantia) { <option value="@nome">@nome (@Pct(taxa) a.a.)</option> }
+                    </select>
+                </label>
+                <label>% da venda coberto
+                    <input class="cell num" type="number" min="0" max="100" step="1" value="@Pct100(_o.FiancaPercentual)"
+                           @onchange="e => _o.FiancaPercentual = Fracao(e, _o.FiancaPercentual)" />
+                    <small class="pricing-dica">1º evento de pagamento (padrão @Pct(CalculoPricing.FiancaPercentualPadrao))</small>
+                </label>
+                <div class="pricing-modo-campo">
+                    <span>Cobertura</span>
+                    <strong class="pricing-valor">@PricingDaProposta.PrazoEmDias(_o.PrazoEntrega) dias</strong>
+                    <small class="pricing-dica">o prazo de entrega do cabeçalho</small>
+                </div>
+                <div class="pricing-modo-campo">
+                    <span>Custo da fiança</span>
+                    <strong class="pricing-valor">@Pct(CalculoPricing.FatorFianca(entrada)) da venda</strong>
+                    <small class="pricing-dica">% × dias × taxa ÷ 365</small>
+                </div>
+            </div>
+        }
 
         <div class="pricing-custo">
             <span>Custo total dos itens</span>
@@ -478,6 +586,13 @@
                 Marque como importado (com o preço na moeda) ou cadastre o Valor BR na Nacionalização.
             </div>
         }
+        @if (pendencias.Count > 0)
+        {
+            <div class="imp-pendencia">
+                No cabeçalho, ainda está "preencher": @string.Join(" · ", pendencias).
+                A conta já sai, com o que a planilha faz nesse caso.
+            </div>
+        }
 
         @if (custos.Total <= 0)
         {
@@ -485,20 +600,24 @@
                 O pricing aparece quando algum item tem custo: item importado (custo da importação) ou nacionalizado com referência de custo.
             </div>
         }
-        else if (PelaMargem && pr.Markup <= 0)
+        else if (pr.VendaLiquida <= 0)
         {
             <div class="alert-error" style="margin-top:10px">
-                Margem alvo alta demais: com @Pct(pr.PercentuaisDeVenda) de comissões e percentuais de venda,
-                a margem tem de ficar abaixo de @Pct(1 - pr.PercentuaisDeVenda).
+                @if (PelaMargem)
+                {
+                    <span>Margem pedida alta demais: com @Pct(pr.PercentuaisDeVenda) de comissões e percentuais de venda
+                    e @Pct(CalculoPricing.FatorFianca(entrada)) de fiança, a margem tem de ficar abaixo de
+                    @Pct(1 - pr.PercentuaisDeVenda - CalculoPricing.FatorFianca(entrada)).</span>
+                }
+                else
+                {
+                    <span>Informe o preço de venda (venda líquida, sem impostos) para ver a margem.</span>
+                }
             </div>
-        }
-        else if (!PelaMargem && _o.PrecoMeta <= 0)
-        {
-            <div class="imp-pendencia">Informe o preço-meta (venda líquida, sem impostos) para ver a margem.</div>
         }
         else
         {
-            @foreach (var aviso in PricingDaProposta.Avisos(pr, _o))
+            @foreach (var aviso in pr.Avisos)
             {
                 <div class="pricing-aviso">@aviso</div>
             }
@@ -509,14 +628,27 @@
                     <small>markup @pr.Markup.ToString("N4", PtBr) sobre o custo com riscos</small>
                 </div>
                 <div>
-                    <span>Margem</span>
+                    <span>Project Margin</span>
                     <strong>@Pct(pr.Margem)</strong>
-                    <small>@Fmt.Brl(pr.VendaLiquida * pr.Margem)@(PelaMargem ? "" : " · saiu do preço-meta")</small>
+                    <small>@Fmt.Brl(pr.VendaLiquida * pr.Margem) · padrão do segmento @Pct(pr.MargemPadrao)</small>
                 </div>
                 <div>
-                    <span>Preço com impostos</span>
-                    <strong>@Fmt.Brl(pr.PrecoComImpostos)</strong>
-                    <small>@(pr.PrecoComImpostos == pr.VendaLiquida ? "sem impostos brasileiros" : "PIS, COFINS e ICMS por dentro")</small>
+                    <span>Venda com PIS, COFINS, ICMS e IPI</span>
+                    @if (pr.SemImpostos)
+                    {
+                        <strong>@Fmt.Brl(pr.VendaLiquida)</strong>
+                        <small>exportação: sem impostos</small>
+                    }
+                    else if (pr.PrecoComImpostos is decimal pci)
+                    {
+                        <strong>@Fmt.Brl(pci)</strong>
+                        <small>PIS, COFINS, ICMS e IPI por dentro</small>
+                    }
+                    else
+                    {
+                        <strong>—</strong>
+                        <small>@(pr.ProcurarFinanceiro ? "procurar Financeiro" : "informe o Estado")</small>
+                    }
                 </div>
             </div>
 
@@ -525,62 +657,57 @@
             </button>
             @if (_verPricing)
             {
-                var pmSach = Textos.Igual(entrada.Destino, "Nacional") ? CalculoPricing.PmSachNacional : CalculoPricing.PmSachExterior;
+                var vl = pr.VendaLiquida;
                 <div class="tabela-rolante">
                 <table class="grid pricing-tabela">
-                    <thead><tr><th>Linha do pricing</th><th class="right">Valor (R$)</th><th class="right">%</th></tr></thead>
+                    <thead><tr><th>Linha do pricing</th><th>Célula</th><th class="right">Valor (R$)</th><th class="right">%</th></tr></thead>
                     <tbody>
-                        <tr><td><strong>Custo total</strong></td><td class="right nowrap">@Fmt.Brl(pr.CustoTotal)</td><td class="right">—</td></tr>
-                        <tr><td>Risco adicional</td><td class="right nowrap">@Fmt.Brl(pr.Risco)</td><td class="right">@Pct(_o.RiscoAdicional)</td></tr>
-                        <tr><td><strong>Custo com riscos</strong></td><td class="right nowrap">@Fmt.Brl(pr.CustoComRiscos)</td><td class="right">—</td></tr>
-                        <tr><td>Markup</td><td class="right nowrap">@pr.Markup.ToString("N4", PtBr)</td><td class="right">—</td></tr>
-                        <tr><td>Venda pura</td><td class="right nowrap">@Fmt.Brl(pr.VendaPura)</td><td class="right">—</td></tr>
+                        <tr><td><strong>Custo total</strong></td><td class="cel-ref">E34</td><td class="right nowrap">@Fmt.Brl(pr.CustoTotal)</td><td class="right">—</td></tr>
+                        <tr><td>Risco adicional</td><td class="cel-ref">D37 · E38</td><td class="right nowrap">@Fmt.Brl(pr.Risco)</td><td class="right">@Pct(_o.RiscoAdicional)</td></tr>
+                        <tr><td><strong>Custo total com riscos</strong></td><td class="cel-ref">E39</td><td class="right nowrap">@Fmt.Brl(pr.CustoComRiscos)</td><td class="right">—</td></tr>
+                        <tr><td>Markup</td><td class="cel-ref">E41</td><td class="right nowrap">@pr.Markup.ToString("N4", PtBr)</td><td class="right">—</td></tr>
+                        <tr><td>Venda pura</td><td class="cel-ref">E42</td><td class="right nowrap">@Fmt.Brl(pr.VendaPura)</td><td class="right">—</td></tr>
+                        <tr><td>Seguro garantia ou fiança</td><td class="cel-ref">E43</td><td class="right nowrap">@Fmt.Brl(pr.Fianca)</td><td class="right">@(vl > 0 ? Pct(pr.Fianca / vl) : "—")</td></tr>
                         <tr>
                             <td>Comissões
-                                <span class="sub-cel">PPR @Pct(CalculoPricing.Ppr) · Sales Director @Pct(CalculoPricing.SalesDirector) · DSR
-                                    · Rep 1 @Pct(PricingDaProposta.ComissaoDe(_o.Rep1)) · Rep 2 @Pct(PricingDaProposta.ComissaoDe(_o.Rep2))</span>
+                                <span class="sub-cel">PPR @Pct(CalculoPricing.Ppr) · ELG @Pct(CalculoPricing.Elg) · DSR @Pct(CalculoPricing.Dsr * CalculoPricing.Elg)
+                                    · Rep 1 @Pct(PricingDaProposta.ComissaoDe(_o.Rep1, _o.SegmentoMargem)) · Rep 2 @Pct(PricingDaProposta.ComissaoDe(_o.Rep2, _o.SegmentoMargem))</span>
                             </td>
-                            <td class="right nowrap">@Fmt.Brl(pr.VendaLiquida * pr.Comissoes)</td><td class="right">@Pct(pr.Comissoes)</td>
+                            <td class="cel-ref">D46</td><td class="right nowrap">@Fmt.Brl(vl * pr.Comissoes)</td><td class="right">@Pct(pr.Comissoes)</td>
                         </tr>
-                        <tr>
-                            <td>Negociação, PM/SACH, garantia e portal
-                                <span class="sub-cel">negociação @Pct(_o.MargemNegociacao) · PM/SACH @Pct(pmSach) · garantia @Pct(CalculoPricing.GarantiaDoProjeto)
-                                    · portal @(entrada.ComPortal ? Pct(CalculoPricing.Portal) : "não")</span>
-                            </td>
-                            <td class="right nowrap">@Fmt.Brl(pr.VendaLiquida * (pr.PercentuaisDeVenda - pr.Comissoes))</td>
-                            <td class="right">@Pct(pr.PercentuaisDeVenda - pr.Comissoes)</td>
-                        </tr>
-                        <tr class="memoria-total"><td>Venda líquida (sem impostos)</td><td class="right nowrap">@Fmt.Brl(pr.VendaLiquida)</td><td class="right">—</td></tr>
-                        <tr><td>Margem</td><td class="right nowrap">@Fmt.Brl(pr.VendaLiquida * pr.Margem)</td><td class="right"><strong>@Pct(pr.Margem)</strong></td></tr>
-                        @if (pr.PrecoComImpostos != pr.VendaLiquida)
+                        <tr><td>Margem negoc.</td><td class="cel-ref">D47</td><td class="right nowrap">@Fmt.Brl(vl * _o.MargemNegociacao)</td><td class="right">@Pct(_o.MargemNegociacao)</td></tr>
+                        <tr><td>PM + SACH</td><td class="cel-ref">D48</td><td class="right nowrap">@Fmt.Brl(vl * CalculoPricing.PmSach)</td><td class="right">@Pct(CalculoPricing.PmSach)</td></tr>
+                        <tr><td>Garantia do projeto</td><td class="cel-ref">D49</td><td class="right nowrap">@Fmt.Brl(vl * CalculoPricing.GarantiaDoProjeto)</td><td class="right">@Pct(CalculoPricing.GarantiaDoProjeto)</td></tr>
+                        <tr><td>Portal <span class="sub-cel">@(_o.Portal.Length > 0 ? _o.Portal : "preencher")</span></td><td class="cel-ref">D50</td><td class="right nowrap">@Fmt.Brl(vl * pr.Portal)</td><td class="right">@Pct(pr.Portal)</td></tr>
+                        <tr class="memoria-total"><td>Venda líquida (sem impostos)</td><td class="cel-ref">E52</td><td class="right nowrap">@Fmt.Brl(vl)</td><td class="right">—</td></tr>
+                        <tr><td>Std Project Margin <span class="sub-cel">padrão do segmento</span></td><td class="cel-ref">D54</td><td class="right">—</td><td class="right">@Pct(pr.MargemPadrao)</td></tr>
+                        <tr><td><strong>Project Margin [PM]</strong></td><td class="cel-ref">D55</td><td class="right nowrap">@Fmt.Brl(vl * pr.Margem)</td><td class="right"><strong>@Pct(pr.Margem)</strong></td></tr>
+                        <tr><td>Net Cost Basis (Salesforce)</td><td class="cel-ref">Q28</td><td class="right nowrap">@Fmt.Brl(pr.NetCostBasis)</td><td class="right">—</td></tr>
+                        @if (pr.SemImpostos)
                         {
-                            <tr><td>PIS</td><td class="right nowrap">@Fmt.Brl(pr.ValorPis)</td><td class="right">@Pct(pr.ValorPis == 0 ? 0 : CalculoPricing.Pis)</td></tr>
-                            <tr><td>COFINS</td><td class="right nowrap">@Fmt.Brl(pr.ValorCofins)</td><td class="right">@Pct(pr.ValorCofins == 0 ? 0 : CalculoPricing.Cofins)</td></tr>
-                            <tr><td>ICMS <span class="sub-cel">@entrada.Estado, pela coluna @entrada.Bu</span></td>
-                                <td class="right nowrap">@Fmt.Brl(pr.ValorIcms)</td>
-                                <td class="right">@Pct(CalculoPricing.IcmsDoEstado(entrada.Estado, entrada.Bu) ?? 0)</td></tr>
-                            <tr><td>IPI <span class="sub-cel">zero na fórmula do axiaisvent (segmento NB)</span></td>
-                                <td class="right nowrap">@Fmt.Brl(pr.ValorIpi)</td><td class="right">@Pct(0)</td></tr>
+                            <tr><td>Impostos <span class="sub-cel">exportação, Back to Back, Chile ou Peru: sem PIS, COFINS, ICMS e IPI</span></td>
+                                <td class="cel-ref">D61:D64</td><td class="right">—</td><td class="right">—</td></tr>
                         }
                         else
                         {
-                            <tr><td>Impostos <span class="sub-cel">exportação ou venda fora do Brasil: sem PIS, COFINS, ICMS e IPI</span></td>
-                                <td class="right">—</td><td class="right">—</td></tr>
+                            <tr><td>PIS</td><td class="cel-ref">D61 · E61</td><td class="right nowrap">@Fmt.Brl(pr.ValorPis)</td><td class="right">@Pct(pr.AliqPis)</td></tr>
+                            <tr><td>COFINS</td><td class="cel-ref">D62 · E62</td><td class="right nowrap">@Fmt.Brl(pr.ValorCofins)</td><td class="right">@Pct(pr.AliqCofins)</td></tr>
+                            <tr><td>ICMS <span class="sub-cel">@(_o.Estado.Length > 0 ? _o.Estado : "estado?"), coluna @(Textos.Igual(_o.Bu, "HSA-SP") ? "HSA-SP" : "HSA-ES")@(Textos.Igual(_o.NcmReducaoIcms, "Sim") ? ", base reduzida" : "")</span></td>
+                                <td class="cel-ref">D63 · E63</td><td class="right nowrap">@(pr.PrecoComImpostos is null ? "—" : Fmt.Brl(pr.ValorIcms))</td><td class="right">@(pr.AliqIcms is decimal ai ? Pct(ai) : "—")</td></tr>
+                            <tr><td>IPI</td><td class="cel-ref">D64 · E64</td><td class="right nowrap">@(pr.PrecoComImpostos is null ? "—" : Fmt.Brl(pr.ValorIpi))</td><td class="right">@Pct(pr.AliqIpi)</td></tr>
+                            <tr><td>Venda com PIS, COFINS e sem ICMS</td><td class="cel-ref">S75</td><td class="right nowrap">@Fmt.Brl(pr.VendaComPisCofins)</td><td class="right">—</td></tr>
+                            <tr><td>Venda com PIS, COFINS e com ICMS</td><td class="cel-ref">S76</td><td class="right nowrap">@(pr.VendaComIcms is decimal s76 ? Fmt.Brl(s76) : pr.ProcurarFinanceiro ? "procurar Financeiro" : "—")</td><td class="right">—</td></tr>
+                            <tr class="memoria-total"><td>Venda com PIS, COFINS, ICMS e IPI</td><td class="cel-ref">S77</td><td class="right nowrap">@(pr.PrecoComImpostos is decimal s77 ? Fmt.Brl(s77) : "—")</td><td class="right">—</td></tr>
                         }
-                        <tr class="memoria-total"><td>Preço com impostos</td><td class="right nowrap">@Fmt.Brl(pr.PrecoComImpostos)</td><td class="right">—</td></tr>
+                        @if (pr.Retencao is decimal ret)
+                        {
+                            <tr><td>Retenção <span class="sub-cel">a confirmar com o cliente</span></td><td class="cel-ref">D68 · E68</td>
+                                <td class="right nowrap">@(pr.ValorRetencao is decimal vr ? Fmt.Brl(vr) : "consultar Financeiro")</td><td class="right">@Pct(ret)</td></tr>
+                        }
                     </tbody>
                 </table>
                 </div>
             }
-
-            <div class="pricing-entrada">
-                Entrou na conta: destino <strong>@entrada.Destino</strong>
-                · estado <strong>@(entrada.Estado.Length > 0 ? entrada.Estado : "—")</strong>
-                · ICMS pela coluna <strong>@entrada.Bu</strong> (campo BU)
-                · venda para <strong>@(entrada.VendaPara.Length > 0 ? entrada.VendaPara : "—")</strong>
-                · benefício <strong>@entrada.Beneficio</strong>
-                · portal <strong>@(entrada.ComPortal ? "sim" : "não")</strong>
-            </div>
 
             <div class="pricing-acoes">
                 <button class="btn-primary" @onclick="AplicarPricing">Aplicar preços do pricing nos @custos.ComCusto.Count item(ns) com custo</button>
@@ -668,18 +795,61 @@
 
     [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
     private List<CommercialOffer> _anteriores = new();
-    private List<string> _segs = new(), _nomesVendedores = new();
     // último valor preenchido automaticamente: só é trocado se o usuário não mexeu nele
-    private string _autoSeg = "", _autoUf = "", _autoRep = "";
+    private string _autoUf = "", _autoMercado = "", _autoAno = "";
+    private decimal _autoRisco = CalculoPricing.RiscoPadrao, _autoMargem = ListasDoPricing.MargemPadraoDo("AFM");
 
     private bool _verMemoria, _verPricing;
     private static readonly string[] Moedas = { "EUR", "USD", "GBP", "OUTRA" };
     private static readonly CultureInfo PtBr = new("pt-BR");
 
-    // ---- pricing (fórmula do axiaisvent, ligada em Data/PricingDaProposta.cs) ----
+    // ---- pricing (planilha R_HSAXYZ0000-0, ligada em Data/PricingDaProposta.cs) ----
 
     private bool PelaMargem => _o.PricingModo != "preco";
-    private bool NoBrasil => ListasDoPricing.TemImpostosBrasileiros(PricingDaProposta.PaisOuBrasil(_o.Pais));
+
+    /// <summary>Valor gravado que não está na lista da planilha (proposta antiga): continua visível no select.</summary>
+    private static RenderFragment ForaDaLista(string? atual, IEnumerable<string> lista) => __builder =>
+    {
+        if (!string.IsNullOrWhiteSpace(atual) && !lista.Contains(atual))
+        {
+            <option value="@atual">@atual (fora da lista do pricing)</option>
+        }
+    };
+
+    private static string RotuloPortal(ListasDoPricing.OpcaoPortal p) =>
+        p.Teto is decimal t ? $"{p.Nome} (teto {t.ToString("N0", PtBr)})"
+        : p.Percentual == 0 ? p.Nome : $"{p.Nome} ({Pct(p.Percentual)})";
+
+    private void MudarPrazo(ChangeEventArgs e) =>
+        _o.PrazoEntrega = Numero(e) is decimal d && d > 0 ? ((int)Math.Round(d)).ToString(CultureInfo.InvariantCulture) : "";
+
+    /// <summary>Destino define a lista de Estado (J6 = INDIRECT(J5&"_")): o que não serve mais sai.</summary>
+    private void DestinoMudou()
+    {
+        var opcoes = ListasDoPricing.EstadosDo(_o.Destino);
+        if (!opcoes.Contains(_o.Estado)) _o.Estado = opcoes.Length == 1 ? opcoes[0] : "";
+    }
+
+    /// <summary>Categories define a lista de Product (P8 = INDIRECT(P7&"_")).</summary>
+    private void CategoriaMudou()
+    {
+        if (!ListasDoPricing.ProdutosDa(_o.Categories).Contains(_o.Product)) _o.Product = "";
+        SegmentoOuProdutoMudou();
+    }
+
+    /// <summary>Risco (D37) e margem pedida seguem o padrão do segmento/produto, se ninguém mexeu neles.</summary>
+    private void SegmentoOuProdutoMudou()
+    {
+        _o.RiscoAdicional = AutoDec(_o.RiscoAdicional, ref _autoRisco, CalculoPricing.RiscoPadraoDo(_o.SegmentoMargem, _o.Product));
+        _o.MargemAlvo = AutoDec(_o.MargemAlvo, ref _autoMargem, ListasDoPricing.MargemPadraoDo(_o.SegmentoMargem));
+    }
+
+    private static decimal AutoDec(decimal atual, ref decimal ultimoAuto, decimal novo)
+    {
+        var podeTrocar = atual == ultimoAuto;
+        ultimoAuto = novo;
+        return podeTrocar ? novo : atual;
+    }
 
     /// <summary>52% → "52%"; 0,014 → "1,4%".</summary>
     private static string Pct(decimal fracao) => (fracao * 100).ToString("0.##", PtBr) + "%";
@@ -756,11 +926,11 @@
         it.PartNumber.Length > 0 ? it.PartNumber
         : it.Description.Length > 40 ? it.Description[..40] + "…" : it.Description;
 
-    /// <summary>Comissão do representante na tabela do pricing, embaixo do campo Rep.</summary>
-    private static MarkupString SeloComissao(string nome)
+    /// <summary>Comissão do representante na tabela do pricing (coluna NB ou AFM), embaixo do campo Rep.</summary>
+    private MarkupString SeloComissao(string nome)
     {
-        if (string.IsNullOrWhiteSpace(nome)) return new("");
-        var c = PricingDaProposta.ComissaoDe(nome);
+        if (string.IsNullOrWhiteSpace(nome) || nome.Trim() == "-") return new("");
+        var c = PricingDaProposta.ComissaoDe(nome, _o.SegmentoMargem);
         return new(c > 0
             ? $"<small class=\"pricing-dica ok\">comissão {Pct(c)} no pricing</small>"
             : "<small class=\"pricing-dica\">sem comissão no pricing</small>");
@@ -841,12 +1011,6 @@
         decimal.TryParse((e.Value?.ToString() ?? "").Replace(",", "."), NumberStyles.Any, CultureInfo.InvariantCulture, out var v)
             ? v : null;
 
-    private static readonly string[] Ufs =
-    {
-        "AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR",
-        "PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO",
-    };
-
     // referências por partnumber, calculadas uma vez por cliente (a base não muda enquanto a tela está aberta)
     private readonly Dictionary<string, ReferenciaPreco> _refs = new();
 
@@ -863,8 +1027,12 @@
         _anteriores = OffersRepo.All();
         _o.OfferCode = NumeroSugerido();
         _o.Revisao = "0";
-        _segs = Segmentos.All().Select(g => g.Nome).ToList();
-        _nomesVendedores = Vendedores.All().Where(v => v.Ativo).Select(v => v.Nome).ToList();
+        _o.Ano = _autoAno = DateTime.Today.Year.ToString(CultureInfo.InvariantCulture);
+        // padrões do cabeçalho do pricing para o AFM (o resto fica "preencher")
+        _o.SegmentoMargem = "AFM"; _o.Destino = "Nacional"; _o.Reforma = "Não"; _o.NcmReducaoIcms = "Não";
+        _o.FiancaSeguro = "Não"; _o.ClienteCom = "Sem benefício"; _o.ContemProdutoIc = "Não";
+        _o.Rep1 = "-"; _o.Rep2 = "-";
+        _o.RiscoAdicional = _autoRisco; _o.MargemAlvo = _autoMargem;
         _units = Units.All();
         _base = Base.All();
         _parts = Pecas.All();
@@ -895,10 +1063,9 @@
             _o.ClientName = Intel.CompanyName(u.CompanyId);
             _o.City = u.Cidade;
             _o.ClientUnitId = u.Id;
-            _o.SegmentoMargem = Auto(_o.SegmentoMargem, ref _autoSeg, u.Segmento);
-            _o.Estado = Auto(_o.Estado, ref _autoUf, (u.Estado ?? "").Trim().ToUpperInvariant());
-            var rep = Intel.SalespersonName(u.VendedorId);
-            _o.Rep1 = Auto(_o.Rep1, ref _autoRep, rep == "—" ? "" : rep);
+            var uf = (u.Estado ?? "").Trim().ToUpperInvariant();
+            if (ListasDoPricing.EstadosDo(_o.Destino).Contains(uf)) _o.Estado = Auto(_o.Estado, ref _autoUf, uf);
+            _o.MarketSegments = Auto(_o.MarketSegments, ref _autoMercado, PricingDaProposta.MarketSegmentDo(u.Segmento));
         }
     }
 
@@ -925,7 +1092,11 @@
     {
         get => DateOnly.TryParseExact(_o.OfferDate, "yyyy-MM-dd", CultureInfo.InvariantCulture,
             DateTimeStyles.None, out var d) ? d : null;
-        set => _o.OfferDate = value?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "";
+        set
+        {
+            _o.OfferDate = value?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "";
+            if (value is DateOnly d) _o.Ano = Auto(_o.Ano, ref _autoAno, d.Year.ToString(CultureInfo.InvariantCulture));
+        }
     }
 
     /// <summary>Opções usuais + valores já usados nas propostas anteriores (sem repetir).</summary>
@@ -1178,9 +1349,9 @@
         _o.PricingMarkup = temPricing ? Math.Round(pr.Markup, 6) : 0;
         _o.PricingVendaLiquida = temPricing ? Math.Round(pr.VendaLiquida, 2) : 0;
         _o.PricingMargem = temPricing ? Math.Round(pr.Margem, 6) : 0;
-        _o.PricingPrecoImpostos = temPricing ? Math.Round(pr.PrecoComImpostos, 2) : 0;
-        _o.Pais = PricingDaProposta.PaisOuBrasil(_o.Pais);
-        if (!NoBrasil) _o.Beneficio = "Sem benefício";
+        _o.PricingPrecoImpostos = temPricing && (pr.PrecoComImpostos ?? (pr.SemImpostos ? pr.VendaLiquida : null)) is decimal pci
+            ? Math.Round(pci, 2) : 0;
+        if (!Textos.Igual(_o.FiancaSeguro, "Sim")) _o.TipoGarantia = "";
         var now = DateTime.Now;
         _o.Id = Guid.NewGuid().ToString("N");
         _o.EquipmentId = string.Join(";", _equipIds);
