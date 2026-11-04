@@ -52,6 +52,14 @@ builder.Services.AddScoped<OppOverrideRepository>();
 builder.Services.AddScoped<ConstructionRepository>();
 builder.Services.AddScoped<BomRepository>();
 builder.Services.AddScoped<NacionalizacaoRepository>();
+// Parâmetros da planilha de custos de importação (padrão: versão 02/03/2022);
+// a seção "Importacao" do appsettings substitui só os valores que trouxer.
+builder.Services.AddSingleton(sp =>
+{
+    var p = new AfmHsa.Data.ParametrosImportacao();
+    builder.Configuration.GetSection("Importacao").Bind(p);
+    return p;
+});
 builder.Services.AddScoped<BrandingRepository>();
 builder.Services.AddScoped<ImportService>();
 

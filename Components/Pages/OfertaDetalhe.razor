@@ -107,6 +107,8 @@ else
         ("Cliente com", _o.ClienteCom), ("Fiança/Seguro Garantia", _o.FiancaSeguro), ("Portal", _o.Portal),
         ("Rep 1", _o.Rep1), ("Rep 2", _o.Rep2), ("Categories", _o.Categories), ("Product", _o.Product),
         ("Market Segments", _o.MarketSegments),
+        ("Importação", _o.ImportacaoModo switch { "total" => "Por total", "item" => "Por item", _ => "" }),
+        ("Moeda / taxa cambial", _o.TaxaCambio > 0 ? $"{_o.Moeda} · R$ {_o.TaxaCambio.ToString("0.####", new System.Globalization.CultureInfo("pt-BR"))}" : ""),
     };
 
     protected override void OnInitialized()

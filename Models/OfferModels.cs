@@ -45,6 +45,11 @@ public class CommercialOffer
     public string Categories { get; set; } = "";
     public string Product { get; set; } = "";
     public string MarketSegments { get; set; } = "";
+    // Importação dos itens importados: "total" (uma importação com a soma) ou
+    // "item" (uma importação para cada item), moeda e taxa cambial usadas.
+    public string ImportacaoModo { get; set; } = "";
+    public string Moeda { get; set; } = "EUR";
+    public decimal TaxaCambio { get; set; }
     // Totais / controle
     public decimal TotalAmount { get; set; }
     public string Status { get; set; } = "Rascunho";
@@ -56,6 +61,8 @@ public class CommercialOfferItem
 {
     public string Id { get; set; } = "";
     public string OfferId { get; set; } = "";
+    /// <summary>Posição do item na proposta (1, 2, 3…), para o documento sair na ordem montada.</summary>
+    public int Ordem { get; set; }
     public string Description { get; set; } = "";
     public int Quantity { get; set; } = 1;
     public decimal UnitPrice { get; set; }
@@ -73,4 +80,11 @@ public class CommercialOfferItem
     /// <summary>Preço unitário da última venda do partnumber; null = sem venda.</summary>
     public decimal? UltimaVenda { get; set; }
     public string UltimaVendaData { get; set; } = "";
+
+    /// <summary>Item importado: o custo vem da planilha de importação.</summary>
+    public bool Importado { get; set; }
+    /// <summary>Preço unitário cotado lá fora, na moeda da proposta.</summary>
+    public decimal ValorMoeda { get; set; }
+    /// <summary>Custo unitário em R$ da importação (por item, ou rateio do total); null = não calculado.</summary>
+    public decimal? CustoImportacao { get; set; }
 }

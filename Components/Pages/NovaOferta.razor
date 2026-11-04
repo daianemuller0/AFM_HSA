@@ -14,6 +14,7 @@
 @inject SegmentRepository Segmentos
 @inject SalespersonRepository Vendedores
 @inject IntelligenceService Intel
+@inject ParametrosImportacao ParamImportacao
 @inject NavigationManager Nav
 
 <PageTitle>Gerar Proposta · AFM HSA</PageTitle>
@@ -73,6 +74,105 @@
             <label>Product <input class="cell" @bind="_o.Product" list="dl-product" /></label>
             <label>Market Segments <input class="cell" @bind="_o.MarketSegments" list="dl-market" /></label>
         </div>
+
+        @if (_items.Any(i => i.Importado))
+        {
+            var imp = Importacoes;
+            <div class="bloco-importacao">
+                <div class="bloco-importacao-titulo">Importação
+                    <span>@_items.Count(i => i.Importado) item(ns) importado(s) · planilha de custos de importação de @ParamImportacao.VersaoPlanilha</span>
+                </div>
+                <div class="imp-linha">
+                    <div class="imp-modo">
+                        <span class="imp-rot">Importar por *</span>
+                        <label class="imp-opcao @(_o.ImportacaoModo == "total" ? "on" : "")">
+                            <input type="radio" name="impmodo" checked="@(_o.ImportacaoModo == "total")"
+                                   @onchange='() => _o.ImportacaoModo = "total"' />
+                            <span><strong>Total</strong><small>soma tudo numa importação só</small></span>
+                        </label>
+                        <label class="imp-opcao @(_o.ImportacaoModo == "item" ? "on" : "")">
+                            <input type="radio" name="impmodo" checked="@(_o.ImportacaoModo == "item")"
+                                   @onchange='() => _o.ImportacaoModo = "item"' />
+                            <span><strong>Item</strong><small>uma importação para cada item</small></span>
+                        </label>
+                    </div>
+                    <label class="imp-campo">Moeda
+                        <select class="cell" @bind="_o.Moeda">
+                            @foreach (var m in Moedas) { <option value="@m">@m</option> }
+                        </select>
+                    </label>
+                    <label class="imp-campo">Taxa cambial (R$ por @_o.Moeda) *
+                        <input class="cell num" type="number" min="0" step="0.0001" placeholder="ex.: 6,5"
+                               value="@(_o.TaxaCambio > 0 ? _o.TaxaCambio.ToString(CultureInfo.InvariantCulture) : "")"
+                               @onchange="MudarTaxa" />
+                    </label>
+                </div>
+
+                @if (imp.Pendencias.Count > 0)
+                {
+                    <div class="imp-pendencia">Para calcular: @string.Join(" · ", imp.Pendencias)</div>
+                }
+                else
+                {
+                    <div class="imp-resumo">
+                        <div class="@(_o.ImportacaoModo == "total" ? "escolhido" : "")">
+                            <span>Por total</span>
+                            <strong>@Fmt.Brl(imp.TotalPorTotal)</strong>
+                            <small>1 importação de @Me(imp.ValorMoedaTotal)</small>
+                        </div>
+                        <div class="@(_o.ImportacaoModo == "item" ? "escolhido" : "")">
+                            <span>Por item</span>
+                            <strong>@Fmt.Brl(imp.TotalPorItem)</strong>
+                            <small>@imp.PorItem.Count importação(ões) individual(is)</small>
+                        </div>
+                        <div>
+                            <span>Diferença</span>
+                            <strong>@Fmt.Brl(Math.Abs(imp.TotalPorItem - imp.TotalPorTotal))</strong>
+                            <small>@(imp.TotalPorItem >= imp.TotalPorTotal ? "por total sai mais barato" : "por item sai mais barato")</small>
+                        </div>
+                    </div>
+                    @if (string.IsNullOrEmpty(_o.ImportacaoModo))
+                    {
+                        <div class="imp-pendencia">Escolha <strong>Total</strong> ou <strong>Item</strong> para levar o custo aos itens.</div>
+                    }
+                    <button class="btn-link" style="margin-top:6px" @onclick="() => _verMemoria = !_verMemoria">
+                        @(_verMemoria ? "esconder memória de cálculo" : "ver memória de cálculo (como na planilha)")
+                    </button>
+                    @if (_verMemoria)
+                    {
+                        var calculos = _o.ImportacaoModo == "item" ? imp.PorItem : new List<(string, CalculoImportacao)> { ("Importação total", imp.PorTotal!) };
+                        <div class="tabela-rolante">
+                        <table class="grid memoria-imp">
+                            <thead>
+                                <tr><th>Despesa (R$)</th>@foreach (var (rot, _) in calculos) { <th class="right">@rot</th> }</tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var desc in calculos[0].Item2.Linhas.Select(l => l.Descricao))
+                                {
+                                    <tr>
+                                        <td>@desc</td>
+                                        @foreach (var (_, c) in calculos)
+                                        {
+                                            <td class="right nowrap">@Fmt.Brl(c.Linhas.FirstOrDefault(l => l.Descricao == desc)?.Valor ?? 0)</td>
+                                        }
+                                    </tr>
+                                }
+                                <tr class="memoria-total">
+                                    <td>Custo total da operação já deduzidos os créditos tributários</td>
+                                    @foreach (var (_, c) in calculos) { <td class="right nowrap">@Fmt.Brl(c.CustoTotal)</td> }
+                                </tr>
+                                <tr>
+                                    <td>% de custo sobre o produto</td>
+                                    @foreach (var (_, c) in calculos) { <td class="right nowrap">@c.PercentualSobreProduto.ToString("P2", PtBr)</td> }
+                                </tr>
+                            </tbody>
+                        </table>
+                        </div>
+                        <div class="sub-cel" style="display:block">IPI, PIS, COFINS e ICMS são créditos tributários: entram e saem na planilha, por isso não somam no custo.</div>
+                    }
+                }
+            </div>
+        }
 
         @* sugestões: valores já usados em propostas anteriores + opções usuais *@
         <datalist id="dl-simnao"><option value="Sim" /><option value="Não" /></datalist>
@@ -203,7 +303,7 @@
         <table class="grid tabela-proposta" style="margin-bottom:12px">
             <thead>
                 <tr>
-                    <th>Descrição</th><th>Nacionalizado</th><th class="right">Referência de custo (R$)</th>
+                    <th>Descrição</th><th>Nacionalizado</th><th>Importado</th><th class="right">Referência de custo (R$)</th>
                     <th class="right">Última venda (R$)</th><th class="right">Qtd</th>
                     <th class="right">Preço unitário da proposta (R$)</th><th class="right">Total</th><th></th>
                 </tr>
@@ -223,8 +323,39 @@
                             }
                         </td>
                         <td>@(it.PartNumber.Length > 0 ? SeloNac(r) : Traco)</td>
+                        <td class="nowrap">
+                            <label class="chk-inline" style="color:var(--text)">
+                                <input type="checkbox" checked="@it.Importado" @onchange="e => MarcarImportado(idx, e)" /> importado
+                            </label>
+                            @if (it.Importado)
+                            {
+                                <div class="imp-preco">
+                                    <input class="cell num" type="number" min="0" step="0.01" placeholder="preço unit."
+                                           value="@(it.ValorMoeda > 0 ? it.ValorMoeda.ToString(CultureInfo.InvariantCulture) : "")"
+                                           @onchange="e => MudarValorMoeda(idx, e)" />
+                                    <span>@_o.Moeda</span>
+                                </div>
+                            }
+                        </td>
                         <td class="right nowrap">
-                            @if (it.PartNumber.Length > 0)
+                            @if (it.Importado)
+                            {
+                                var ci = CustoImportadoDo(it);
+                                @if (ci is decimal cu)
+                                {
+                                    <strong>@Fmt.Brl(cu)</strong>
+                                    <span class="sub-cel">importação @(_o.ImportacaoModo == "item" ? "por item" : "por total (rateio)")</span>
+                                    @if (it.Quantity > 1)
+                                    {
+                                        <span class="sub-cel">@Fmt.Brl(cu * it.Quantity) na linha</span>
+                                    }
+                                }
+                                else
+                                {
+                                    <span class="custo-indisp">@(it.ValorMoeda <= 0 ? $"informe o preço em {_o.Moeda}" : "complete a importação no topo")</span>
+                                }
+                            }
+                            else if (it.PartNumber.Length > 0)
                             {
                                 @CelulaCusto(r)
                             }
@@ -261,7 +392,7 @@
                         <td><button class="btn-link" style="color:#b91c1c" @onclick="() => Remover(idx)">remover</button></td>
                     </tr>
                 }
-                @if (_items.Count == 0) { <tr><td colspan="8" class="empty">Nenhum item. Selecione equipamentos e itens da BOM acima, ou adicione um item manual.</td></tr> }
+                @if (_items.Count == 0) { <tr><td colspan="9" class="empty">Nenhum item. Selecione equipamentos e itens da BOM acima, ou adicione um item manual.</td></tr> }
             </tbody>
         </table>
         </div>
@@ -344,6 +475,85 @@
     private List<string> _segs = new(), _nomesVendedores = new();
     // último valor preenchido automaticamente: só é trocado se o usuário não mexeu nele
     private string _autoSeg = "", _autoUf = "", _autoRep = "";
+
+    private bool _verMemoria;
+    private static readonly string[] Moedas = { "EUR", "USD", "GBP", "OUTRA" };
+    private static readonly CultureInfo PtBr = new("pt-BR");
+
+    /// <summary>Valor na moeda estrangeira, para a tela (ex.: "EUR 5.000,00").</summary>
+    private string Me(decimal v) => $"{_o.Moeda} {v.ToString("N2", PtBr)}";
+
+    /// <summary>
+    /// Resultado das importações da proposta. Calcula os dois modos sempre, para
+    /// a tela mostrar qual sai mais barato; o modo escolhido é o que vai para os itens.
+    /// </summary>
+    private record ResultadoImportacao(
+        List<string> Pendencias,
+        CalculoImportacao? PorTotal, decimal ValorMoedaTotal,
+        List<(string Rotulo, CalculoImportacao Calc)> PorItem,
+        Dictionary<CommercialOfferItem, decimal> UnitarioPorTotal,
+        Dictionary<CommercialOfferItem, decimal> UnitarioPorItem)
+    {
+        public decimal TotalPorTotal => PorTotal?.CustoTotal ?? 0;
+        public decimal TotalPorItem => PorItem.Sum(x => x.Calc.CustoTotal);
+    }
+
+    private ResultadoImportacao Importacoes
+    {
+        get
+        {
+            var importados = _items.Where(i => i.Importado).ToList();
+            var pend = new List<string>();
+            if (_o.TaxaCambio <= 0) pend.Add("informe a taxa cambial");
+            var semPreco = importados.Count(i => i.ValorMoeda <= 0);
+            if (semPreco > 0) pend.Add($"preço em {_o.Moeda} em {semPreco} item(ns)");
+            var vazio = new ResultadoImportacao(pend, null, 0, new(), new(), new());
+            if (pend.Count > 0) return vazio;
+
+            // por total: uma importação com a soma (preço × qtd) e rateio pelo valor de cada item
+            var totalMoeda = importados.Sum(i => i.ValorMoeda * i.Quantity);
+            var total = CustoImportacao.Calcular(totalMoeda, _o.TaxaCambio, ParamImportacao);
+            var unitTotal = importados.ToDictionary(i => i, i => Math.Round(total.CustoTotal * i.ValorMoeda / totalMoeda, 2));
+
+            // por item: uma importação por linha (preço × qtd)
+            var porItem = new List<(string, CalculoImportacao)>();
+            var unitItem = new Dictionary<CommercialOfferItem, decimal>();
+            foreach (var i in importados)
+            {
+                var c = CustoImportacao.Calcular(i.ValorMoeda * i.Quantity, _o.TaxaCambio, ParamImportacao);
+                porItem.Add((i.PartNumber.Length > 0 ? i.PartNumber : i.Description, c));
+                unitItem[i] = Math.Round(c.CustoTotal / i.Quantity, 2);
+            }
+            return new ResultadoImportacao(pend, total, totalMoeda, porItem, unitTotal, unitItem);
+        }
+    }
+
+    /// <summary>Custo unitário de importação do item no modo escolhido (null enquanto falta dado).</summary>
+    private decimal? CustoImportadoDo(CommercialOfferItem it)
+    {
+        if (!it.Importado || string.IsNullOrEmpty(_o.ImportacaoModo)) return null;
+        var imp = Importacoes;
+        var mapa = _o.ImportacaoModo == "item" ? imp.UnitarioPorItem : imp.UnitarioPorTotal;
+        return mapa.TryGetValue(it, out var v) ? v : null;
+    }
+
+    private void MarcarImportado(int idx, ChangeEventArgs e)
+    {
+        if (idx < 0 || idx >= _items.Count) return;
+        _items[idx].Importado = e.Value is bool b && b;
+    }
+
+    private void MudarValorMoeda(int idx, ChangeEventArgs e)
+    {
+        if (idx < 0 || idx >= _items.Count) return;
+        _items[idx].ValorMoeda = Numero(e) is decimal v && v > 0 ? v : 0;
+    }
+
+    private void MudarTaxa(ChangeEventArgs e) => _o.TaxaCambio = Numero(e) is decimal v && v > 0 ? v : 0;
+
+    private static decimal? Numero(ChangeEventArgs e) =>
+        decimal.TryParse((e.Value?.ToString() ?? "").Replace(",", "."), NumberStyles.Any, CultureInfo.InvariantCulture, out var v)
+            ? v : null;
 
     private static readonly string[] Ufs =
     {
@@ -656,6 +866,18 @@
             _erro = $"Já existe a proposta {_o.OfferCode} revisão {_o.Revisao}. Mude o número ou a revisão.";
             return;
         }
+        if (_items.Any(i => i.Importado))
+        {
+            if (string.IsNullOrEmpty(_o.ImportacaoModo))
+            { _erro = "Há item importado: marque no topo se a importação é por total ou por item."; return; }
+            var pend = Importacoes.Pendencias;
+            if (pend.Count > 0) { _erro = "Importação incompleta: " + string.Join(" · ", pend) + "."; return; }
+            foreach (var it in _items) it.CustoImportacao = it.Importado ? CustoImportadoDo(it) : null;
+        }
+        else
+        {
+            _o.ImportacaoModo = ""; _o.TaxaCambio = 0;
+        }
         var semPreco = _items.Count(i => i.UnitPrice <= 0);
         if (semPreco > 0)
         {
@@ -670,10 +892,12 @@
         _o.OurReference = string.IsNullOrWhiteSpace(_o.OurReference) ? _o.OfferCode : _o.OurReference;
         _o.TotalAmount = Total;
         OffersRepo.Save(_o);
-        foreach (var it in _items)
+        for (var n = 0; n < _items.Count; n++)
         {
+            var it = _items[n];
             it.Id = Guid.NewGuid().ToString("N");
             it.OfferId = _o.Id;
+            it.Ordem = n + 1;
             OffersRepo.SaveItem(it);
         }
         Nav.NavigateTo($"/ofertas/{_o.Id}");

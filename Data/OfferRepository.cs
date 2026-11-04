@@ -16,7 +16,8 @@ public class OfferRepository
         "offer_date, prepared_by, intro_text, tax_text, payment_terms, delivery_time, delivery_conditions, " +
         "validity_text, observations, sgi_text, terms_text, total_amount, status, created_at, " +
         "pv, revisao, bu, ncm_reducao_icms, segmento_margem, venda_para, destino, estado, reforma, " +
-        "prazo_entrega, cliente_com, fianca_seguro, portal, rep1, rep2, categories, product, market_segments",
+        "prazo_entrega, cliente_com, fianca_seguro, portal, rep1, rep2, categories, product, market_segments, " +
+        "importacao_modo, moeda, taxa_cambio",
         r => new CommercialOffer
         {
             Id = Fmt.S(r, 0), OfferCode = Fmt.S(r, 1), ClientUnitId = Fmt.S(r, 2), EquipmentId = Fmt.S(r, 3),
@@ -31,6 +32,7 @@ public class OfferRepository
             Reforma = Fmt.S(r, 31), PrazoEntrega = Fmt.S(r, 32), ClienteCom = Fmt.S(r, 33), FiancaSeguro = Fmt.S(r, 34),
             Portal = Fmt.S(r, 35), Rep1 = Fmt.S(r, 36), Rep2 = Fmt.S(r, 37), Categories = Fmt.S(r, 38),
             Product = Fmt.S(r, 39), MarketSegments = Fmt.S(r, 40),
+            ImportacaoModo = Fmt.S(r, 41), Moeda = Fmt.S(r, 42), TaxaCambio = Fmt.Dec(Fmt.S(r, 43)),
         }, orderBy: "created_at DESC");
 
     public CommercialOffer? Get(string id) => All().FirstOrDefault(o => o.Id == id);
@@ -51,6 +53,7 @@ public class OfferRepository
         new("cliente_com", o.ClienteCom), new("fianca_seguro", o.FiancaSeguro), new("portal", o.Portal),
         new("rep1", o.Rep1), new("rep2", o.Rep2), new("categories", o.Categories), new("product", o.Product),
         new("market_segments", o.MarketSegments),
+        new("importacao_modo", o.ImportacaoModo), new("moeda", o.Moeda), new("taxa_cambio", D(o.TaxaCambio)),
     });
 
     public void Delete(string id) => _s.WriteRow("commercialOffers",
@@ -59,7 +62,8 @@ public class OfferRepository
     // ---- itens -----------------------------------------------------------
     public List<CommercialOfferItem> AllItems() => _s.ReadLatest("commercialOfferItems",
         "id, offer_id, description, quantity, unit_price, total_price, " +
-        "equipment_id, part_number, nacionalizado, custo_referencia, custo_data, ultima_venda, ultima_venda_data",
+        "equipment_id, part_number, nacionalizado, custo_referencia, custo_data, ultima_venda, ultima_venda_data, " +
+        "importado, valor_moeda, custo_importacao, ordem",
         r => new CommercialOfferItem
         {
             Id = Fmt.S(r, 0), OfferId = Fmt.S(r, 1), Description = Fmt.S(r, 2),
@@ -67,6 +71,8 @@ public class OfferRepository
             EquipmentId = Fmt.S(r, 6), PartNumber = Fmt.S(r, 7), Nacionalizado = Fmt.Bool(Fmt.S(r, 8)),
             CustoReferencia = DecOuNull(Fmt.S(r, 9)), CustoData = Fmt.S(r, 10),
             UltimaVenda = DecOuNull(Fmt.S(r, 11)), UltimaVendaData = Fmt.S(r, 12),
+            Importado = Fmt.Bool(Fmt.S(r, 13)), ValorMoeda = Fmt.Dec(Fmt.S(r, 14)),
+            CustoImportacao = DecOuNull(Fmt.S(r, 15)), Ordem = Fmt.Int(Fmt.S(r, 16)),
         });
 
     /// <summary>Vazio continua vazio: "custo não disponível" não pode virar R$ 0,00.</summary>
@@ -74,7 +80,7 @@ public class OfferRepository
     private static string DOuVazio(decimal? v) => v is decimal d ? D(d) : "";
 
     public List<CommercialOfferItem> ItemsFor(string offerId) =>
-        AllItems().Where(i => i.OfferId == offerId).ToList();
+        AllItems().Where(i => i.OfferId == offerId).OrderBy(i => i.Ordem).ToList();
 
     public void SaveItem(CommercialOfferItem it) => _s.WriteRow("commercialOfferItems",
         new KeyValuePair<string, object?>[]
@@ -86,5 +92,7 @@ public class OfferRepository
             new("nacionalizado", it.Nacionalizado ? "true" : "false"),
             new("custo_referencia", DOuVazio(it.CustoReferencia)), new("custo_data", it.CustoData),
             new("ultima_venda", DOuVazio(it.UltimaVenda)), new("ultima_venda_data", it.UltimaVendaData),
+            new("importado", it.Importado ? "true" : "false"), new("valor_moeda", D(it.ValorMoeda)),
+            new("custo_importacao", DOuVazio(it.CustoImportacao)), new("ordem", it.Ordem.ToString()),
         });
 }

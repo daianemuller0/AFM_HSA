@@ -846,3 +846,40 @@ h1 { font-size: 24px; margin: 0 0 4px; color: var(--primary); letter-spacing: -.
 .tabela-proposta { min-width: 1080px; }
 .tabela-proposta td:first-child { min-width: 230px; }
 .tabela-bom-proposta { min-width: 980px; }
+
+/* ===== Proposta: importação (por total / por item) ===== */
+.bloco-importacao {
+    margin-top: 16px; border: 1px solid #cfe3f7; background: #f5f9fe;
+    border-radius: var(--radius-sm); padding: 14px 16px;
+}
+.bloco-importacao-titulo { font-weight: 700; color: var(--primary); margin-bottom: 10px; }
+.bloco-importacao-titulo span { margin-left: 8px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.imp-linha { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; }
+.imp-modo { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.imp-rot { font-size: 12.5px; font-weight: 600; color: var(--muted); margin-right: 2px; }
+.imp-opcao {
+    display: inline-flex; align-items: center; gap: 8px; cursor: pointer; background: #fff;
+    border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 7px 12px;
+}
+.imp-opcao.on { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(0, 71, 133, .12); }
+.imp-opcao span { display: flex; flex-direction: column; line-height: 1.2; }
+.imp-opcao small { font-size: 11px; color: var(--muted); }
+.imp-campo { display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; font-weight: 500; color: var(--muted); }
+.imp-campo .cell { width: 170px; }
+.imp-pendencia { margin-top: 10px; font-size: 12.5px; color: #b45309; }
+.imp-resumo { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+.imp-resumo > div {
+    background: #fff; border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 10px 12px; display: flex; flex-direction: column; gap: 2px;
+}
+.imp-resumo > div.escolhido { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(0, 71, 133, .12); }
+.imp-resumo span { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.imp-resumo strong { font-size: 18px; color: var(--text); }
+.imp-resumo small { font-size: 11.5px; color: var(--muted); }
+.imp-preco { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+.imp-preco .cell { width: 110px; text-align: right; }
+.imp-preco span { font-size: 12px; font-weight: 700; color: var(--muted); }
+.memoria-imp { margin-top: 8px; }
+.memoria-imp td, .memoria-imp th { font-size: 12.5px; }
+.memoria-total > td { font-weight: 700; background: #eef4fa; }
+.tabela-proposta { min-width: 1220px; }
