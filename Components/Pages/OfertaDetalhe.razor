@@ -2,6 +2,13 @@
 @attribute [Authorize]
 @rendermode InteractiveServer
 @inject OfferRepository OffersRepo
+@inject ClientUnitRepository Units
+@inject SalespersonRepository Vendedores
+@inject EquipmentRepository Equipamentos
+@inject InstalledBaseRepository Base
+@inject BomRepository Bom
+@inject SalesRecordRepository Vendas
+@inject IWebHostEnvironment Ambiente
 @inject IJSRuntime JS
 
 <PageTitle>Oferta · AFM HSA</PageTitle>
@@ -18,9 +25,16 @@ else
         <div><h1>Oferta @_o.OfferCode</h1><p class="subtitle">@_o.ClientName · @Cambio.Dinheiro(_o, _o.TotalAmount)</p></div>
         <div class="page-actions">
             <a class="btn-ghost" href="/ofertas">← Ofertas</a>
+            <button class="btn-accent" @onclick="GerarWord" disabled="@_gerando"
+                    title="Preenche o modelo de proposta comercial da equipe (Word)">@(_gerando ? "Gerando…" : "⬇ Proposta comercial (Word)")</button>
             <button class="btn-primary" @onclick="Imprimir">Imprimir / PDF</button>
         </div>
     </div>
+
+    @if (_erroWord is not null)
+    {
+        <div class="alert-error no-print">@_erroWord</div>
+    }
 
     @* Cabeçalho completo: controle comercial interno — não sai na impressão para o cliente *@
     <div class="panel no-print" style="margin-bottom:16px">
@@ -175,6 +189,40 @@ else
     }
 
     private async Task Imprimir() => await JS.InvokeVoidAsync("appPrint");
+
+    private bool _gerando;
+    private string? _erroWord;
+
+    /// <summary>A proposta comercial em Word, no modelo da equipe (Data/PropostaWord.cs).</summary>
+    private async Task GerarWord()
+    {
+        if (_o is null) return;
+        _gerando = true; _erroWord = null;
+        try
+        {
+            var modelo = Path.Combine(Ambiente.ContentRootPath, PropostaWord.CaminhoDoModelo);
+            if (!File.Exists(modelo)) { _erroWord = $"O modelo não está em {PropostaWord.CaminhoDoModelo}."; return; }
+
+            var unidade = Units.All().FirstOrDefault(u => u.Id == _o.ClientUnitId);
+            var vendedor = unidade is null ? null : Vendedores.All().FirstOrDefault(v => v.Id == unidade.VendedorId);
+            var equipIds = _items.Select(i => i.EquipmentId).Where(x => x.Length > 0).ToHashSet();
+            var dados = new DadosDaPropostaWord(
+                _o, _items, vendedor,
+                Equipamentos.All().Where(e => equipIds.Contains(e.Id)).ToDictionary(e => e.Id),
+                Base.All().Where(b => b.ClientUnitId == _o.ClientUnitId).ToList(),
+                Bom.All().Where(b => equipIds.Contains(b.EquipmentId)).ToList(),
+                Vendas.All().Where(v => v.ClientUnitId == _o.ClientUnitId).ToList());
+
+            var bytes = PropostaWord.Gerar(dados, modelo);
+            await JS.InvokeVoidAsync("appDownload", PropostaWord.NomeDoArquivo(_o),
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document", Convert.ToBase64String(bytes));
+        }
+        catch (Exception ex)
+        {
+            _erroWord = "Não deu para gerar a proposta em Word: " + ex.Message;
+        }
+        finally { _gerando = false; }
+    }
 
     private static string Dash(string s) => string.IsNullOrWhiteSpace(s) ? "—" : s;
     private static IEnumerable<string> Linhas(string s) =>

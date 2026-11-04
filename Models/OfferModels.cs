@@ -18,6 +18,13 @@ public class CommercialOffer
     public string Project { get; set; } = "";
     public string OfferDate { get; set; } = "";
     public string PreparedBy { get; set; } = "";
+    // Capa da proposta em Word (modelo da equipe): contato do cliente e a referência dele
+    public string ContatoEmail { get; set; } = "";
+    public string ContatoTelefone { get; set; } = "";
+    public string SuaReferencia { get; set; } = "";
+    /// <summary>Local de entrega: código de <see cref="ListasDaProposta.Incoterms"/> e o local, quando a linha pede.</summary>
+    public string Incoterm { get; set; } = "EXW";
+    public string IncotermLocal { get; set; } = "";
     // Condições comerciais (editáveis)
     public string IntroText { get; set; } = "";
     public string TaxText { get; set; } = "";
@@ -126,6 +133,9 @@ public class CommercialOfferItem
     /// <summary>Preço unitário da última venda do partnumber; null = sem venda.</summary>
     public decimal? UltimaVenda { get; set; }
     public string UltimaVendaData { get; set; } = "";
+
+    /// <summary>NCM do item (lista do modelo de proposta, <see cref="ListasDaProposta.Ncms"/>); vazio = a definir.</summary>
+    public string Ncm { get; set; } = "";
 
     /// <summary>Item importado: o custo vem da planilha de importação.</summary>
     public bool Importado { get; set; }

@@ -983,3 +983,4 @@ h1 { font-size: 24px; margin: 0 0 4px; color: var(--primary); letter-spacing: -.
 .taxa-origem { margin-top: 6px; font-size: 12px; font-weight: 600; color: #047857; }
 .taxa-origem.velha { color: #b45309; }
 .preco-oferta { margin-top: 6px; font-size: 12.5px; color: var(--muted); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ncm-sel { display: block; margin-top: 4px; width: 100%; max-width: 360px; font-size: 11.5px; padding: 3px 6px; }

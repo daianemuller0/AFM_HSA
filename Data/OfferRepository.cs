@@ -31,7 +31,7 @@ public class OfferRepository
         "pricing_modo, margem_alvo, preco_meta, " +
         "pricing_custo, pricing_markup, pricing_venda_liquida, pricing_margem, pricing_preco_impostos, " +
         "tipo_outras_garantias, outras_garantias, pricing_custos, moeda_venda, cambio_taxa, cambio_direcao, " +
-        "cambio_seguranca, total_reais",
+        "cambio_seguranca, total_reais, contato_email, contato_telefone, sua_referencia, incoterm, incoterm_local",
         r => new CommercialOffer
         {
             Id = Fmt.S(r, 0), OfferCode = Fmt.S(r, 1), ClientUnitId = Fmt.S(r, 2), EquipmentId = Fmt.S(r, 3),
@@ -63,6 +63,8 @@ public class OfferRepository
             CambioSeguranca = Fmt.Dec(Fmt.S(r, 64)),
             // propostas de antes da moeda do preço: o total já era em R$
             TotalReais = Fmt.S(r, 65) is { Length: > 0 } tr ? Fmt.Dec(tr) : Fmt.Dec(Fmt.S(r, 20)),
+            ContatoEmail = Fmt.S(r, 66), ContatoTelefone = Fmt.S(r, 67), SuaReferencia = Fmt.S(r, 68),
+            Incoterm = Fmt.S(r, 69), IncotermLocal = Fmt.S(r, 70),
         }, orderBy: "created_at DESC");
 
     public CommercialOffer? Get(string id) => All().FirstOrDefault(o => o.Id == id);
@@ -92,6 +94,8 @@ public class OfferRepository
         new("moeda_venda", o.MoedaVenda), new("cambio_taxa", D(o.CambioTaxa)),
         new("cambio_direcao", o.CambioDirecao), new("cambio_seguranca", D(o.CambioSeguranca)),
         new("total_reais", D(o.TotalReais)),
+        new("contato_email", o.ContatoEmail), new("contato_telefone", o.ContatoTelefone),
+        new("sua_referencia", o.SuaReferencia), new("incoterm", o.Incoterm), new("incoterm_local", o.IncotermLocal),
         new("risco_adicional", D(o.RiscoAdicional)), new("margem_negociacao", D(o.MargemNegociacao)),
         new("pricing_modo", o.PricingModo), new("margem_alvo", D(o.MargemAlvo)), new("preco_meta", D(o.PrecoMeta)),
         new("pricing_custo", D(o.PricingCusto)), new("pricing_markup", D(o.PricingMarkup)),
@@ -106,7 +110,7 @@ public class OfferRepository
     public List<CommercialOfferItem> AllItems() => _s.ReadLatest("commercialOfferItems",
         "id, offer_id, description, quantity, unit_price, total_price, " +
         "equipment_id, part_number, nacionalizado, custo_referencia, custo_data, ultima_venda, ultima_venda_data, " +
-        "importado, valor_moeda, custo_importacao, ordem",
+        "importado, valor_moeda, custo_importacao, ordem, ncm",
         r => new CommercialOfferItem
         {
             Id = Fmt.S(r, 0), OfferId = Fmt.S(r, 1), Description = Fmt.S(r, 2),
@@ -115,7 +119,7 @@ public class OfferRepository
             CustoReferencia = DecOuNull(Fmt.S(r, 9)), CustoData = Fmt.S(r, 10),
             UltimaVenda = DecOuNull(Fmt.S(r, 11)), UltimaVendaData = Fmt.S(r, 12),
             Importado = Fmt.Bool(Fmt.S(r, 13)), ValorMoeda = Fmt.Dec(Fmt.S(r, 14)),
-            CustoImportacao = DecOuNull(Fmt.S(r, 15)), Ordem = Fmt.Int(Fmt.S(r, 16)),
+            CustoImportacao = DecOuNull(Fmt.S(r, 15)), Ordem = Fmt.Int(Fmt.S(r, 16)), Ncm = Fmt.S(r, 17),
         });
 
     /// <summary>Vazio continua vazio: "custo não disponível" não pode virar R$ 0,00.</summary>
@@ -137,5 +141,6 @@ public class OfferRepository
             new("ultima_venda", DOuVazio(it.UltimaVenda)), new("ultima_venda_data", it.UltimaVendaData),
             new("importado", it.Importado ? "true" : "false"), new("valor_moeda", D(it.ValorMoeda)),
             new("custo_importacao", DOuVazio(it.CustoImportacao)), new("ordem", it.Ordem.ToString()),
+            new("ncm", it.Ncm),
         });
 }

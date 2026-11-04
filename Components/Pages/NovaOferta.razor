@@ -284,8 +284,11 @@
         <div class="dash-title">Contato e equipamentos</div>
         <div class="form3">
             <label>A/C (contato) <input class="cell" @bind="_o.AttentionTo" /></label>
+            <label>E-mail do contato <input class="cell" type="email" placeholder="contato@@empresa.com" @bind="_o.ContatoEmail" /></label>
+            <label>Telefone do contato <input class="cell" placeholder="+55 …" @bind="_o.ContatoTelefone" /></label>
             <label>Cidade <input class="cell" @bind="_o.City" /></label>
             <label>Nossa referência <input class="cell" @bind="_o.OurReference" /></label>
+            <label>Sua referência (do cliente) <input class="cell" placeholder="o número que o cliente deu" @bind="_o.SuaReferencia" /></label>
             <label>Projeto <input class="cell" @bind="_o.Project" /></label>
         </div>
 
@@ -409,6 +412,13 @@
                             @if (it.EquipmentId.Length > 0)
                             {
                                 <span class="sub-cel">@ModeloDe(it.EquipmentId)</span>
+                            }
+                            @if (it != _itemDemais)
+                            {
+                                <select class="cell ncm-sel" title="NCM do item na proposta em Word" value="@it.Ncm" @onchange="e => it.Ncm = e.Value?.ToString() ?? string.Empty">
+                                    <option value="">NCM: a definir</option>
+                                    @foreach (var n in ListasDaProposta.Ncms) { <option value="@n.Codigo">NCM @n.Texto</option> }
+                                </select>
                             }
                         </td>
                         <td>@(it.PartNumber.Length > 0 ? SeloNac(r) : Traco)</td>
@@ -920,6 +930,18 @@
                 </select>
             </label>
             <label>Prazo de entrega (texto da proposta) <textarea class="cell" @bind="_o.DeliveryTime"></textarea></label>
+            <label>Local de entrega (Incoterms)
+                <select class="cell" @bind="_o.Incoterm">
+                    @foreach (var i in ListasDaProposta.Incoterms) { <option value="@i.Codigo">@i.Rotulo</option> }
+                </select>
+            </label>
+            @if (ListasDaProposta.Incoterms.FirstOrDefault(x => x.Codigo == _o.Incoterm) is { PedeLocal: true } inc)
+            {
+                <label>Local de entrega (@(inc.Codigo == "FCA-AEROPORTO" ? "aeroporto" : "destino e país"))
+                    <input class="cell" placeholder="@(inc.Codigo == "FCA-AEROPORTO" ? "ex.: de Guarulhos – SP" : "ex.: Callao (Peru)")" @bind="_o.IncotermLocal" />
+                    <small class="pricing-dica">na proposta: @ListasDaProposta.LinhaDoIncoterm(_o.Incoterm, _o.IncotermLocal)</small>
+                </label>
+            }
             <label>Validade <input class="cell" @bind="_o.ValidityText" /></label>
             <label>Observações <textarea class="cell" style="min-height:90px" @bind="_o.Observations"></textarea></label>
             <label>Termos e condições <textarea class="cell" @bind="_o.TermsText"></textarea></label>
@@ -1125,6 +1147,19 @@
     private string NomesDosDemais() => string.Join(", ", _o.CustosPricing.Where(x => x.Valor != 0m)
         .Select(x => CalculoPricing.LinhasDeCusto.First(l => l.Codigo == x.Codigo).Nome));
 
+    /// <summary>
+    /// O nome do item que vai para o CLIENTE: só as linhas que são serviço
+    /// (MO, engenharia, assessoria). Imprevistos e protected margin são termos
+    /// internos do pricing e não saem na proposta.
+    /// </summary>
+    private string DescricaoDosDemais()
+    {
+        var internos = new[] { "PROTECTED", "IMPREVISTOS", "COMPRADOS", "IMPORTADOS", "BACK_TO_BACK" };
+        var nomes = _o.CustosPricing.Where(x => x.Valor != 0m && !internos.Contains(x.Codigo))
+            .Select(x => CalculoPricing.LinhasDeCusto.First(l => l.Codigo == x.Codigo).Nome).ToList();
+        return nomes.Count > 0 ? $"Serviços ({string.Join(", ", nomes)})" : "Serviços e demais custos";
+    }
+
     private void AdicionarDemais()
     {
         var c = Custos;
@@ -1140,7 +1175,7 @@
     private void AtualizarDemais(CalculoPricing.Resultado r, CustoDosItens c)
     {
         if (_itemDemais is null) return;
-        _itemDemais.Description = "Serviços e demais custos (" + NomesDosDemais() + ")";
+        _itemDemais.Description = DescricaoDosDemais();
         _itemDemais.Quantity = 1;
         _itemDemais.UnitPrice = PricingDaProposta.PrecoUnitario(_o, DemaisCustos(c, r), r);
         _itemDemais.TotalPrice = _itemDemais.UnitPrice;
@@ -1529,6 +1564,7 @@
                 TotalPrice = 0,
                 EquipmentId = b.EquipmentId,
                 PartNumber = b.PartNumber.Trim(),
+                Ncm = ListasDaProposta.NcmPadrao(_equipamentos.FirstOrDefault(e => e.Id == b.EquipmentId)?.Tipo),
                 Nacionalizado = r.Nacionalizado,
                 CustoReferencia = r.Custo, CustoData = r.CustoData,
                 UltimaVenda = r.UltimaVenda, UltimaVendaData = r.UltimaVendaData,
@@ -1612,6 +1648,7 @@
                 TotalPrice = p.ValorEstimado,
                 EquipmentId = p.EquipmentId,
                 PartNumber = (p.Codigo ?? "").Trim(),
+                Ncm = ListasDaProposta.NcmPadrao(_equipamentos.FirstOrDefault(e => e.Id == p.EquipmentId)?.Tipo),
                 Nacionalizado = r.Nacionalizado,
                 CustoReferencia = r.Custo, CustoData = r.CustoData,
                 UltimaVenda = r.UltimaVenda, UltimaVendaData = r.UltimaVendaData,
