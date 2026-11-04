@@ -1,0 +1,119 @@
+@page "/conversao"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@using System.Globalization
+@inject ConversaoRepository Repo
+
+<PageTitle>Conversão · AFM HSA</PageTitle>
+
+<div class="page-head">
+    <div>
+        <h1>Conversão</h1>
+        <p class="subtitle">
+            As taxas do dia para o preço ao cliente em <strong>dólar</strong>, <strong>euro</strong>,
+            <strong>sol peruano</strong> e <strong>peso chileno</strong>. O custo do AFM é em real; na Gerar
+            Proposta, ao escolher a moeda do preço, a taxa daqui entra sozinha (e dá para trocar).
+            Proposta salva fica com a taxa dela.
+        </p>
+    </div>
+</div>
+
+<div class="panel" style="margin-bottom:16px">
+    <div class="toolbar conversao-taxas">
+        <strong>Taxas</strong>
+        <label><span>1 USD =</span>
+            <input class="cell num" inputmode="decimal" placeholder="ex.: 5,40" value="@_usd" @oninput="e => _usd = Texto(e)" />
+            <span>R$</span></label>
+        <label><span>1 EUR =</span>
+            <input class="cell num" inputmode="decimal" placeholder="ex.: 6,20" value="@_eur" @oninput="e => _eur = Texto(e)" />
+            <span>R$</span></label>
+        <label><span>1 PEN =</span>
+            <input class="cell num" inputmode="decimal" placeholder="ex.: 1,45" value="@_pen" @oninput="e => _pen = Texto(e)" />
+            <span>R$</span></label>
+        <label><span>1 R$ =</span>
+            <input class="cell num" inputmode="decimal" placeholder="ex.: 175" value="@_clp" @oninput="e => _clp = Texto(e)" />
+            <span>CLP</span></label>
+        <button class="btn-primary" @onclick="Salvar">Salvar taxas</button>
+        @if (_atualizadaEm is DateTime quando)
+        {
+            <span class="subtitle" style="margin:0">taxas gravadas em @quando.ToString("dd/MM/yyyy HH:mm")@(Velha ? " — mais de " + ConversaoRepository.DiasDaTaxa + " dias, confira" : "")</span>
+        }
+    </div>
+
+    <p class="subtitle" style="margin:10px 0 0">
+        @if (Conferencia.Count > 0)
+        {
+            <span>Conferência: R$ 100.000 = </span><strong>@string.Join(" · ", Conferencia)</strong>
+        }
+        else
+        {
+            <span>Informe as taxas. Pode usar vírgula ou ponto (5,40 ou 5.40).</span>
+        }
+    </p>
+</div>
+
+@if (_msg is not null)
+{
+    <div class="@(_erro ? "alert-error" : "alert-ok")" style="margin-bottom:14px">@_msg</div>
+}
+
+@code {
+    private string _usd = "", _eur = "", _pen = "", _clp = "";
+    private DateTime? _atualizadaEm;
+    private bool Velha;
+    private string? _msg;
+    private bool _erro;
+    private static readonly CultureInfo Br = new("pt-BR");
+
+    protected override void OnInitialized()
+    {
+        var t = Repo.Ler();
+        _usd = Mostrar(t.UsdEmReais); _eur = Mostrar(t.EurEmReais); _pen = Mostrar(t.PenEmReais); _clp = Mostrar(t.ClpPorReal);
+        _atualizadaEm = t.Data;
+        Velha = ConversaoRepository.Velha(t);
+    }
+
+    private static string Texto(ChangeEventArgs e) => e.Value?.ToString() ?? "";
+    private static string Mostrar(decimal v) => v > 0 ? v.ToString("0.######", Br) : "";
+
+    /// <summary>"5,40", "5.40" ou "1.234,5" → número; vazio, inválido ou não positivo = sem taxa.</summary>
+    private static decimal? Numero(string texto)
+    {
+        var t = (texto ?? "").Trim();
+        if (t.Length == 0) return null;
+        if (t.Contains(',')) t = t.Replace(".", "").Replace(",", ".");
+        return decimal.TryParse(t, NumberStyles.Number, CultureInfo.InvariantCulture, out var v) && v > 0 ? v : null;
+    }
+
+    private List<string> Conferencia
+    {
+        get
+        {
+            var l = new List<string>();
+            if (Numero(_usd) is decimal u) l.Add(Moedas.Dinheiro(Moeda.Usd, Math.Round(100000m / u, 2)));
+            if (Numero(_eur) is decimal e) l.Add(Moedas.Dinheiro(Moeda.Eur, Math.Round(100000m / e, 2)));
+            if (Numero(_pen) is decimal p) l.Add(Moedas.Dinheiro(Moeda.Pen, Math.Round(100000m / p, 2)));
+            if (Numero(_clp) is decimal c) l.Add(Moedas.Dinheiro(Moeda.Clp, Math.Round(100000m * c, 2)));
+            return l;
+        }
+    }
+
+    private void Salvar()
+    {
+        var invalidas = new[] { ("USD", _usd), ("EUR", _eur), ("PEN", _pen), ("CLP", _clp) }
+            .Where(x => x.Item2.Trim().Length > 0 && Numero(x.Item2) is null).Select(x => x.Item1).ToList();
+        if (invalidas.Count > 0)
+        {
+            _erro = true; _msg = "Taxa inválida: " + string.Join(", ", invalidas) + ". Use só números (vírgula ou ponto).";
+            return;
+        }
+        var t = new TaxasDeConversao
+        {
+            UsdEmReais = Numero(_usd) ?? 0, EurEmReais = Numero(_eur) ?? 0,
+            PenEmReais = Numero(_pen) ?? 0, ClpPorReal = Numero(_clp) ?? 0,
+        };
+        Repo.Salvar(t);
+        _atualizadaEm = t.Data; Velha = false;
+        _erro = false; _msg = "Taxas gravadas. As propostas novas já trazem estas taxas.";
+    }
+}

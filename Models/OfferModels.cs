@@ -84,7 +84,7 @@ public class CommercialOffer
     public decimal PricingVendaLiquida { get; set; }
     public decimal PricingMargem { get; set; }
     public decimal PricingPrecoImpostos { get; set; }
-    // Moeda do preço ao cliente (como no Axiais 2.0 — Data/Cambio.cs): o custo e o
+    // Moeda do preço ao cliente (como no axiaisvent — Data/Cambio.cs): o custo e o
     // pricing ficam em R$; os preços dos itens e o total saem nesta moeda.
     public string MoedaVenda { get; set; } = "BRL";
     /// <summary>A taxa digitada; o sentido vem de <see cref="CambioDirecao"/>.</summary>

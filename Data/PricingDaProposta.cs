@@ -166,7 +166,7 @@ public static class PricingDaProposta
     }
 
     /// <summary>
-    /// O fator que leva o custo ao preço (como o "Fator" do Axiais 2.0): o
+    /// O fator que leva o custo ao preço (como o "Fator" do axiaisvent): o
     /// valor da proposta (venda líquida; no Back to Back, S82/S83) ÷ o custo total.
     /// </summary>
     public static decimal Fator(CalculoPricing.Resultado r) => r.CustoTotal <= 0m ? 0m : r.ValorDaProposta / r.CustoTotal;

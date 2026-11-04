@@ -15,6 +15,7 @@
 @inject SalespersonRepository Vendedores
 @inject IntelligenceService Intel
 @inject ParametrosImportacao ParamImportacao
+@inject ConversaoRepository Conversao
 @inject NavigationManager Nav
 
 <PageTitle>Gerar Proposta · AFM HSA</PageTitle>
@@ -548,7 +549,7 @@
             }
         </div>
 
-        @* moeda do preço ao cliente: a mesma regra do Axiais 2.0 (Data/Cambio.cs) *@
+        @* moeda do preço ao cliente: a mesma regra do axiaisvent (Data/Cambio.cs) *@
         <div class="pricing-moeda">
             <div class="pricing-moeda-linha">
                 <strong>Preço ao cliente em</strong>
@@ -587,9 +588,12 @@
             </div>
             @if (converte)
             {
-                @if (_taxaDaImportacao)
+                @if (_taxaDoDia)
                 {
-                    <div class="pricing-dica">taxa trazida da importação desta proposta (1 @moedaVenda.Rotulo() = R$ @_o.TaxaCambio.ToString("N4", PtBr)) — confira se ainda vale</div>
+                    @* é a última taxa gravada na aba Conversão, não a do dia: a data diz de quando *@
+                    <div class="@(TaxaVelha ? "taxa-origem velha" : "taxa-origem")">
+                        taxa da aba Conversão@(TaxaAtualizadaEm is { } atualizada ? $", atualizada em {atualizada:dd/MM/yyyy}" : "")@(TaxaVelha ? " — confira se ainda vale" : "")
+                    </div>
                 }
                 @if (Cambio.Normalizada(_o) > 0m)
                 {
@@ -608,7 +612,17 @@
                 }
                 else
                 {
-                    <div class="imp-pendencia" style="margin-top:6px">Informe a taxa de conversão — sem ela o preço sai como se já estivesse em @moedaVenda.Rotulo().</div>
+                    <div class="imp-pendencia" style="margin-top:6px">
+                        Informe a taxa de conversão — sem ela o preço sai como se já estivesse em @moedaVenda.Rotulo().
+                        A taxa do dia pode ficar gravada na <a href="/conversao">aba Conversão</a>.
+                    </div>
+                }
+                @if (OfertaDaTaxa() is { } oferta)
+                {
+                    <div class="preco-oferta">
+                        <span>@oferta.Texto</span>
+                        <button class="btn-link" @onclick="UsarTaxaDaConversao">usar esta</button>
+                    </div>
                 }
             }
         </div>
@@ -1160,29 +1174,96 @@
         _o.OutrasGarantias[i] = dias ? g with { DiasCobertura = (int)Math.Max(0, Math.Round(v)) } : g with { Percentual = Math.Clamp(v, 0m, 100m) / 100m };
     }
 
-    // ---- moeda do preço (como no Axiais 2.0) ----
+    // ---- moeda do preço (como no axiaisvent, branch "Proposta v2") ----
 
-    private bool _taxaDaImportacao;
+    // a taxa veio da aba Conversão, e de quando ela é
+    private bool _taxaDoDia;
+    private string _taxaAtualizadaEm = "";
+    private (DateTime Lida, TaxasDeConversao Taxas)? _conversaoLida;
+
+    /// <summary>As taxas da aba Conversão, lidas no máximo a cada 30 s (a oferta é conferida a cada desenho).</summary>
+    private TaxasDeConversao TaxasDaConversao()
+    {
+        if (_conversaoLida is { } lida && (DateTime.Now - lida.Lida).TotalSeconds < 30) return lida.Taxas;
+        var taxas = Conversao.Ler();
+        _conversaoLida = (DateTime.Now, taxas);
+        return taxas;
+    }
 
     private void EscolherMoedaVenda(Moeda m)
     {
+        // a taxa digitada é do par anterior: trocar de moeda começa de novo
+        if (Cambio.MoedaDoPreco(_o) != m) { _o.CambioTaxa = 0; _taxaDoDia = false; }
         _o.MoedaVenda = m.Codigo();
-        _taxaDaImportacao = false;
-        // a importação já tem a taxa dessa moeda: oferece a mesma (dá para trocar)
-        if (Cambio.Converte(_o) && _o.CambioTaxa <= 0m && _o.TaxaCambio > 0m &&
-            string.Equals(_o.Moeda, m.Codigo(), StringComparison.OrdinalIgnoreCase))
-        {
-            _o.CambioTaxa = _o.TaxaCambio;
-            _o.CambioDirecao = "VendaEmCusto";
-            _taxaDaImportacao = true;
-        }
+        // o sentido em que a equipe fala: "1 USD = 5,40 R$", mas "1 R$ = 175 CLP"
+        _o.CambioDirecao = m == Moeda.Clp ? "CustoEmVenda" : "VendaEmCusto";
+        PreencherTaxaDoDia();
+    }
+
+    /// <summary>
+    /// Preço em outra moeda sem taxa digitada: usa a taxa da aba Conversão,
+    /// que a equipe atualiza. Sem taxa lá, a tela continua pedindo.
+    /// </summary>
+    private void PreencherTaxaDoDia()
+    {
+        if (!Cambio.Converte(_o) || _o.CambioTaxa > 0m) return;
+        var taxas = TaxasDaConversao();
+        if (taxas.Para(Cambio.MoedaDoPreco(_o)) is not { } t) return;
+        _o.CambioTaxa = t.Valor;
+        _o.CambioDirecao = t.Direcao;
+        _taxaDoDia = true;
+        _taxaAtualizadaEm = taxas.AtualizadaEm;
+    }
+
+    /// <param name="Texto">O que a tela mostra antes do "usar esta".</param>
+    private sealed record OfertaDeTaxa(string Texto, decimal Valor, string Direcao);
+
+    /// <summary>
+    /// A oferta da taxa da aba Conversão, quando ela é diferente da desta
+    /// proposta: "taxa desta proposta: 5,30 · aba Conversão (28/10): 5,40".
+    /// Nada muda sem o clique em "usar esta".
+    /// </summary>
+    private OfertaDeTaxa? OfertaDaTaxa()
+    {
+        if (!Cambio.Converte(_o)) return null;
+        var taxas = TaxasDaConversao();
+        if (taxas.Para(Cambio.MoedaDoPreco(_o)) is not { } daConversao) return null;
+        var desta = TaxaNoSentidoDaConversao(daConversao.Direcao);
+        if (desta is { } d && Math.Abs(d - daConversao.Valor) < 0.00005m) return null;
+        var quando = taxas.Data is { } data ? $" ({data:dd/MM})" : "";
+        var texto = $"aba Conversão{quando}: {daConversao.Valor.ToString("#,##0.####", PtBr)}";
+        return new OfertaDeTaxa(desta is { } atual ? $"taxa desta proposta: {atual.ToString("#,##0.####", PtBr)} · {texto}" : texto,
+            daConversao.Valor, daConversao.Direcao);
+    }
+
+    /// <summary>A taxa desta proposta escrita no sentido da aba Conversão; nula sem taxa.</summary>
+    private decimal? TaxaNoSentidoDaConversao(string direcao)
+    {
+        var normalizada = Cambio.Normalizada(_o);    // 1 moeda do preço = X R$
+        if (normalizada <= 0m) return null;
+        return Math.Round(direcao == "CustoEmVenda" ? 1m / normalizada : normalizada, 4);
+    }
+
+    private void UsarTaxaDaConversao()
+    {
+        if (OfertaDaTaxa() is not { } oferta) return;
+        _o.CambioTaxa = oferta.Valor;
+        _o.CambioDirecao = oferta.Direcao;
+        _taxaDoDia = true;
+        _taxaAtualizadaEm = TaxasDaConversao().AtualizadaEm;
     }
 
     private void MudarCambioTaxa(ChangeEventArgs e)
     {
         _o.CambioTaxa = Numero(e) is decimal v && v > 0 ? v : 0;
-        _taxaDaImportacao = false;
+        _taxaDoDia = false;
     }
+
+    private DateTime? TaxaAtualizadaEm =>
+        DateTime.TryParse(_taxaAtualizadaEm, CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) ? d : null;
+
+    /// <summary>A taxa trazida tem mais de 7 dias: o câmbio pode ter andado desde então.</summary>
+    private bool TaxaVelha => TaxaAtualizadaEm is { } d && (DateTime.Now - d).TotalDays > ConversaoRepository.DiasDaTaxa;
 
     private static string Num(decimal v, string formato = "0.##") => v.ToString(formato, CultureInfo.InvariantCulture);
 

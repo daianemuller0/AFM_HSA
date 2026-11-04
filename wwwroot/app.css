@@ -974,3 +974,12 @@ h1 { font-size: 24px; margin: 0 0 4px; color: var(--primary); letter-spacing: -.
 .quadro-venda-titulo span { margin-left: 8px; font-weight: 600; opacity: .85; font-size: 12px; letter-spacing: 0; }
 .quadro-venda table { margin: 0; }
 .quadro-venda td, .quadro-venda th { font-size: 12.5px; }
+
+/* ===== Conversão (taxas do dia) e origem da taxa na proposta ===== */
+.conversao-taxas { margin-bottom: 0; flex-wrap: wrap; gap: 10px 18px; }
+.conversao-taxas label { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.conversao-taxas .cell { width: 110px; text-align: right; }
+.alert-ok { background: #e7f6ee; color: #047857; padding: 10px 13px; border-radius: var(--radius-sm); font-size: 13px; }
+.taxa-origem { margin-top: 6px; font-size: 12px; font-weight: 600; color: #047857; }
+.taxa-origem.velha { color: #b45309; }
+.preco-oferta { margin-top: 6px; font-size: 12.5px; color: var(--muted); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }

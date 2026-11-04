@@ -7,7 +7,7 @@ namespace AfmHsa.Data;
 public enum Moeda { Brl, Usd, Eur, Clp, Pen }
 
 /// <summary>
-/// Moedas da proposta — a mesma ideia do Axiais 2.0 (HowdenAxiais.Poc.Data.Moedas,
+/// Moedas da proposta — a mesma ideia do axiaisvent (HowdenAxiais.Poc.Data.Moedas,
 /// branch da "Proposta v2"): o custo do AFM está sempre em R$ (Valor BR da
 /// Nacionalização e custo de importação), e o PREÇO ao cliente pode sair em
 /// R$, USD, EUR, CLP ou PEN.
@@ -17,8 +17,8 @@ public static class Moedas
     /// <summary>A moeda do custo no AFM.</summary>
     public const Moeda DoCusto = Moeda.Brl;
 
-    /// <summary>As moedas do PREÇO ao cliente.</summary>
-    public static readonly Moeda[] DePreco = { Moeda.Brl, Moeda.Usd, Moeda.Eur, Moeda.Clp, Moeda.Pen };
+    /// <summary>As moedas do PREÇO ao cliente, na ordem do axiaisvent: CLP, USD, PEN, R$ e EUR.</summary>
+    public static readonly Moeda[] DePreco = { Moeda.Clp, Moeda.Usd, Moeda.Pen, Moeda.Brl, Moeda.Eur };
 
     public static string Rotulo(this Moeda m) => m switch
     {
@@ -49,7 +49,7 @@ public static class Moedas
         _ => Moeda.Brl,
     };
 
-    /// <summary>Peso chileno sem casas na tela; as outras moedas com duas (igual ao Axiais 2.0).</summary>
+    /// <summary>Peso chileno sem casas na tela; as outras moedas com duas (igual ao axiaisvent).</summary>
     public static string Formato(Moeda m) => m == Moeda.Clp ? "N0" : "N2";
 
     private static readonly CultureInfo Br = new("pt-BR");
@@ -59,8 +59,8 @@ public static class Moedas
 }
 
 /// <summary>
-/// A conversão de moeda da proposta, com a mesma regra do Axiais 2.0
-/// (HowdenAxiais.Poc.Data.Cambio):
+/// A conversão de moeda da proposta, com a mesma regra do axiaisvent
+/// (HowdenAxiais.Poc.Data.Cambio, branch "Proposta v2"):
 ///
 /// <list type="bullet">
 /// <item>o custo e todo o pricing são calculados na moeda do custo (R$); só o
