@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using AfmHsa.Models;
 
 namespace AfmHsa.Data;
@@ -10,6 +11,14 @@ public class OfferRepository
 
     private static string D(decimal v) => v.ToString(CultureInfo.InvariantCulture);
 
+    /// <summary>Lista gravada como JSON numa coluna; vazia ou ilegível = o padrão.</summary>
+    private static T Json<T>(string texto, T padrao)
+    {
+        if (string.IsNullOrWhiteSpace(texto)) return padrao;
+        try { return JsonSerializer.Deserialize<T>(texto) ?? padrao; }
+        catch (JsonException) { return padrao; }
+    }
+
     // ---- ofertas ---------------------------------------------------------
     public List<CommercialOffer> All() => _s.ReadLatest("commercialOffers",
         "id, offer_code, client_unit_id, equipment_id, client_name, attention_to, city, our_reference, project, " +
@@ -18,9 +27,11 @@ public class OfferRepository
         "pv, revisao, bu, ncm_reducao_icms, segmento_margem, venda_para, destino, estado, reforma, " +
         "prazo_entrega, cliente_com, fianca_seguro, portal, rep1, rep2, categories, product, market_segments, " +
         "importacao_modo, moeda, taxa_cambio, " +
-        "ano, contem_produto_ic, tipo_garantia, fianca_percentual, risco_adicional, margem_negociacao, " +
+        "ano, contem_produto_ic, tipo_garantia, fianca_eventos, risco_adicional, margem_negociacao, " +
         "pricing_modo, margem_alvo, preco_meta, " +
-        "pricing_custo, pricing_markup, pricing_venda_liquida, pricing_margem, pricing_preco_impostos",
+        "pricing_custo, pricing_markup, pricing_venda_liquida, pricing_margem, pricing_preco_impostos, " +
+        "tipo_outras_garantias, outras_garantias, pricing_custos, moeda_venda, cambio_taxa, cambio_direcao, " +
+        "cambio_seguranca, total_reais",
         r => new CommercialOffer
         {
             Id = Fmt.S(r, 0), OfferCode = Fmt.S(r, 1), ClientUnitId = Fmt.S(r, 2), EquipmentId = Fmt.S(r, 3),
@@ -38,12 +49,20 @@ public class OfferRepository
             ImportacaoModo = Fmt.S(r, 41), Moeda = Fmt.S(r, 42), TaxaCambio = Fmt.Dec(Fmt.S(r, 43)),
             // propostas gravadas antes do pricing não têm estes campos: ficam vazios/zero
             Ano = Fmt.S(r, 44), ContemProdutoIc = Fmt.S(r, 45),
-            TipoGarantia = Fmt.S(r, 46), FiancaPercentual = Fmt.Dec(Fmt.S(r, 47)),
+            TipoGarantia = Fmt.S(r, 46), EventosFianca = Json(Fmt.S(r, 47), CalculoPricing.EventosPadrao()),
             RiscoAdicional = Fmt.Dec(Fmt.S(r, 48)), MargemNegociacao = Fmt.Dec(Fmt.S(r, 49)),
             PricingModo = Fmt.S(r, 50), MargemAlvo = Fmt.Dec(Fmt.S(r, 51)), PrecoMeta = Fmt.Dec(Fmt.S(r, 52)),
             PricingCusto = Fmt.Dec(Fmt.S(r, 53)), PricingMarkup = Fmt.Dec(Fmt.S(r, 54)),
             PricingVendaLiquida = Fmt.Dec(Fmt.S(r, 55)), PricingMargem = Fmt.Dec(Fmt.S(r, 56)),
             PricingPrecoImpostos = Fmt.Dec(Fmt.S(r, 57)),
+            TipoOutrasGarantias = Fmt.S(r, 58),
+            OutrasGarantias = Json(Fmt.S(r, 59), new CommercialOffer().OutrasGarantias),
+            CustosPricing = Json(Fmt.S(r, 60), new List<CalculoPricing.Custo>()),
+            MoedaVenda = Fmt.S(r, 61) is { Length: > 0 } mv ? mv : "BRL", CambioTaxa = Fmt.Dec(Fmt.S(r, 62)),
+            CambioDirecao = Fmt.S(r, 63) is { Length: > 0 } cd ? cd : "VendaEmCusto",
+            CambioSeguranca = Fmt.Dec(Fmt.S(r, 64)),
+            // propostas de antes da moeda do preço: o total já era em R$
+            TotalReais = Fmt.S(r, 65) is { Length: > 0 } tr ? Fmt.Dec(tr) : Fmt.Dec(Fmt.S(r, 20)),
         }, orderBy: "created_at DESC");
 
     public CommercialOffer? Get(string id) => All().FirstOrDefault(o => o.Id == id);
@@ -66,7 +85,13 @@ public class OfferRepository
         new("market_segments", o.MarketSegments),
         new("importacao_modo", o.ImportacaoModo), new("moeda", o.Moeda), new("taxa_cambio", D(o.TaxaCambio)),
         new("ano", o.Ano), new("contem_produto_ic", o.ContemProdutoIc),
-        new("tipo_garantia", o.TipoGarantia), new("fianca_percentual", D(o.FiancaPercentual)),
+        new("tipo_garantia", o.TipoGarantia), new("fianca_eventos", JsonSerializer.Serialize(o.EventosFianca)),
+        new("tipo_outras_garantias", o.TipoOutrasGarantias),
+        new("outras_garantias", JsonSerializer.Serialize(o.OutrasGarantias)),
+        new("pricing_custos", JsonSerializer.Serialize(o.CustosPricing)),
+        new("moeda_venda", o.MoedaVenda), new("cambio_taxa", D(o.CambioTaxa)),
+        new("cambio_direcao", o.CambioDirecao), new("cambio_seguranca", D(o.CambioSeguranca)),
+        new("total_reais", D(o.TotalReais)),
         new("risco_adicional", D(o.RiscoAdicional)), new("margem_negociacao", D(o.MargemNegociacao)),
         new("pricing_modo", o.PricingModo), new("margem_alvo", D(o.MargemAlvo)), new("preco_meta", D(o.PrecoMeta)),
         new("pricing_custo", D(o.PricingCusto)), new("pricing_markup", D(o.PricingMarkup)),

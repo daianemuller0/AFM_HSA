@@ -929,3 +929,48 @@ h1 { font-size: 24px; margin: 0 0 4px; color: var(--primary); letter-spacing: -.
 .pricing-valor { font-size: 15px; color: var(--text); padding: 6px 0 2px; }
 .cel-ref { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
 @media (max-width: 1100px) { .cab-pricing { grid-template-columns: 1fr; } .cab-topo { grid-template-columns: 1fr; } }
+
+/* ===== Pricing completo: moeda, tabela de custo, garantias, quadro de venda ===== */
+.pricing-moeda {
+    margin-top: 14px; padding: 10px 12px; border: 1px solid #cfe3f7; background: #f5f9fe;
+    border-radius: var(--radius-sm);
+}
+.pricing-moeda-linha { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; font-size: 13px; }
+.pricing-moeda .seg { display: inline-flex; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; background: #fff; }
+.pricing-moeda .seg button {
+    border: none; background: none; padding: 6px 12px; font: inherit; font-weight: 600; cursor: pointer; color: var(--text);
+    border-right: 1px solid var(--border);
+}
+.pricing-moeda .seg button:last-child { border-right: none; }
+.pricing-moeda .seg button.on { background: var(--primary); color: #fff; }
+.pricing-par { display: inline-flex; align-items: center; gap: 6px; }
+.pricing-rot { font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.pricing-par select.cell { width: auto; }
+.pricing-taxa { width: 120px; text-align: right; }
+.pricing-seguranca { width: 70px; text-align: right; }
+.pricing-confira { margin-top: 6px; font-size: 12.5px; color: var(--muted); }
+.pricing-confira strong { color: var(--text); }
+.pricing-secao { margin-top: 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0 12px; background: #fff; }
+.pricing-secao > summary {
+    cursor: pointer; padding: 10px 0; font-weight: 700; color: var(--primary); list-style-position: inside;
+}
+.pricing-secao > summary span { margin-left: 8px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.pricing-secao[open] > summary { border-bottom: 1px dashed var(--border); margin-bottom: 10px; }
+.pricing-secao .tabela-rolante { margin-bottom: 10px; }
+.custo-tabela { min-width: 760px; }
+.custo-tabela td, .custo-tabela th, .garantia-tabela td, .garantia-tabela th { font-size: 12.5px; padding-top: 5px; padding-bottom: 5px; }
+.custo-tabela tr:not(.custo-com-valor):not(.memoria-total) td:first-child { color: var(--muted); }
+.custo-cel { width: 130px; text-align: right; }
+.risco-cel { width: 80px; text-align: right; }
+.selo-mo {
+    display: inline-block; margin-left: 6px; font-size: 10px; font-weight: 700; color: #6b21a8;
+    background: #f3eefc; border-radius: 10px; padding: 1px 6px; vertical-align: middle;
+}
+.garantias { display: grid; grid-template-columns: 1fr; gap: 6px; }
+.garantia-tabela { min-width: 640px; }
+.garantia-tabela .risco-cel { width: 90px; }
+.quadro-venda { margin-top: 14px; border: 1px solid #cfe3f7; border-radius: var(--radius-sm); overflow: hidden; }
+.quadro-venda-titulo { background: var(--primary); color: #fff; font-weight: 700; padding: 8px 12px; font-size: 13px; letter-spacing: .03em; }
+.quadro-venda-titulo span { margin-left: 8px; font-weight: 600; opacity: .85; font-size: 12px; letter-spacing: 0; }
+.quadro-venda table { margin: 0; }
+.quadro-venda td, .quadro-venda th { font-size: 12.5px; }

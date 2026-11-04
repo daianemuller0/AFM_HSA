@@ -61,8 +61,18 @@ public class CommercialOffer
     public decimal MargemNegociacao { get; set; } = CalculoPricing.MargemNegociacaoPadrao;
     /// <summary>Tipo de seguro garantia / carta fiança (R46), quando há fiança.</summary>
     public string TipoGarantia { get; set; } = "";
-    /// <summary>% da venda coberto pela fiança (N49).</summary>
-    public decimal FiancaPercentual { get; set; } = CalculoPricing.FiancaPercentualPadrao;
+    /// <summary>Os 10 eventos de pagamento cobertos pela fiança (M49:O58).</summary>
+    public List<CalculoPricing.EventoDePagamento> EventosFianca { get; set; } = CalculoPricing.EventosPadrao();
+    /// <summary>Tipo das outras garantias (R61) e as linhas PB, PF, BD e OUTROS (M64:R67).</summary>
+    public string TipoOutrasGarantias { get; set; } = "";
+    public List<CalculoPricing.OutraGarantia> OutrasGarantias { get; set; } =
+        CalculoPricing.TiposDeOutrasGarantias.Select(t => new CalculoPricing.OutraGarantia(t, 0m, 0)).ToList();
+    /// <summary>
+    /// A tabela CÁLCULO DE CUSTO (E14:F33): o que foi digitado em cada linha.
+    /// PROD. COMPRADOS e PROD. IMPORTADOS ainda recebem, por cima, o custo dos
+    /// itens da proposta (nacionalizados e importados).
+    /// </summary>
+    public List<CalculoPricing.Custo> CustosPricing { get; set; } = new();
     /// <summary>"margem" (calcula o preço pela margem alvo) ou "preco" (a margem sai do preço-meta).</summary>
     public string PricingModo { get; set; } = "margem";
     public decimal MargemAlvo { get; set; } = ListasDoPricing.MargemPadraoDo("AFM");
@@ -74,8 +84,20 @@ public class CommercialOffer
     public decimal PricingVendaLiquida { get; set; }
     public decimal PricingMargem { get; set; }
     public decimal PricingPrecoImpostos { get; set; }
+    // Moeda do preço ao cliente (como no Axiais 2.0 — Data/Cambio.cs): o custo e o
+    // pricing ficam em R$; os preços dos itens e o total saem nesta moeda.
+    public string MoedaVenda { get; set; } = "BRL";
+    /// <summary>A taxa digitada; o sentido vem de <see cref="CambioDirecao"/>.</summary>
+    public decimal CambioTaxa { get; set; }
+    /// <summary>"VendaEmCusto": 1 moeda do preço = X R$. "CustoEmVenda": 1 R$ = X da moeda do preço.</summary>
+    public string CambioDirecao { get; set; } = "VendaEmCusto";
+    /// <summary>% tirado da taxa ao converter (0 a 99).</summary>
+    public decimal CambioSeguranca { get; set; }
     // Totais / controle
+    /// <summary>Total da proposta na moeda do preço (<see cref="MoedaVenda"/>).</summary>
     public decimal TotalAmount { get; set; }
+    /// <summary>O mesmo total em R$ (pela taxa efetiva), para somar propostas de moedas diferentes.</summary>
+    public decimal TotalReais { get; set; }
     public string Status { get; set; } = "Rascunho";
     public string CreatedAt { get; set; } = "";
 }

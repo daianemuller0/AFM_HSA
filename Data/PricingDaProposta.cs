@@ -41,8 +41,34 @@ public static class PricingDaProposta
     public static decimal ComissaoDe(string? nome, string? segmento) =>
         ListasDoPricing.ComissaoDoRepresentante(Representante(nome), (segmento ?? "").Trim());
 
-    public static CalculoPricing.Entrada EntradaDe(CommercialOffer o, decimal custoTotal) => new(
-        CustoTotal: custoTotal,
+    /// <summary>
+    /// A tabela CÁLCULO DE CUSTO da proposta: o que foi digitado em cada linha
+    /// e, por cima, o custo dos itens — nacionalizados em PROD. COMPRADOS e
+    /// importados em PROD. IMPORTADOS.
+    /// </summary>
+    public static List<CalculoPricing.Custo> CustosDa(CommercialOffer o, decimal itensComprados, decimal itensImportados)
+    {
+        var lista = new List<CalculoPricing.Custo>();
+        foreach (var l in CalculoPricing.LinhasDeCusto)
+        {
+            var manual = o.CustosPricing.FirstOrDefault(c => c.Codigo == l.Codigo);
+            var valor = (manual?.Valor ?? 0m)
+                      + (l.Codigo == "COMPRADOS" ? itensComprados : l.Codigo == "IMPORTADOS" ? itensImportados : 0m);
+            var variacao = manual?.Variacao ?? 0m;
+            if (valor != 0m || variacao != 0m) lista.Add(new CalculoPricing.Custo(l.Codigo, valor, variacao));
+        }
+        return lista;
+    }
+
+    /// <summary>Os 10 eventos, completando com os padrões se a lista gravada vier curta.</summary>
+    private static List<CalculoPricing.EventoDePagamento> Eventos(CommercialOffer o)
+    {
+        var padrao = CalculoPricing.EventosPadrao();
+        return padrao.Select((p, i) => i < o.EventosFianca.Count ? o.EventosFianca[i] : p with { Percentual = 0m }).ToList();
+    }
+
+    public static CalculoPricing.Entrada EntradaDe(CommercialOffer o, decimal itensComprados, decimal itensImportados) => new(
+        Custos: CustosDa(o, itensComprados, itensImportados),
         Segmento: (o.SegmentoMargem ?? "").Trim(),
         Product: o.Product ?? "",
         RiscoAdicional: o.RiscoAdicional,
@@ -52,22 +78,28 @@ public static class PricingDaProposta
         VendaPara: o.VendaPara ?? "",
         Destino: o.Destino ?? "",
         Estado: o.Estado ?? "",
+        Reforma: Sim(o.Reforma),
         ClienteCom: o.ClienteCom ?? "",
         PrazoEntregaDias: PrazoEmDias(o.PrazoEntrega),
         ComFianca: Sim(o.FiancaSeguro),
         TipoGarantia: o.TipoGarantia ?? "",
-        FiancaPercentual: o.FiancaPercentual,
+        Eventos: Eventos(o),
+        TipoOutrasGarantias: o.TipoOutrasGarantias ?? "",
+        OutrasGarantias: o.OutrasGarantias,
         Portal: o.Portal ?? "",
         Rep1: Representante(o.Rep1),
         Rep2: Representante(o.Rep2));
 
-    /// <summary>O pricing da proposta, pelo modo escolhido (margem pedida ou preço-meta).</summary>
-    public static CalculoPricing.Resultado Da(CommercialOffer o, decimal custoTotal)
+    /// <summary>O pricing da proposta, pelo modo escolhido (margem pedida ou preço de venda).</summary>
+    public static CalculoPricing.Resultado Da(CommercialOffer o, decimal itensComprados, decimal itensImportados)
     {
-        var e = EntradaDe(o, custoTotal);
-        return o.PricingModo == "preco"
+        var e = EntradaDe(o, itensComprados, itensImportados);
+        var r = o.PricingModo == "preco"
             ? CalculoPricing.PeloPreco(e, o.PrecoMeta)
             : CalculoPricing.PelaMargem(e, o.MargemAlvo);
+        if (e.Rep1 == "IPT Colômbia >EUR 1,25MM" || e.Rep2 == "IPT Colômbia >EUR 1,25MM")
+            r.Avisos.Add("IPT Colômbia >EUR 1,25MM: a comissão tem teto de EUR 250K (K24 da planilha) — confira se passou.");
+        return r;
     }
 
     /// <summary>
@@ -94,6 +126,7 @@ public static class PricingDaProposta
             Se(V(o.TipoGarantia), "tipo de garantia");
             Se(PrazoEmDias(o.PrazoEntrega) <= 0, "Prazo de Entrega (dias)");
         }
+        Se(Cambio.FaltaTaxa(o), $"taxa de câmbio do {Cambio.MoedaDoPreco(o).Rotulo()}");
         return p;
     }
 
@@ -133,10 +166,17 @@ public static class PricingDaProposta
     }
 
     /// <summary>
-    /// Preço unitário sugerido de um item: o custo dele com o mesmo fator do
-    /// pricing (venda líquida ÷ custo total). É preço SEM impostos, como a
-    /// proposta informa ("Impostos … não incluídos").
+    /// O fator que leva o custo ao preço (como o "Fator" do Axiais 2.0): o
+    /// valor da proposta (venda líquida; no Back to Back, S82/S83) ÷ o custo total.
     /// </summary>
-    public static decimal PrecoUnitario(decimal custoUnitario, CalculoPricing.Resultado r) =>
-        r.CustoTotal <= 0 ? 0 : Math.Round(custoUnitario * r.VendaLiquida / r.CustoTotal, 2);
+    public static decimal Fator(CalculoPricing.Resultado r) => r.CustoTotal <= 0m ? 0m : r.ValorDaProposta / r.CustoTotal;
+
+    /// <summary>
+    /// Preço unitário sugerido de um item, já na moeda do preço: o custo dele
+    /// vezes o fator, convertido (o fator leva o custo ao preço, e a conversão
+    /// leva o preço à moeda do cliente). É preço SEM impostos, como a proposta
+    /// informa ("Impostos … não incluídos").
+    /// </summary>
+    public static decimal PrecoUnitario(CommercialOffer o, decimal custoUnitario, CalculoPricing.Resultado r) =>
+        Math.Round(Cambio.ParaVenda(o, custoUnitario * Fator(r)), 2);
 }
