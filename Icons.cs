@@ -19,6 +19,7 @@ public static class Icons
         ["map-pin"] = "<path d='M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0Z'/><circle cx='12' cy='10' r='3'/>",
         ["bell"] = "<path d='M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9'/><path d='M13.73 21a2 2 0 0 1-3.46 0'/>",
         ["trending"] = "<polyline points='22 7 13.5 15.5 8.5 10.5 2 17'/><polyline points='16 7 22 7 22 13'/>",
+        ["clock"] = "<circle cx='12' cy='12' r='10'/><polyline points='12 6 12 12 16 14'/>",
         ["calendar"] = "<rect x='3' y='4' width='18' height='18' rx='2'/><line x1='16' y1='2' x2='16' y2='6'/><line x1='8' y1='2' x2='8' y2='6'/><line x1='3' y1='10' x2='21' y2='10'/>",
         ["building"] = "<rect x='4' y='2' width='16' height='20' rx='2'/><path d='M9 22v-4h6v4'/><path d='M8 6h.01M16 6h.01M8 10h.01M16 10h.01M8 14h.01M16 14h.01'/>",
         ["boxes"] = "<path d='M2.97 12.92A2 2 0 0 0 2 14.63v3.24a2 2 0 0 0 1.03 1.75l3 1.65a2 2 0 0 0 1.94 0L10 20v-4.5'/><path d='m7 16.5-4.74-2.85'/><path d='M17 16.5v-4.5l-3 1.65'/><path d='M12 8 7.26 5.15a2 2 0 0 0-1.94 0L3.03 6.42'/><path d='M22 14.63a2 2 0 0 0-.97-1.71L14 8'/>",

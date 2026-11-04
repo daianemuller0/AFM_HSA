@@ -30,7 +30,7 @@ else
                     <td class="nowrap">@Fmt.Date(o.OfferDate)</td>
                     <td><span class="badge score-badge">@o.Status</span></td>
                     <td class="right nowrap">@(Cambio.Converte(o) ? Cambio.Dinheiro(o, o.TotalAmount) : Fmt.Brl0(o.TotalAmount))</td>
-                    <td class="nowrap"><a class="btn-link" href="@($"/ofertas/{o.Id}")">abrir</a></td>
+                    <td class="nowrap"><a class="btn-link" href="@($"/ofertas/{o.Id}")">abrir</a> · <a class="btn-link" href="@($"/gerar-proposta/{o.Id}")">editar</a></td>
                 </tr>
             }
         </tbody>

@@ -1,0 +1,186 @@
+@page "/tempos-proposta"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@using System.Globalization
+@inject TempoRepository Tempos
+
+<PageTitle>Tempo das propostas · AFM HSA</PageTitle>
+
+<div class="page-head">
+    <div>
+        <h1>Tempo das propostas</h1>
+        <p class="subtitle">
+            Medido pela própria Gerar Proposta (o cronômetro da barra de etapas): tempo de trabalho até o primeiro Word
+            de cada número e revisão — pausas de mais de 3 minutos não contam. A meta é metade do tempo de antes.
+        </p>
+    </div>
+</div>
+
+@{
+    var medidas = _primeiras.Where(t => _origem == "" || t.Origem == _origem).ToList();
+    var mediana = TempoRepository.Mediana(medidas.Select(t => (double)t.SegundosAtivos));
+    var ultimos30 = medidas.Where(t => t.FimComoData is { } d && d >= DateTime.Now.AddDays(-30)).ToList();
+    var mediana30 = TempoRepository.Mediana(ultimos30.Select(t => (double)t.SegundosAtivos));
+    var metaSeg = _referencia * 60 * (double)TempoRepository.Meta;
+}
+
+<div class="toolbar" style="margin-bottom:14px; gap:10px; flex-wrap:wrap">
+    <label class="nota">Origem
+        <select class="cell" @bind="_origem">
+            <option value="">todas</option>
+            <option value="nova">nova (do zero)</option>
+            <option value="copia">copiada de outra</option>
+            <option value="revisao">nova revisão</option>
+            <option value="aberta">aberta para corrigir</option>
+        </select>
+    </label>
+    <span class="nota">A meta vale para a proposta <strong>nova</strong>: cópia e revisão são mais rápidas e puxam a mediana para baixo.</span>
+</div>
+
+<div class="kpis" style="margin-bottom:16px">
+    <div class="kpi">
+        <div class="kpi-label">Propostas medidas</div>
+        <div class="kpi-value">@medidas.Count</div>
+        <div class="kpi-sub">primeiro Word de cada número e revisão</div>
+    </div>
+    <div class="kpi">
+        <div class="kpi-label">Mediana</div>
+        <div class="kpi-value">@(medidas.Count > 0 ? Minutos(mediana) : "—")</div>
+        <div class="kpi-sub">metade das propostas leva menos que isso</div>
+    </div>
+    <div class="kpi">
+        <div class="kpi-label">Últimos 30 dias</div>
+        <div class="kpi-value">@(ultimos30.Count > 0 ? Minutos(mediana30) : "—")</div>
+        <div class="kpi-sub">mediana de @ultimos30.Count proposta(s)</div>
+    </div>
+    <div class="kpi">
+        <div class="kpi-label">Meta (50% de antes)</div>
+        <div class="kpi-value">@(_referencia > 0 ? Minutos(metaSeg) : "—")</div>
+        <div class="kpi-sub">
+            @if (_referencia <= 0)
+            {
+                <span>informe o tempo de antes, abaixo</span>
+            }
+            else if (medidas.Count < MinimoParaComparar)
+            {
+                <span>poucos dados: @medidas.Count de @MinimoParaComparar propostas</span>
+            }
+            else if (mediana <= metaSeg)
+            {
+                <span style="color:#166534;font-weight:600">atingida: @Reducao(mediana) menos que antes</span>
+            }
+            else
+            {
+                <span style="color:#92400e;font-weight:600">faltam @Minutos(mediana - metaSeg) · hoje @Reducao(mediana) menos</span>
+            }
+        </div>
+    </div>
+</div>
+
+<div class="panel" style="margin-bottom:16px">
+    <div class="dash-title">Tempo de antes <span class="dash-sub">a tela antiga não era medida: informe quanto uma proposta nova levava</span></div>
+    <div class="toolbar" style="gap:10px; margin:0">
+        <input class="cell num" style="width:110px" type="number" min="0" step="1" placeholder="minutos" @bind="_referenciaDigitada" />
+        <span class="nota">minutos por proposta nova</span>
+        <button class="btn-primary" @onclick="SalvarReferencia">Salvar</button>
+        @if (_salvo) { <span class="saved-flag">salvo</span> }
+    </div>
+</div>
+
+<div class="panel" style="margin-bottom:16px">
+    <div class="dash-title">Onde a proposta demora <span class="dash-sub">mediana do tempo em cada etapa</span></div>
+    @if (medidas.Count == 0)
+    {
+        <div class="empty" style="padding:8px 0">Nenhuma proposta medida ainda: o tempo é gravado quando a Gerar Proposta gera o Word.</div>
+    }
+    else
+    {
+        var porEtapa = Etapas.Select(e => (e.Numero, e.Nome, Mediana: TempoRepository.Mediana(medidas.Select(t => (double)t.PorEtapaComoMapa.GetValueOrDefault(e.Numero.ToString(CultureInfo.InvariantCulture)))))).ToList();
+        var soma = porEtapa.Sum(x => x.Mediana);
+        <table class="grid">
+            <thead><tr><th>Etapa</th><th class="right">Mediana</th><th style="width:45%">Parte do tempo</th></tr></thead>
+            <tbody>
+                @foreach (var (numero, nome, med) in porEtapa)
+                {
+                    var parte = soma > 0 ? med / soma : 0;
+                    <tr>
+                        <td>@numero · @nome</td>
+                        <td class="right nowrap">@Segundos(med)</td>
+                        <td><div class="barra-tempo"><span style="width:@((parte * 100).ToString("0.#", CultureInfo.InvariantCulture))%"></span></div></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+<div class="panel">
+    <div class="dash-title">Últimas medições</div>
+    <div class="tabela-rolante">
+        <table class="grid">
+            <thead><tr><th>Quando</th><th>Proposta</th><th>Quem</th><th>Origem</th><th class="right">Itens</th><th class="right">Tempo</th><th class="right">Interações</th><th>Por etapa</th></tr></thead>
+            <tbody>
+                @foreach (var t in medidas.Take(40))
+                {
+                    <tr>
+                        <td class="nowrap">@(t.FimComoData?.ToString("dd/MM/yyyy HH:mm") ?? t.Fim)</td>
+                        <td class="nowrap">@t.Numero rev @t.Revisao</td>
+                        <td>@t.Usuario</td>
+                        <td>@t.Origem</td>
+                        <td class="right">@t.Itens</td>
+                        <td class="right nowrap"><strong>@Minutos(t.SegundosAtivos)</strong></td>
+                        <td class="right">@t.Interacoes</td>
+                        <td class="nota">@string.Join(" · ", t.PorEtapaComoMapa.OrderBy(p => p.Key).Select(p => $"{p.Key}: {Segundos(p.Value)}"))</td>
+                    </tr>
+                }
+                @if (medidas.Count == 0)
+                {
+                    <tr><td colspan="8" class="empty">Nenhuma medição.</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@code {
+    private static readonly (int Numero, string Nome)[] Etapas =
+        { (1, "Começar"), (2, "Cliente e condições"), (3, "Itens"), (4, "Preço"), (5, "Documentos") };
+
+    /// <summary>Abaixo disto a mediana ainda é sorte: a tela diz "poucos dados".</summary>
+    private const int MinimoParaComparar = 5;
+
+    private List<TempoProposta> _primeiras = new();
+    private int _referencia;
+    private int? _referenciaDigitada;
+    private string _origem = "nova";
+    private bool _salvo;
+
+    protected override void OnInitialized()
+    {
+        _primeiras = TempoRepository.PrimeiraDeCada(Tempos.Todos());
+        _referencia = Tempos.MinutosDeReferencia();
+        _referenciaDigitada = _referencia > 0 ? _referencia : null;
+    }
+
+    private void SalvarReferencia()
+    {
+        _referencia = Math.Max(0, _referenciaDigitada ?? 0);
+        Tempos.SalvarReferencia(_referencia);
+        _salvo = true;
+    }
+
+    private string Reducao(double medianaSeg) =>
+        _referencia <= 0 ? "" : (1 - medianaSeg / (_referencia * 60.0)).ToString("P0", new CultureInfo("pt-BR"));
+
+    private static string Minutos(double segundos)
+    {
+        var m = (int)Math.Round(segundos / 60);
+        return m < 1 ? "< 1 min" : m >= 60 ? $"{m / 60} h {m % 60:D2} min" : $"{m} min";
+    }
+
+    private static string Segundos(double s)
+    {
+        var t = TimeSpan.FromSeconds(Math.Round(s));
+        return t.TotalMinutes >= 1 ? $"{(int)t.TotalMinutes} min {t.Seconds:D2} s" : $"{t.Seconds} s";
+    }
+}

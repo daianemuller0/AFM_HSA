@@ -126,6 +126,10 @@ public class OfferRepository
     private static decimal? DecOuNull(string s) => string.IsNullOrWhiteSpace(s) ? null : Fmt.Dec(s);
     private static string DOuVazio(decimal? v) => v is decimal d ? D(d) : "";
 
+    /// <summary>Tira o item da proposta (a tela por etapas regrava a proposta: o item removido sai daqui).</summary>
+    public void DeleteItem(string id) => _s.WriteRow("commercialOfferItems",
+        new KeyValuePair<string, object?>[] { new("id", id) }, deleted: true);
+
     public List<CommercialOfferItem> ItemsFor(string offerId) =>
         AllItems().Where(i => i.OfferId == offerId).OrderBy(i => i.Ordem).ToList();
 

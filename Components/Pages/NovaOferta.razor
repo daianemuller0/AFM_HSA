@@ -1,5 +1,6 @@
 @page "/ofertas/nova"
 @page "/gerar-proposta"
+@page "/gerar-proposta/{Id}"
 @attribute [Authorize]
 @rendermode InteractiveServer
 @using System.Globalization
@@ -19,284 +20,357 @@
 @inject NavigationManager Nav
 
 <PageTitle>Gerar Proposta · AFM HSA</PageTitle>
+@{
+    // calculadas uma vez por desenho: a barra de etapas, o painel do lado e a
+    // etapa Documentos olham as mesmas listas (como no axiaisvent)
+    var pendTodas = Pendencias();
+    var pendLista = pendTodas.Where(p => !p.SoAviso).ToList();
+    var avisosLado = pendTodas.Where(p => p.SoAviso).ToList();
+    var custosLado = Custos;
+    var prLado = PricingAtual(custosLado);
+}
+<div class="proposta">
 
-<div class="page-head">
-    <div><h1>Gerar Proposta</h1><p class="subtitle">Proposta comercial no template Howden / Chart — cliente, itens e condições.</p></div>
-    <div class="page-actions"><a class="btn-ghost" href="/ofertas">← Ofertas</a></div>
+@* o topo diz QUAL proposta é e em que pé está *@
+<div class="page-head prop-head">
+    <div class="prop-titulo">
+        <div class="prop-titulo-linha">
+            <h1>@(_o.Id.Length > 0 ? _o.OfferCode : "Proposta nova")</h1>
+            @if (_o.Id.Length > 0)
+            {
+                <span class="prop-chip">rev @PropostaWord.Revisao2(_o.Revisao)</span>
+                <span class="prop-chip @(_o.Status == "Enviada" ? "chip-enviada" : "chip-elaboracao")">@(_o.Status == "Enviada" ? "Enviada" : "Em elaboração")</span>
+            }
+            else
+            {
+                <span class="nota">nº @_o.OfferCode rev @PropostaWord.Revisao2(_o.Revisao) ao salvar</span>
+            }
+        </div>
+        <p class="subtitle prop-sub" title="@ClienteEProjeto">@ClienteEProjeto</p>
+    </div>
+    <div class="page-actions">
+        <button class="btn-ghost" @onclick="IrParaPropostas">☰ Propostas</button>
+        <button class="btn-ghost" @onclick="NovaEmBranco">+ Nova</button>
+        @if (_o.Id.Length > 0)
+        {
+            <button class="btn-ghost" title="Uma proposta nova com o cliente, as condições, os itens e os preços desta" @onclick="() => CopiarGravada(_o.Id)">⧉ Copiar</button>
+            <button class="btn-ghost" title="A próxima revisão desta proposta; a atual fica como o cliente recebeu" @onclick="NovaRevisao">Nova revisão (rev @PropostaWord.Revisao2(ProximaRevisao(_o.OfferCode)))</button>
+        }
+    </div>
 </div>
 
-<div class="prop-grid">
-  <div>
-    <div class="panel" style="margin-bottom:16px">
-        <div class="dash-title">Cabeçalho
-            <span style="margin-left:8px;font-size:12px;font-weight:600;color:var(--muted)">
-                os mesmos campos e listas do cabeçalho da planilha de pricing · escolha o cliente da base para trazer nome, estado e mercado
+@if (_depoisDeConfirmar is not null)
+{
+    <div class="aviso-alerta guarda-barra" role="alertdialog" aria-label="Alterações não salvas">
+        <span>Há alterações não salvas nesta proposta.</span>
+        <span style="flex:1"></span>
+        <button class="btn-primary" @onclick="GuardaSalvar">Salvar</button>
+        <button class="btn-ghost" @onclick="GuardaDescartar">Descartar</button>
+        <button class="btn-link" @onclick="() => _depoisDeConfirmar = null">Cancelar</button>
+    </div>
+}
+
+@* o selo de cada etapa diz a verdade: o visto só com conteúdo e nada pendente;
+   uma etapa ainda não começada fica sem selo *@
+<nav class="etapas-barra" aria-label="Etapas da proposta">
+    @foreach (var (numero, nome) in Etapas)
+    {
+        var n = numero;
+        var faltam = pendLista.Count(p => p.Etapa == n);
+        var selo = SeloDaEtapa(n, faltam, pendLista.Count);
+        <button class="etapa-btn @(_etapa == n ? "ativa" : "")" aria-current="@(_etapa == n ? "step" : null)"
+                @onclick="() => IrParaEtapa(n)">
+            <span class="etapa-num">@n</span>
+            <span>@nome</span>
+            @if (selo == Selo.Pendente)
+            {
+                <span class="tab-badge warn" title="@Plural(faltam, "pendência nesta etapa", "pendências nesta etapa")">@faltam</span>
+            }
+            else if (selo == Selo.Ok)
+            {
+                <span class="etapa-ok" title="nada pendente">✓</span>
+            }
+        </button>
+    }
+    <span style="flex:1"></span>
+    <span class="etapa-cron" title="Tempo de trabalho nesta proposta — pausas de mais de 3 minutos não contam">⏱ @TempoNaTela</span>
+</nav>
+
+<div class="prop-etapas">
+<div class="etapa-corpo">
+@if (_etapa == 1)
+{
+@* dois jeitos de começar: pelo cliente (o mais comum) ou a partir de uma proposta gravada *@
+<div class="panel comecar" style="margin-bottom:14px">
+    <div class="comecar-grid">
+        <div class="comecar-box">
+            <strong>Começar pelo cliente</strong>
+            <span class="nota">Nome, cidade, estado e mercado vêm da base; os equipamentos da unidade ficam prontos na etapa Itens.</span>
+            <select class="cell" value="" @onchange="ComecarPeloCliente" aria-label="Cliente / unidade">
+                <option value="">Escolha o cliente / unidade…</option>
+                @foreach (var u in _units) { <option value="@u.Id">@Intel.UnitLabel(u.Id)</option> }
+            </select>
+            <div class="comecar-branco">
+                ou <button class="btn-link" @onclick="ComecarEmBranco">começar em branco</button>
+                <span class="nota">· já com os seus padrões</span>
+            </div>
+            @if (_padroesDe is not null && _o.Id.Length == 0)
+            {
+                <span class="nota">Padrões trazidos da sua última proposta (@_padroesDe): BU, segmento, venda para, condição de pagamento, validade, incoterm e textos.</span>
+            }
+        </div>
+        <div class="comecar-box">
+            <strong>Abrir ou copiar uma proposta</strong>
+            <input class="cell" placeholder="Buscar por cliente, número, projeto ou referência"
+                   value="@_buscaGravadas" @oninput="e => _buscaGravadas = e.Value?.ToString() ?? string.Empty" />
+            <div class="lista-gravadas">
+                @foreach (var g in GravadasDaBusca())
+                {
+                    var gid = g.Id;
+                    <div class="linha @(g.Id == _o.Id ? "aberta" : "")">
+                        <button class="linha-abrir" title="@($"Abrir a {g.OfferCode} rev {g.Revisao} para continuar ou corrigir")" @onclick="() => AbrirGravada(gid)">
+                            <span class="numero">@g.OfferCode</span>
+                            <span class="prop-chip">rev @PropostaWord.Revisao2(g.Revisao)</span>
+                            @if (g.Status == "Enviada") { <span class="prop-chip chip-enviada">enviada</span> }
+                            <span class="data">@Fmt.Date(g.OfferDate)</span>
+                            <span class="cliente">@(g.ClientName.Length > 0 ? g.ClientName : "sem cliente")@(g.Project.Length > 0 ? " · " + g.Project : "")</span>
+                            <span class="valor">@(Cambio.Converte(g) ? Cambio.Dinheiro(g, g.TotalAmount) : Fmt.Brl0(g.TotalAmount))</span>
+                        </button>
+                        <button class="btn-link linha-copiar" title="Copiar como nova: cliente, condições, itens e preços desta" @onclick="() => CopiarGravada(gid)">⧉ copiar</button>
+                    </div>
+                }
+                @if (_anteriores.Count == 0)
+                {
+                    <span class="subtitle" style="margin:0">Nenhuma proposta gravada ainda.</span>
+                }
+                else if (!GravadasDaBusca().Any())
+                {
+                    <span class="subtitle" style="margin:0">Nenhuma proposta com esse texto.</span>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+}
+@if (_etapa == 2)
+{
+@* a etapa em três cartões: o cliente (o que se digita), as condições que
+   saem no documento e o cabeçalho do pricing (que quase sempre vem pronto) *@
+<div class="panel" style="margin-bottom:14px">
+    <div class="dash-title">Cliente</div>
+    <div class="form3">
+        <label id="f-unidade">Cliente / Unidade (da base)
+            <select class="cell" @bind="_unitId" @bind:after="UnidadeMudou">
+                <option value="">Selecione…</option>
+                @foreach (var u in _units) { <option value="@u.Id">@Intel.UnitLabel(u.Id)</option> }
+            </select>
+        </label>
+        <label id="f-cliente">Nome do cliente * <input class="cell" @bind="_o.ClientName" /></label>
+        <label id="f-cidade">Cidade <input class="cell" @bind="_o.City" /></label>
+        <label id="f-ac">A/C (contato) <input class="cell" @bind="_o.AttentionTo" /></label>
+        <label id="f-email">E-mail do contato <input class="cell" type="email" placeholder="contato@@empresa.com" @bind="_o.ContatoEmail" /></label>
+        <label id="f-telefone">Telefone do contato <input class="cell" placeholder="+55 …" @bind="_o.ContatoTelefone" /></label>
+        <label id="f-suaref">Sua referência (do cliente) <input class="cell" placeholder="o número que o cliente deu" @bind="_o.SuaReferencia" /></label>
+        <label id="f-projeto">Projeto <input class="cell" @bind="_o.Project" /></label>
+    </div>
+    @if (UltimaDoCliente() is { } ult && ult.Id != _lembrancaUsada)
+    {
+        @* o que se repete de uma proposta para outra do mesmo cliente: um clique traz *@
+        <div class="lembranca-cliente">
+            <span>Última proposta para este cliente: <strong>@ult.OfferCode</strong> rev @PropostaWord.Revisao2(ult.Revisao), de @Fmt.Date(ult.OfferDate)
+                @(ult.AttentionTo.Length > 0 ? $"· A/C {ult.AttentionTo}" : "")</span>
+            <button class="btn-ghost" @onclick="() => UsarDaUltima(ult)">Usar contato e condições dela</button>
+            <button class="btn-link" @onclick="() => CopiarGravada(ult.Id)">ou copiar a proposta inteira</button>
+        </div>
+    }
+</div>
+
+<div class="panel" style="margin-bottom:14px">
+    <div class="dash-title">Condições comerciais <span class="dash-sub">saem no documento</span></div>
+    <div class="form3">
+        <label id="f-pagamento">Condição de pagamento
+            <select class="cell" @bind="_o.PaymentTerms">
+                @foreach (var p in OfferDefaults.PaymentOptions) { <option value="@p">@p</option> }
+                @if (!string.IsNullOrWhiteSpace(_o.PaymentTerms) && !OfferDefaults.PaymentOptions.Contains(_o.PaymentTerms))
+                {
+                    <option value="@_o.PaymentTerms">@_o.PaymentTerms</option>
+                }
+            </select>
+        </label>
+        <label id="f-prazo">Prazo de entrega
+            <span class="com-sufixo">
+                <input class="cell num" type="number" min="0" step="1" placeholder="a confirmar"
+                       value="@(PricingDaProposta.PrazoEmDias(_o.PrazoEntrega) is > 0 and var dias ? dias.ToString() : "")"
+                       @onchange="MudarPrazo" />
+                <span>dias</span>
             </span>
-        </div>
-        <div class="cab-topo">
-            <label>Cliente / Unidade (da base)
-                <select class="cell" @bind="_unitId" @bind:after="UnidadeMudou">
-                    <option value="">Selecione…</option>
-                    @foreach (var u in _units) { <option value="@u.Id">@Intel.UnitLabel(u.Id)</option> }
-                </select>
-            </label>
-            <label>Data do Pricing <input class="cell" type="date" @bind="DataProposta" /></label>
-        </div>
-        <div class="cab-pricing">
-            <div class="cab-col">
-                <label>Nome do Cliente * <input class="cell" @bind="_o.ClientName" /></label>
-                <label>PV <input class="cell" @bind="_o.Pv" /></label>
-                <label>Ano <input class="cell" type="number" min="2000" max="2100" @bind="_o.Ano" /></label>
-                <label>Número da Proposta * <input class="cell" @bind="_o.OfferCode" /></label>
-                <label>Revisão <input class="cell" @bind="_o.Revisao" list="dl-revisao" /></label>
-                <label>BU
-                    <select class="cell" @bind="_o.Bu">
-                        <option value="">preencher</option>
-                        @foreach (var (cod, rot) in ListasDoPricing.Bus) { <option value="@cod">@rot</option> }
-                        @ForaDaLista(_o.Bu, ListasDoPricing.Bus.Select(b => b.Codigo))
-                    </select>
-                </label>
-                <label>Elaborado por <input class="cell" @bind="_o.PreparedBy" /></label>
-                <label>NCM c/redução base ICMS
-                    <select class="cell" @bind="_o.NcmReducaoIcms">
-                        <option value="">preencher</option>
-                        @foreach (var v in ListasDoPricing.SimNao) { <option value="@v">@v</option> }
-                        @ForaDaLista(_o.NcmReducaoIcms, ListasDoPricing.SimNao)
-                    </select>
-                </label>
-            </div>
-            <div class="cab-col">
-                <label>Segmento (margem)
-                    <select class="cell" @bind="_o.SegmentoMargem" @bind:after="SegmentoOuProdutoMudou">
-                        <option value="">preencher</option>
-                        @foreach (var (nome, margem) in ListasDoPricing.Segmentos) { <option value="@nome">@nome (margem padrão @Pct(margem))</option> }
-                        @ForaDaLista(_o.SegmentoMargem, ListasDoPricing.Segmentos.Select(x => x.Nome))
-                    </select>
-                </label>
-                <label>Venda para
-                    <select class="cell" @bind="_o.VendaPara">
-                        <option value="">preencher</option>
-                        @foreach (var v in ListasDoPricing.VendaPara) { <option value="@v">@v</option> }
-                        @ForaDaLista(_o.VendaPara, ListasDoPricing.VendaPara)
-                    </select>
-                </label>
-                <label>Destino
-                    <select class="cell" @bind="_o.Destino" @bind:after="DestinoMudou">
-                        <option value="">preencher</option>
-                        @foreach (var v in ListasDoPricing.Destinos) { <option value="@v">@v</option> }
-                        @ForaDaLista(_o.Destino, ListasDoPricing.Destinos)
-                    </select>
-                </label>
-                <label>Estado
-                    <select class="cell" @bind="_o.Estado">
-                        <option value="">preencher</option>
-                        @foreach (var v in ListasDoPricing.EstadosDo(_o.Destino)) { <option value="@v">@v</option> }
-                        @ForaDaLista(_o.Estado, ListasDoPricing.EstadosDo(_o.Destino))
-                    </select>
-                </label>
-                <label>Reforma
-                    <select class="cell" @bind="_o.Reforma">
-                        <option value="">preencher</option>
-                        @foreach (var v in ListasDoPricing.SimNao) { <option value="@v">@v</option> }
-                        @ForaDaLista(_o.Reforma, ListasDoPricing.SimNao)
-                    </select>
-                </label>
-                <label>Prazo de Entrega
-                    <span class="com-sufixo">
-                        <input class="cell num" type="number" min="0" step="1" placeholder="0"
-                               value="@(PricingDaProposta.PrazoEmDias(_o.PrazoEntrega) is > 0 and var dias ? dias.ToString() : "")"
-                               @onchange="MudarPrazo" />
-                        <span>dias</span>
-                    </span>
-                </label>
-                <label>Cliente com
-                    <select class="cell" @bind="_o.ClienteCom">
-                        <option value="">preencher</option>
-                        @foreach (var v in ListasDoPricing.RegimeCliente) { <option value="@v">@v</option> }
-                        @ForaDaLista(_o.ClienteCom, ListasDoPricing.RegimeCliente)
-                    </select>
-                </label>
-                <label>Contém produto IC?
-                    <select class="cell" @bind="_o.ContemProdutoIc">
-                        <option value="">preencher</option>
-                        @foreach (var v in ListasDoPricing.SimNao) { <option value="@v">@v</option> }
-                        @ForaDaLista(_o.ContemProdutoIc, ListasDoPricing.SimNao)
-                    </select>
-                </label>
-            </div>
-            <div class="cab-col">
-                <label>Fiança/Seguro Garantia
-                    <select class="cell" @bind="_o.FiancaSeguro">
-                        <option value="">preencher</option>
-                        @foreach (var v in ListasDoPricing.SimNao) { <option value="@v">@v</option> }
-                        @ForaDaLista(_o.FiancaSeguro, ListasDoPricing.SimNao)
-                    </select>
-                </label>
-                <label>Portal
-                    <select class="cell" @bind="_o.Portal">
-                        <option value="">preencher</option>
-                        @foreach (var v in ListasDoPricing.Portais) { <option value="@v.Nome">@RotuloPortal(v)</option> }
-                        @ForaDaLista(_o.Portal, ListasDoPricing.Portais.Select(x => x.Nome))
-                    </select>
-                </label>
-                <label>Rep 1
-                    <select class="cell" @bind="_o.Rep1">
-                        @foreach (var r in ListasDoPricing.Representantes) { <option value="@r.Nome">@r.Nome</option> }
-                        @ForaDaLista(_o.Rep1, ListasDoPricing.Representantes.Select(x => x.Nome))
-                    </select>
-                    @SeloComissao(_o.Rep1)
-                </label>
-                <label>Rep 2
-                    <select class="cell" @bind="_o.Rep2">
-                        @foreach (var r in ListasDoPricing.Representantes) { <option value="@r.Nome">@r.Nome</option> }
-                        @ForaDaLista(_o.Rep2, ListasDoPricing.Representantes.Select(x => x.Nome))
-                    </select>
-                    @SeloComissao(_o.Rep2)
-                </label>
-                <label>Categories
-                    <select class="cell" @bind="_o.Categories" @bind:after="CategoriaMudou">
-                        <option value="">—</option>
-                        @foreach (var (cat, _) in ListasDoPricing.Categorias) { <option value="@cat">@cat</option> }
-                        @ForaDaLista(_o.Categories, ListasDoPricing.Categorias.Select(x => x.Categoria))
-                    </select>
-                </label>
-                <label>Product
-                    <select class="cell" @bind="_o.Product" @bind:after="SegmentoOuProdutoMudou" disabled="@(ListasDoPricing.ProdutosDa(_o.Categories).Length == 0)">
-                        <option value="">@(_o.Categories.Length == 0 ? "escolha a categoria" : "—")</option>
-                        @foreach (var v in ListasDoPricing.ProdutosDa(_o.Categories)) { <option value="@v">@v</option> }
-                        @ForaDaLista(_o.Product, ListasDoPricing.ProdutosDa(_o.Categories))
-                    </select>
-                </label>
-                <label>Market Segments
-                    <select class="cell" @bind="_o.MarketSegments">
-                        <option value="">—</option>
-                        @foreach (var v in ListasDoPricing.MarketSegments) { <option value="@v">@v</option> }
-                        @ForaDaLista(_o.MarketSegments, ListasDoPricing.MarketSegments)
-                    </select>
-                </label>
-            </div>
-        </div>
-
-        @if (_items.Any(i => i.Importado))
+        </label>
+        <label id="f-validade">Validade <input class="cell" @bind="_o.ValidityText" /></label>
+        <label id="f-incoterm">Local de entrega (Incoterms)
+            <select class="cell" @bind="_o.Incoterm">
+                @foreach (var i in ListasDaProposta.Incoterms) { <option value="@i.Codigo">@i.Rotulo</option> }
+            </select>
+        </label>
+        @if (ListasDaProposta.Incoterms.FirstOrDefault(x => x.Codigo == _o.Incoterm) is { PedeLocal: true } inc)
         {
-            var imp = Importacoes;
-            <div class="bloco-importacao">
-                <div class="bloco-importacao-titulo">Importação
-                    <span>@_items.Count(i => i.Importado) item(ns) importado(s) · planilha de custos de importação de @ParamImportacao.VersaoPlanilha</span>
-                </div>
-                <div class="imp-linha">
-                    <div class="imp-modo">
-                        <span class="imp-rot">Importar por *</span>
-                        <label class="imp-opcao @(_o.ImportacaoModo == "total" ? "on" : "")">
-                            <input type="radio" name="impmodo" checked="@(_o.ImportacaoModo == "total")"
-                                   @onchange='() => _o.ImportacaoModo = "total"' />
-                            <span><strong>Total</strong><small>soma tudo numa importação só</small></span>
-                        </label>
-                        <label class="imp-opcao @(_o.ImportacaoModo == "item" ? "on" : "")">
-                            <input type="radio" name="impmodo" checked="@(_o.ImportacaoModo == "item")"
-                                   @onchange='() => _o.ImportacaoModo = "item"' />
-                            <span><strong>Item</strong><small>uma importação para cada item</small></span>
-                        </label>
-                    </div>
-                    <label class="imp-campo">Moeda
-                        <select class="cell" @bind="_o.Moeda">
-                            @foreach (var m in MoedasImportacao) { <option value="@m">@m</option> }
-                        </select>
-                    </label>
-                    <label class="imp-campo">Taxa cambial (R$ por @_o.Moeda) *
-                        <input class="cell num" type="number" min="0" step="0.0001" placeholder="ex.: 6,5"
-                               value="@(_o.TaxaCambio > 0 ? _o.TaxaCambio.ToString(CultureInfo.InvariantCulture) : "")"
-                               @onchange="MudarTaxa" />
-                    </label>
-                </div>
-
-                @if (imp.Pendencias.Count > 0)
-                {
-                    <div class="imp-pendencia">Para calcular: @string.Join(" · ", imp.Pendencias)</div>
-                }
-                else
-                {
-                    <div class="imp-resumo">
-                        <div class="@(_o.ImportacaoModo == "total" ? "escolhido" : "")">
-                            <span>Por total</span>
-                            <strong>@Fmt.Brl(imp.TotalPorTotal)</strong>
-                            <small>1 importação de @Me(imp.ValorMoedaTotal)</small>
-                        </div>
-                        <div class="@(_o.ImportacaoModo == "item" ? "escolhido" : "")">
-                            <span>Por item</span>
-                            <strong>@Fmt.Brl(imp.TotalPorItem)</strong>
-                            <small>@imp.PorItem.Count importação(ões) individual(is)</small>
-                        </div>
-                        <div>
-                            <span>Diferença</span>
-                            <strong>@Fmt.Brl(Math.Abs(imp.TotalPorItem - imp.TotalPorTotal))</strong>
-                            <small>@(imp.TotalPorItem >= imp.TotalPorTotal ? "por total sai mais barato" : "por item sai mais barato")</small>
-                        </div>
-                    </div>
-                    @if (string.IsNullOrEmpty(_o.ImportacaoModo))
-                    {
-                        <div class="imp-pendencia">Escolha <strong>Total</strong> ou <strong>Item</strong> para levar o custo aos itens.</div>
-                    }
-                    <button class="btn-link" style="margin-top:6px" @onclick="() => _verMemoria = !_verMemoria">
-                        @(_verMemoria ? "esconder memória de cálculo" : "ver memória de cálculo (como na planilha)")
-                    </button>
-                    @if (_verMemoria)
-                    {
-                        var calculos = _o.ImportacaoModo == "item" ? imp.PorItem : new List<(string, CalculoImportacao)> { ("Importação total", imp.PorTotal!) };
-                        <div class="tabela-rolante">
-                        <table class="grid memoria-imp">
-                            <thead>
-                                <tr><th>Despesa (R$)</th>@foreach (var (rot, _) in calculos) { <th class="right">@rot</th> }</tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var desc in calculos[0].Item2.Linhas.Select(l => l.Descricao))
-                                {
-                                    <tr>
-                                        <td>@desc</td>
-                                        @foreach (var (_, c) in calculos)
-                                        {
-                                            <td class="right nowrap">@Fmt.Brl(c.Linhas.FirstOrDefault(l => l.Descricao == desc)?.Valor ?? 0)</td>
-                                        }
-                                    </tr>
-                                }
-                                <tr class="memoria-total">
-                                    <td>Custo total da operação já deduzidos os créditos tributários</td>
-                                    @foreach (var (_, c) in calculos) { <td class="right nowrap">@Fmt.Brl(c.CustoTotal)</td> }
-                                </tr>
-                                <tr>
-                                    <td>% de custo sobre o produto</td>
-                                    @foreach (var (_, c) in calculos) { <td class="right nowrap">@c.PercentualSobreProduto.ToString("P2", PtBr)</td> }
-                                </tr>
-                            </tbody>
-                        </table>
-                        </div>
-                        <div class="sub-cel" style="display:block">IPI, PIS, COFINS e ICMS são créditos tributários: entram e saem na planilha, por isso não somam no custo.</div>
-                    }
-                }
-            </div>
+            <label id="f-incoterm-local">Local (@(inc.Codigo == "FCA-AEROPORTO" ? "aeroporto" : "destino e país"))
+                <input class="cell" placeholder="@(inc.Codigo == "FCA-AEROPORTO" ? "ex.: de Guarulhos – SP" : "ex.: Callao (Peru)")" @bind="_o.IncotermLocal" />
+                <small class="pricing-dica">na proposta: @ListasDaProposta.LinhaDoIncoterm(_o.Incoterm, _o.IncotermLocal)</small>
+            </label>
         }
+    </div>
+</div>
 
-        @* revisão: valores já usados em propostas anteriores + opções usuais *@
-        <datalist id="dl-revisao">@foreach (var v in Sugestoes(o => o.Revisao, "0", "1", "2")) { <option value="@v" /> }</datalist>
+<div class="panel" style="margin-bottom:14px">
+    <div class="dash-title">Cabeçalho do pricing
+        <span class="dash-sub">os mesmos campos e listas da planilha R_HSAXYZ0000-0</span>
+    </div>
+    <div class="form3">
+        <label id="f-segmento">Segmento (margem)
+            <select class="cell" @bind="_o.SegmentoMargem" @bind:after="SegmentoOuProdutoMudou">
+                <option value="">preencher</option>
+                @foreach (var (nome, margem) in ListasDoPricing.Segmentos) { <option value="@nome">@nome (margem padrão @Pct(margem))</option> }
+                @ForaDaLista(_o.SegmentoMargem, ListasDoPricing.Segmentos.Select(x => x.Nome))
+            </select>
+        </label>
+        <label id="f-bu">BU
+            <select class="cell" @bind="_o.Bu">
+                <option value="">preencher</option>
+                @foreach (var (cod, rot) in ListasDoPricing.Bus) { <option value="@cod">@rot</option> }
+                @ForaDaLista(_o.Bu, ListasDoPricing.Bus.Select(b => b.Codigo))
+            </select>
+        </label>
+        <label id="f-vendapara">Venda para
+            <select class="cell" @bind="_o.VendaPara">
+                <option value="">preencher</option>
+                @foreach (var v in ListasDoPricing.VendaPara) { <option value="@v">@v</option> }
+                @ForaDaLista(_o.VendaPara, ListasDoPricing.VendaPara)
+            </select>
+        </label>
+        <label id="f-destino">Destino
+            <select class="cell" @bind="_o.Destino" @bind:after="DestinoMudou">
+                <option value="">preencher</option>
+                @foreach (var v in ListasDoPricing.Destinos) { <option value="@v">@v</option> }
+                @ForaDaLista(_o.Destino, ListasDoPricing.Destinos)
+            </select>
+        </label>
+        <label id="f-uf">Estado
+            <select class="cell" @bind="_o.Estado">
+                <option value="">preencher</option>
+                @foreach (var v in ListasDoPricing.EstadosDo(_o.Destino)) { <option value="@v">@v</option> }
+                @ForaDaLista(_o.Estado, ListasDoPricing.EstadosDo(_o.Destino))
+            </select>
+        </label>
+        <label id="f-reforma">Reforma
+            <select class="cell" @bind="_o.Reforma">
+                <option value="">preencher</option>
+                @foreach (var v in ListasDoPricing.SimNao) { <option value="@v">@v</option> }
+                @ForaDaLista(_o.Reforma, ListasDoPricing.SimNao)
+            </select>
+        </label>
+        <label id="f-clientecom">Cliente com
+            <select class="cell" @bind="_o.ClienteCom">
+                <option value="">preencher</option>
+                @foreach (var v in ListasDoPricing.RegimeCliente) { <option value="@v">@v</option> }
+                @ForaDaLista(_o.ClienteCom, ListasDoPricing.RegimeCliente)
+            </select>
+        </label>
+        <label id="f-fianca">Fiança/Seguro Garantia
+            <select class="cell" @bind="_o.FiancaSeguro">
+                <option value="">preencher</option>
+                @foreach (var v in ListasDoPricing.SimNao) { <option value="@v">@v</option> }
+                @ForaDaLista(_o.FiancaSeguro, ListasDoPricing.SimNao)
+            </select>
+        </label>
+        <label id="f-portal">Portal
+            <select class="cell" @bind="_o.Portal">
+                <option value="">preencher</option>
+                @foreach (var v in ListasDoPricing.Portais) { <option value="@v.Nome">@RotuloPortal(v)</option> }
+                @ForaDaLista(_o.Portal, ListasDoPricing.Portais.Select(x => x.Nome))
+            </select>
+        </label>
+        <label id="f-rep1">Rep 1
+            <select class="cell" @bind="_o.Rep1">
+                @foreach (var r in ListasDoPricing.Representantes) { <option value="@r.Nome">@r.Nome</option> }
+                @ForaDaLista(_o.Rep1, ListasDoPricing.Representantes.Select(x => x.Nome))
+            </select>
+            @SeloComissao(_o.Rep1)
+        </label>
+        <label id="f-rep2">Rep 2
+            <select class="cell" @bind="_o.Rep2">
+                @foreach (var r in ListasDoPricing.Representantes) { <option value="@r.Nome">@r.Nome</option> }
+                @ForaDaLista(_o.Rep2, ListasDoPricing.Representantes.Select(x => x.Nome))
+            </select>
+            @SeloComissao(_o.Rep2)
+        </label>
     </div>
 
-    <div class="panel" style="margin-bottom:16px">
-        <div class="dash-title">Contato e equipamentos</div>
-        <div class="form3">
-            <label>A/C (contato) <input class="cell" @bind="_o.AttentionTo" /></label>
-            <label>E-mail do contato <input class="cell" type="email" placeholder="contato@@empresa.com" @bind="_o.ContatoEmail" /></label>
-            <label>Telefone do contato <input class="cell" placeholder="+55 …" @bind="_o.ContatoTelefone" /></label>
-            <label>Cidade <input class="cell" @bind="_o.City" /></label>
-            <label>Nossa referência <input class="cell" @bind="_o.OurReference" /></label>
-            <label>Sua referência (do cliente) <input class="cell" placeholder="o número que o cliente deu" @bind="_o.SuaReferencia" /></label>
-            <label>Projeto <input class="cell" @bind="_o.Project" /></label>
+    @* os campos que quase nunca mudam: recolhidos, com o que está valendo à vista *@
+    <button class="btn-link mais-campos" @onclick="() => _maisCampos = !_maisCampos" aria-expanded="@(_maisCampos ? "true" : "false")">
+        @(_maisCampos ? "▾" : "▸") Mais campos
+        <span class="nota">nº @_o.OfferCode · rev @_o.Revisao · @Fmt.Date(_o.OfferDate) · ano @_o.Ano · NCM c/red. @OuTraco(_o.NcmReducaoIcms) · IC @OuTraco(_o.ContemProdutoIc) · @OuTraco(_o.Categories) / @OuTraco(_o.Product) · @OuTraco(_o.MarketSegments)</span>
+    </button>
+    @if (_maisCampos)
+    {
+        <div class="form3" style="margin-top:12px">
+            <label id="f-numero">Número da proposta * <input class="cell" @bind="_o.OfferCode" /></label>
+            <label>Revisão <input class="cell" @bind="_o.Revisao" list="dl-revisao" /></label>
+            <label>Data do Pricing <input class="cell" type="date" @bind="DataProposta" /></label>
+            <label>Elaborado por <input class="cell" @bind="_o.PreparedBy" /></label>
+            <label>Nossa referência <input class="cell" placeholder="= número da proposta" @bind="_o.OurReference" /></label>
+            <label>PV <input class="cell" @bind="_o.Pv" /></label>
+            <label id="f-ano">Ano <input class="cell" type="number" min="2000" max="2100" @bind="_o.Ano" /></label>
+            <label id="f-ncmred">NCM c/redução base ICMS
+                <select class="cell" @bind="_o.NcmReducaoIcms">
+                    <option value="">preencher</option>
+                    @foreach (var v in ListasDoPricing.SimNao) { <option value="@v">@v</option> }
+                    @ForaDaLista(_o.NcmReducaoIcms, ListasDoPricing.SimNao)
+                </select>
+            </label>
+            <label id="f-ic">Contém produto IC?
+                <select class="cell" @bind="_o.ContemProdutoIc">
+                    <option value="">preencher</option>
+                    @foreach (var v in ListasDoPricing.SimNao) { <option value="@v">@v</option> }
+                    @ForaDaLista(_o.ContemProdutoIc, ListasDoPricing.SimNao)
+                </select>
+            </label>
+            <label>Categories
+                <select class="cell" @bind="_o.Categories" @bind:after="CategoriaMudou">
+                    <option value="">—</option>
+                    @foreach (var (cat, _) in ListasDoPricing.Categorias) { <option value="@cat">@cat</option> }
+                    @ForaDaLista(_o.Categories, ListasDoPricing.Categorias.Select(x => x.Categoria))
+                </select>
+            </label>
+            <label>Product
+                <select class="cell" @bind="_o.Product" @bind:after="SegmentoOuProdutoMudou" disabled="@(ListasDoPricing.ProdutosDa(_o.Categories).Length == 0)">
+                    <option value="">@(_o.Categories.Length == 0 ? "escolha a categoria" : "—")</option>
+                    @foreach (var v in ListasDoPricing.ProdutosDa(_o.Categories)) { <option value="@v">@v</option> }
+                    @ForaDaLista(_o.Product, ListasDoPricing.ProdutosDa(_o.Categories))
+                </select>
+            </label>
+            <label>Market Segments
+                <select class="cell" @bind="_o.MarketSegments">
+                    <option value="">—</option>
+                    @foreach (var v in ListasDoPricing.MarketSegments) { <option value="@v">@v</option> }
+                    @ForaDaLista(_o.MarketSegments, ListasDoPricing.MarketSegments)
+                </select>
+            </label>
         </div>
-
+    }
+    @* revisão: valores já usados em propostas anteriores + opções usuais *@
+    <datalist id="dl-revisao">@foreach (var v in Sugestoes(o => o.Revisao, "0", "1", "2")) { <option value="@v" /> }</datalist>
+</div>
+}
+@if (_etapa == 3)
+{
+<div class="panel" style="margin-bottom:14px">
+    <div class="dash-title">Equipamentos da unidade <span class="dash-sub">marque um ou mais: a BOM deles aparece logo abaixo</span></div>
+    @if (string.IsNullOrEmpty(_unitId))
+    {
+        <div class="empty" style="padding:8px 0">Sem cliente da base. <button class="btn-link" @onclick="EscolherUnidade">Escolher a unidade</button> para ver os equipamentos e a BOM — ou inclua itens manuais abaixo.</div>
+    }
         @if (!string.IsNullOrEmpty(_unitId))
         {
-            <div class="dash-title" style="margin-top:16px">Equipamentos da unidade
-                <span style="margin-left:8px;font-size:12px;font-weight:600;color:var(--muted)">marque um ou mais</span>
-            </div>
             @if (EquipsDaUnidade.Count == 0)
             {
                 <div class="empty" style="padding:8px 0">Nenhum equipamento instalado nesta unidade.</div>
@@ -315,7 +389,7 @@
                 </div>
             }
         }
-    </div>
+</div>
 
     @if (_equipIds.Count > 0)
     {
@@ -385,7 +459,7 @@
         </div>
     }
 
-    <div class="panel" style="margin-bottom:16px">
+    <div class="panel" id="f-itens" style="margin-bottom:16px">
         <div class="dash-title">Itens da proposta
             <span style="margin-left:8px;font-size:12px;font-weight:600;color:var(--muted)">
                 referência de custo e última venda são só para apoio — o preço é sempre o que você definir
@@ -503,10 +577,111 @@
         </div>
     </div>
 
-    @{
-        var custos = Custos;
+        @if (_items.Any(i => i.Importado))
+        {
+            var imp = Importacoes;
+            <div class="bloco-importacao panel" id="f-importacao" style="margin-bottom:14px">
+                <div class="bloco-importacao-titulo">Importação
+                    <span>@_items.Count(i => i.Importado) item(ns) importado(s) · planilha de custos de importação de @ParamImportacao.VersaoPlanilha</span>
+                </div>
+                <div class="imp-linha">
+                    <div class="imp-modo">
+                        <span class="imp-rot">Importar por *</span>
+                        <label class="imp-opcao @(_o.ImportacaoModo == "total" ? "on" : "")">
+                            <input type="radio" name="impmodo" checked="@(_o.ImportacaoModo == "total")"
+                                   @onchange='() => _o.ImportacaoModo = "total"' />
+                            <span><strong>Total</strong><small>soma tudo numa importação só</small></span>
+                        </label>
+                        <label class="imp-opcao @(_o.ImportacaoModo == "item" ? "on" : "")">
+                            <input type="radio" name="impmodo" checked="@(_o.ImportacaoModo == "item")"
+                                   @onchange='() => _o.ImportacaoModo = "item"' />
+                            <span><strong>Item</strong><small>uma importação para cada item</small></span>
+                        </label>
+                    </div>
+                    <label class="imp-campo">Moeda
+                        <select class="cell" @bind="_o.Moeda">
+                            @foreach (var m in MoedasImportacao) { <option value="@m">@m</option> }
+                        </select>
+                    </label>
+                    <label class="imp-campo">Taxa cambial (R$ por @_o.Moeda) *
+                        <input class="cell num" type="number" min="0" step="0.0001" placeholder="ex.: 6,5"
+                               value="@(_o.TaxaCambio > 0 ? _o.TaxaCambio.ToString(CultureInfo.InvariantCulture) : "")"
+                               @onchange="MudarTaxa" />
+                    </label>
+                </div>
+
+                @if (imp.Pendencias.Count > 0)
+                {
+                    <div class="imp-pendencia">Para calcular: @string.Join(" · ", imp.Pendencias)</div>
+                }
+                else
+                {
+                    <div class="imp-resumo">
+                        <div class="@(_o.ImportacaoModo == "total" ? "escolhido" : "")">
+                            <span>Por total</span>
+                            <strong>@Fmt.Brl(imp.TotalPorTotal)</strong>
+                            <small>1 importação de @Me(imp.ValorMoedaTotal)</small>
+                        </div>
+                        <div class="@(_o.ImportacaoModo == "item" ? "escolhido" : "")">
+                            <span>Por item</span>
+                            <strong>@Fmt.Brl(imp.TotalPorItem)</strong>
+                            <small>@imp.PorItem.Count importação(ões) individual(is)</small>
+                        </div>
+                        <div>
+                            <span>Diferença</span>
+                            <strong>@Fmt.Brl(Math.Abs(imp.TotalPorItem - imp.TotalPorTotal))</strong>
+                            <small>@(imp.TotalPorItem >= imp.TotalPorTotal ? "por total sai mais barato" : "por item sai mais barato")</small>
+                        </div>
+                    </div>
+                    @if (string.IsNullOrEmpty(_o.ImportacaoModo))
+                    {
+                        <div class="imp-pendencia">Escolha <strong>Total</strong> ou <strong>Item</strong> para levar o custo aos itens.</div>
+                    }
+                    <button class="btn-link" style="margin-top:6px" @onclick="() => _verMemoria = !_verMemoria">
+                        @(_verMemoria ? "esconder memória de cálculo" : "ver memória de cálculo (como na planilha)")
+                    </button>
+                    @if (_verMemoria)
+                    {
+                        var calculos = _o.ImportacaoModo == "item" ? imp.PorItem : new List<(string, CalculoImportacao)> { ("Importação total", imp.PorTotal!) };
+                        <div class="tabela-rolante">
+                        <table class="grid memoria-imp">
+                            <thead>
+                                <tr><th>Despesa (R$)</th>@foreach (var (rot, _) in calculos) { <th class="right">@rot</th> }</tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var desc in calculos[0].Item2.Linhas.Select(l => l.Descricao))
+                                {
+                                    <tr>
+                                        <td>@desc</td>
+                                        @foreach (var (_, c) in calculos)
+                                        {
+                                            <td class="right nowrap">@Fmt.Brl(c.Linhas.FirstOrDefault(l => l.Descricao == desc)?.Valor ?? 0)</td>
+                                        }
+                                    </tr>
+                                }
+                                <tr class="memoria-total">
+                                    <td>Custo total da operação já deduzidos os créditos tributários</td>
+                                    @foreach (var (_, c) in calculos) { <td class="right nowrap">@Fmt.Brl(c.CustoTotal)</td> }
+                                </tr>
+                                <tr>
+                                    <td>% de custo sobre o produto</td>
+                                    @foreach (var (_, c) in calculos) { <td class="right nowrap">@c.PercentualSobreProduto.ToString("P2", PtBr)</td> }
+                                </tr>
+                            </tbody>
+                        </table>
+                        </div>
+                        <div class="sub-cel" style="display:block">IPI, PIS, COFINS e ICMS são créditos tributários: entram e saem na planilha, por isso não somam no custo.</div>
+                    }
+                }
+            </div>
+        }
+}
+
+@if (_etapa == 4)
+{
+        var custos = custosLado;
         var entrada = PricingDaProposta.EntradaDe(_o, custos.Nacionais, custos.Importados);
-        var pr = PricingAtual(custos);
+        var pr = prLado;
         var margemPrecos = MargemDosPrecos(custos);
         var pendencias = PricingDaProposta.Pendencias(_o);
         var riscoPadrao = CalculoPricing.RiscoPadraoDo(_o.SegmentoMargem, _o.Product);
@@ -515,11 +690,10 @@
         var converte = Cambio.Converte(_o);
         var comFianca = Textos.Igual(_o.FiancaSeguro, "Sim");
         var demais = DemaisCustos(custos, pr);
-    }
-    <div class="panel pricing" style="margin-bottom:16px">
+    <div class="panel pricing" style="margin-bottom:14px">
         <div class="dash-title">Pricing
             <span style="margin-left:8px;font-size:12px;font-weight:600;color:var(--muted)">
-                a mesma conta da aba PRICING da planilha R_HSAXYZ0000-0 · usa os campos do cabeçalho acima · custo em R$
+                a mesma conta da aba PRICING da planilha R_HSAXYZ0000-0 · usa o cabeçalho da etapa 2 · custo em R$
             </span>
         </div>
         <div class="pricing-campos">
@@ -542,7 +716,7 @@
             </div>
             @if (PelaMargem)
             {
-                <label>Margem pedida (%)
+                <label id="f-margem">Margem pedida (%)
                     <input class="cell num" type="number" min="0" max="99" step="0.1" value="@Pct100(_o.MargemAlvo)"
                            @onchange="e => _o.MargemAlvo = Fracao(e, _o.MargemAlvo)" />
                     <small class="pricing-dica">padrão do segmento @(_o.SegmentoMargem.Length > 0 ? _o.SegmentoMargem : "(preencher)"): @Pct(margemPadrao)</small>
@@ -550,7 +724,7 @@
             }
             else
             {
-                <label>Preço de venda: venda líquida (R$)
+                <label id="f-margem">Preço de venda: venda líquida (R$)
                     <input class="cell num" type="number" min="0" step="0.01" placeholder="quanto o cliente aceita"
                            value="@(_o.PrecoMeta > 0 ? _o.PrecoMeta.ToString(CultureInfo.InvariantCulture) : "")"
                            @onchange="e => _o.PrecoMeta = Numero(e) is decimal v && v > 0 ? v : 0" />
@@ -572,7 +746,7 @@
                 </div>
                 @if (converte)
                 {
-                    <span class="pricing-par">
+                    <span class="pricing-par" id="f-taxa">
                         <span class="pricing-rot">Taxa</span>
                         <select class="cell" value="@_o.CambioDirecao" aria-label="Sentido da taxa"
                                 @onchange='e => _o.CambioDirecao = e.Value?.ToString() ?? "VendaEmCusto"'>
@@ -693,7 +867,7 @@
             <details class="pricing-secao" open>
                 <summary>Seguro garantia ou carta fiança <span>@Fmt.Brl(pr.Fianca) (E43) · cobertura até o prazo de entrega: @prazo dias</span></summary>
                 <div class="pricing-campos pricing-fianca">
-                    <label>Tipo (seguro garantia ou carta fiança)
+                    <label id="f-tipogarantia">Tipo (seguro garantia ou carta fiança)
                         <select class="cell" @bind="_o.TipoGarantia">
                             <option value="">preencher (5% a.a.)</option>
                             @foreach (var (nome, taxa) in ListasDoPricing.TiposGarantia) { <option value="@nome">@nome (@Pct(taxa) a.a.)</option> }
@@ -920,59 +1094,243 @@
         }
     </div>
 
-    <div class="panel">
-        <div class="dash-title">Condições comerciais</div>
-        <div class="form-grid">
-            <label>Introdução <textarea class="cell" @bind="_o.IntroText"></textarea></label>
-            <label>Condição de pagamento
-                <select class="cell" @bind="_o.PaymentTerms">
-                    @foreach (var p in OfferDefaults.PaymentOptions) { <option value="@p">@p</option> }
-                </select>
-            </label>
-            <label>Prazo de entrega (texto da proposta) <textarea class="cell" @bind="_o.DeliveryTime"></textarea></label>
-            <label>Local de entrega (Incoterms)
-                <select class="cell" @bind="_o.Incoterm">
-                    @foreach (var i in ListasDaProposta.Incoterms) { <option value="@i.Codigo">@i.Rotulo</option> }
-                </select>
-            </label>
-            @if (ListasDaProposta.Incoterms.FirstOrDefault(x => x.Codigo == _o.Incoterm) is { PedeLocal: true } inc)
+@* os preços dos itens ao lado do pricing: ajustar um preço não obriga a
+   voltar à etapa Itens *@
+<div class="panel" id="f-precos" style="margin-bottom:14px">
+    <div class="dash-title">Preços dos itens <span class="dash-sub">em @Cambio.MoedaDoPreco(_o).Rotulo(), sem impostos · o "Aplicar preços do pricing" acima preenche os itens com custo</span></div>
+    <div class="tabela-rolante">
+    <table class="grid tabela-precos">
+        <thead>
+            <tr><th>Item</th><th class="right">Qtd</th><th class="right">Custo unitário (R$)</th><th class="right">Preço unitário (@Cambio.MoedaDoPreco(_o).Rotulo())</th><th class="right">Total</th></tr>
+        </thead>
+        <tbody>
+            @for (int i = 0; i < _items.Count; i++)
             {
-                <label>Local de entrega (@(inc.Codigo == "FCA-AEROPORTO" ? "aeroporto" : "destino e país"))
-                    <input class="cell" placeholder="@(inc.Codigo == "FCA-AEROPORTO" ? "ex.: de Guarulhos – SP" : "ex.: Callao (Peru)")" @bind="_o.IncotermLocal" />
-                    <small class="pricing-dica">na proposta: @ListasDaProposta.LinhaDoIncoterm(_o.Incoterm, _o.IncotermLocal)</small>
-                </label>
+                var it = _items[i];
+                var idx = i;
+                var custoIt = custosLado.ComCusto.FirstOrDefault(x => x.It == it);
+                <tr class="@(it.UnitPrice <= 0 ? "sem-preco" : "")">
+                    <td>@NomeCurto(it)
+                        @if (it.PartNumber.Length > 0 && it.Description.Length > 0)
+                        {
+                            <span class="sub-cel">@DescricaoSemPn(it)</span>
+                        }
+                    </td>
+                    <td class="right">@it.Quantity</td>
+                    <td class="right nowrap">@(custoIt.It is not null ? Fmt.Brl(custoIt.Unit) : it == _itemDemais ? "tabela de custo" : "sem custo")</td>
+                    <td class="right">
+                        <input class="cell num preco-cel" type="number" min="0" step="0.01" placeholder="definir"
+                               value="@(it.UnitPrice > 0 ? it.UnitPrice.ToString(CultureInfo.InvariantCulture) : "")"
+                               @onchange="e => MudarPreco(idx, e)" />
+                    </td>
+                    <td class="right nowrap"><strong>@Venda(it.TotalPrice)</strong></td>
+                </tr>
             }
-            <label>Validade <input class="cell" @bind="_o.ValidityText" /></label>
-            <label>Observações <textarea class="cell" style="min-height:90px" @bind="_o.Observations"></textarea></label>
-            <label>Termos e condições <textarea class="cell" @bind="_o.TermsText"></textarea></label>
-        </div>
+            @if (_items.Count == 0)
+            {
+                <tr><td colspan="5" class="empty">Nenhum item — inclua na etapa Itens.</td></tr>
+            }
+            else
+            {
+                <tr class="memoria-total"><td colspan="4">Valor líquido da proposta</td><td class="right nowrap">@Venda(Total)</td></tr>
+            }
+        </tbody>
+    </table>
     </div>
-  </div>
+</div>
+}
 
-  <div class="prop-side">
-    <div class="side-total">
-        <div>Total da oferta@(Cambio.Converte(_o) ? $" ({Cambio.MoedaDoPreco(_o).Rotulo()})" : "")</div>
-        <div class="side-total-value">@Venda(Total)</div>
+@if (_etapa == 5)
+{
+@* um botão só (salva e baixa o Word), as pendências numa linha — a lista
+   está no painel ao lado — e, depois do Word, o "Marcar como enviada" *@
+<div class="panel docs-topo" style="margin-bottom:14px">
+    <div class="docs-topo-linha">
+        <button class="btn-accent" disabled="@_gerando" @onclick="SalvarEGerarWord">⬇ Salvar e gerar a proposta comercial (Word)</button>
+        @if (pendLista.Count == 0)
+        {
+            <span class="docs-estado ok">✓ Nada pendente: o documento sai completo</span>
+        }
+        else
+        {
+            <span class="docs-estado alerta">@Plural(pendLista.Count, "pendência", "pendências") — ver no painel</span>
+        }
+        <span style="flex:1"></span>
+        @if (_wordGerado && _o.Status != "Enviada")
+        {
+            <button class="btn-ghost" title="O Word foi gerado: registre que a proposta saiu para o cliente" @onclick="MarcarEnviada">✈ Marcar como enviada</button>
+        }
+        @if (_o.Id.Length > 0)
+        {
+            <a class="btn-link" href="@($"/ofertas/{_o.Id}")">ver o resumo da oferta</a>
+        }
     </div>
-    @if (_items.Count > 0)
+    <p class="nota" style="margin:8px 0 0">
+        O Word sai no modelo da equipe, só com a parte comercial. Com pendência ele sai mesmo assim, com esses campos
+        em branco, "a confirmar" ou "a definir". Custo e última venda nunca aparecem para o cliente.
+    </p>
+</div>
+
+<div class="panel" style="margin-bottom:14px">
+    <div class="dash-title">Como a proposta sai</div>
+    <div class="resumo-doc">
+        <div><span>Cliente</span><strong>@OuTraco(_o.ClientName)</strong></div>
+        <div><span>Aos cuidados de</span><strong>@OuTraco(_o.AttentionTo)</strong></div>
+        <div><span>Contato</span><strong>@OuTraco(string.Join(" · ", new[] { _o.ContatoEmail, _o.ContatoTelefone }.Where(s => !string.IsNullOrWhiteSpace(s))))</strong></div>
+        <div><span>Sua referência</span><strong>@OuTraco(_o.SuaReferencia)</strong></div>
+        <div><span>Proposta</span><strong>@PropostaWord.Referencia(_o)</strong></div>
+        <div><span>Data · elaborado por</span><strong>@Fmt.Date(_o.OfferDate) · @OuTraco(_o.PreparedBy)</strong></div>
+        <div><span>Condição de pagamento</span><strong>@OuTraco(_o.PaymentTerms)</strong></div>
+        <div><span>Prazo de entrega</span><strong>@(PricingDaProposta.PrazoEmDias(_o.PrazoEntrega) is > 0 and var pz ? $"{pz} dias" : "a confirmar")</strong></div>
+        <div><span>Local de entrega</span><strong>@ListasDaProposta.LinhaDoIncoterm(_o.Incoterm, _o.IncotermLocal)</strong></div>
+        <div><span>Validade</span><strong>@OuTraco(_o.ValidityText)</strong></div>
+        <div><span>Representante</span><strong>@OuTraco(string.Join(" · ", new[] { _o.Rep1, _o.Rep2 }.Where(r => !string.IsNullOrWhiteSpace(r) && r.Trim() != "-")))</strong></div>
+        <div><span>Valor líquido</span><strong>@Venda(Total)</strong></div>
+    </div>
+    <div class="tabela-rolante" style="margin-top:12px">
+        <table class="grid">
+            <thead><tr><th>Item</th><th>Descrição</th><th>NCM</th><th class="right">Qtd</th><th class="right">Preço unitário</th><th class="right">Preço total</th></tr></thead>
+            <tbody>
+                @for (var i = 0; i < _items.Count; i++)
+                {
+                    var it = _items[i];
+                    <tr class="@(it.UnitPrice <= 0 ? "sem-preco" : "")">
+                        <td>@((i + 1).ToString("D2"))</td>
+                        <td>@it.Description</td>
+                        <td class="nowrap">@(it == _itemDemais ? "—" : it.Ncm.Length > 0 ? it.Ncm : "a definir")</td>
+                        <td class="right">@it.Quantity</td>
+                        <td class="right nowrap">@(it.UnitPrice > 0 ? Venda(it.UnitPrice) : "sem preço")</td>
+                        <td class="right nowrap">@Venda(it.TotalPrice)</td>
+                    </tr>
+                }
+                @if (_items.Count == 0)
+                {
+                    <tr><td colspan="6" class="empty">Nenhum item — volte à etapa Itens.</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<details class="panel textos-proposta" style="margin-bottom:14px">
+    <summary>Textos do resumo imprimível <span class="nota">introdução, prazo, observações e termos — o Word usa os textos do modelo</span></summary>
+    <div class="form-grid" style="margin-top:12px">
+        <label>Introdução <textarea class="cell" @bind="_o.IntroText"></textarea></label>
+        <label>Prazo de entrega (texto) <textarea class="cell" @bind="_o.DeliveryTime"></textarea></label>
+        <label>Observações <textarea class="cell" style="min-height:90px" @bind="_o.Observations"></textarea></label>
+        <label>Termos e condições <textarea class="cell" @bind="_o.TermsText"></textarea></label>
+    </div>
+</details>
+}
+
+<div class="etapa-rodape">
+    @if (_etapa > 1)
     {
-        <div class="side-note">
-            @_items.Count item(ns)
-            @if (_items.Count(i => i.UnitPrice <= 0) is > 0 and var semPreco)
+        <button class="btn-ghost" @onclick="() => IrParaEtapa(_etapa - 1)">← @NomeDaEtapa(_etapa - 1)</button>
+    }
+    <span style="flex:1"></span>
+    @if (_etapa == 1)
+    {
+        <button class="btn-primary" @onclick="() => IrParaEtapa(2)">Continuar → @NomeDaEtapa(2)</button>
+    }
+    else if (_etapa < 5)
+    {
+        <button class="btn-primary" @onclick="SalvarEContinuar">Salvar e continuar → @NomeDaEtapa(_etapa + 1)</button>
+    }
+    else
+    {
+        <button class="btn-accent" disabled="@_gerando" @onclick="SalvarEGerarWord">⬇ Salvar e gerar Word</button>
+    }
+</div>
+
+</div>
+<aside class="prop-side" aria-label="Resumo da proposta">
+    @{
+        var margemLado = MargemDosPrecos(custosLado);
+        var temPricingLado = prLado.CustoTotal > 0 && prLado.VendaLiquida > 0;
+    }
+    <div class="side-total">
+        <div class="kpi-label" style="color:#cfe3f7">Valor líquido@(Cambio.Converte(_o) ? $" em {Cambio.MoedaDoPreco(_o).Rotulo()}" : "")</div>
+        @if (Total > 0m)
+        {
+            <div class="side-total-value">@Venda(Total)</div>
+            <div class="side-total-nota">sem impostos, como sai na proposta</div>
+        }
+        else
+        {
+            <div class="side-total-vazio">@(_items.Count == 0 ? "Sem itens ainda" : "Sem preço ainda")</div>
+        }
+    </div>
+
+    @* o Salvar diz se há o que gravar: azul com alteração, discreto ("Salvo") sem *@
+    @if (_o.Id.Length > 0 && !TemAlteracao)
+    {
+        <button class="btn-ghost btn-block btn-salvar salvo" title="Nada mudou desde a última gravação" @onclick="() => Salvar(explicito: true)">✓ Salvo</button>
+    }
+    else
+    {
+        <button class="btn-primary btn-block btn-salvar" title="Grava a proposta como está (Ctrl+S); pendência não impede" @onclick="() => Salvar(explicito: true)">
+            Salvar <span class="atalho">Ctrl+S</span>
+        </button>
+    }
+    <button class="btn-accent btn-block" disabled="@_gerando" @onclick="SalvarEGerarWord">⬇ Salvar e gerar Word</button>
+
+    @if (_erro is not null) { <div class="alert-error" style="margin:0">@_erro</div> }
+    @if (_msg is not null) { <div class="alert-ok">@_msg</div> }
+
+    <div class="panel side-numeros">
+        <div class="side-item"><span>Custo total (R$)</span><strong>@(prLado.CustoTotal > 0 ? Fmt.Brl(prLado.CustoTotal) : "—")</strong></div>
+        <div class="side-item">
+            <span>@(margemLado is null ? "Margem do pricing" : "Margem com os preços")</span>
+            <strong>@(margemLado is decimal ml ? Pct(ml) : temPricingLado ? Pct(prLado.Margem) : "—")</strong>
+        </div>
+        @if (temPricingLado && prLado.PrecoAoCliente is decimal pacLado && !prLado.SemImpostos)
+        {
+            <div class="side-item"><span>Preço c/ impostos (pricing)</span><strong>@VendaDe(pacLado)</strong></div>
+        }
+        <div class="side-item"><span>Itens</span><strong>@(_items.Count == 0 ? "—" : $"{Plural(_items.Count, "item", "itens")} · {_items.Sum(i => i.Quantity)} un.")</strong></div>
+    </div>
+
+    @if (temPricingLado && PrecisaAprovacao)
+    {
+        <div class="aviso-alerta" style="font-size:12.5px">Margem, risco ou negociação fora do padrão do segmento: confira a aprovação de pricing.</div>
+    }
+
+    @if (pendLista.Count > 0)
+    {
+        @* por etapa, na ordem das etapas; cada pendência leva ao campo *@
+        <div class="pendencias-lado">
+            <strong>Pendências (@pendLista.Count)</strong>
+            @foreach (var grupo in pendLista.GroupBy(p => p.Etapa))
             {
-                <br /><span style="color:#b45309;font-weight:600">@semPreco sem preço definido</span>
-            }
-            @if (MargemDosPrecos(Custos) is decimal mLateral)
-            {
-                <br /><span>Margem (itens com custo): <strong>@Pct(mLateral)</strong></span>
+                <span class="pend-etapa">@grupo.Key · @NomeDaEtapa(grupo.Key)</span>
+                @foreach (var p in grupo)
+                {
+                    var alvo = p;
+                    <button class="pendencia" @onclick="() => IrPara(alvo)">@p.Texto →</button>
+                }
             }
         </div>
     }
-    <div class="side-note">O documento imprimível é gerado após salvar. Custo de referência e última venda não aparecem para o cliente.</div>
-    @if (_erro is not null) { <div class="alert-error">@_erro</div> }
-    <button class="btn-accent btn-block" @onclick="Salvar">Salvar oferta</button>
-    <a class="btn-ghost btn-block" href="/ofertas">Cancelar</a>
-  </div>
+    else
+    {
+        <div class="side-ok">Nada pendente para o documento.</div>
+    }
+    @if (avisosLado.Count > 0)
+    {
+        @* o que sai em branco mas não impede de gerar: fechado, fora da conta *@
+        <details class="avisos-lado">
+            <summary>Avisos (@avisosLado.Count)</summary>
+            <span class="nota">saem em branco ou "a confirmar", mas não impedem de gerar</span>
+            @foreach (var a in avisosLado)
+            {
+                var alvo = a;
+                <button class="pendencia" @onclick="() => IrPara(alvo)">@a.Texto →</button>
+            }
+        </details>
+    }
+</aside>
+</div>
 </div>
 
 @code {
@@ -1407,18 +1765,8 @@
         if (AuthState is not null)
         {
             var nome = (await AuthState).User.Identity?.Name;
-            if (!string.IsNullOrWhiteSpace(nome)) _o.PreparedBy = nome;
+            if (!string.IsNullOrWhiteSpace(nome)) _usuario = nome.Trim();
         }
-        _o.OfferDate = DateTime.Today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-        _anteriores = OffersRepo.All();
-        _o.OfferCode = NumeroSugerido();
-        _o.Revisao = "0";
-        _o.Ano = _autoAno = DateTime.Today.Year.ToString(CultureInfo.InvariantCulture);
-        // padrões do cabeçalho do pricing para o AFM (o resto fica "preencher")
-        _o.SegmentoMargem = "AFM"; _o.Destino = "Nacional"; _o.Reforma = "Não"; _o.NcmReducaoIcms = "Não";
-        _o.FiancaSeguro = "Não"; _o.ClienteCom = "Sem benefício"; _o.ContemProdutoIc = "Não";
-        _o.Rep1 = "-"; _o.Rep2 = "-";
-        _o.RiscoAdicional = _autoRisco; _o.MargemAlvo = _autoMargem;
         _units = Units.All();
         _base = Base.All();
         _parts = Pecas.All();
@@ -1426,6 +1774,24 @@
         _bom = Bom.All();
         _nacionais = Nacionais.All();
         _vendas = Vendas.All();
+        _anteriores = OffersRepo.All();
+
+        // /gerar-proposta/{id}: abre a gravada na etapa 2; senão, nova com os padrões, na etapa 1
+        NovaComPadroes();
+        _idDoParametro = Id ?? "";
+        if (_idDoParametro.Length > 0) Abrir(_idDoParametro);
+    }
+
+    private string _idDoParametro = "";
+
+    /// <summary>O mesmo componente com outro endereço (o menu "Gerar Proposta" ou outra /gerar-proposta/{id}).</summary>
+    protected override void OnParametersSet()
+    {
+        var id = Id ?? "";
+        if (id == _idDoParametro) return;
+        _idDoParametro = id;
+        if (id.Length > 0) { if (id != _o.Id) Abrir(id); }
+        else if (_o.Id.Length > 0) { NovaComPadroes(); IrParaEtapa(1); }
     }
 
     // ---- cliente e equipamentos ------------------------------------------
@@ -1699,69 +2065,4 @@
 
     private static string Txt(string s) => string.IsNullOrWhiteSpace(s) ? "—" : s;
 
-    private void Salvar()
-    {
-        if (string.IsNullOrWhiteSpace(_o.ClientName)) { _erro = "Informe o nome do cliente."; return; }
-        _o.OfferCode = (_o.OfferCode ?? "").Trim();
-        _o.Revisao = string.IsNullOrWhiteSpace(_o.Revisao) ? "0" : _o.Revisao.Trim();
-        if (_o.OfferCode.Length == 0) { _erro = "Informe o número da proposta."; return; }
-        if (_anteriores.Any(a => string.Equals(a.OfferCode, _o.OfferCode, StringComparison.OrdinalIgnoreCase)
-                              && string.Equals(a.Revisao, _o.Revisao, StringComparison.OrdinalIgnoreCase)))
-        {
-            _erro = $"Já existe a proposta {_o.OfferCode} revisão {_o.Revisao}. Mude o número ou a revisão.";
-            return;
-        }
-        if (_items.Any(i => i.Importado))
-        {
-            if (string.IsNullOrEmpty(_o.ImportacaoModo))
-            { _erro = "Há item importado: marque no topo se a importação é por total ou por item."; return; }
-            var pend = Importacoes.Pendencias;
-            if (pend.Count > 0) { _erro = "Importação incompleta: " + string.Join(" · ", pend) + "."; return; }
-            foreach (var it in _items) it.CustoImportacao = it.Importado ? CustoImportadoDo(it) : null;
-        }
-        else
-        {
-            _o.ImportacaoModo = ""; _o.TaxaCambio = 0;
-        }
-        var semPreco = _items.Count(i => i.UnitPrice <= 0);
-        if (semPreco > 0)
-        {
-            _erro = $"Defina o preço unitário da proposta em {semPreco} item(ns) — estão destacados na tabela.";
-            return;
-        }
-        if (Cambio.FaltaTaxa(_o))
-        {
-            _erro = $"Informe a taxa de câmbio do {Cambio.MoedaDoPreco(_o).Rotulo()} no pricing (ou escolha o preço em R$).";
-            return;
-        }
-        // retrato do pricing no momento de salvar (consulta na tela da oferta), em R$
-        var custos = Custos;
-        var pr = PricingAtual(custos);
-        var temPricing = pr.CustoTotal > 0 && pr.VendaLiquida > 0;
-        _o.PricingCusto = temPricing ? Math.Round(pr.CustoTotal, 2) : 0;
-        _o.PricingMarkup = temPricing ? Math.Round(pr.Markup, 6) : 0;
-        _o.PricingVendaLiquida = temPricing ? Math.Round(pr.VendaLiquida, 2) : 0;
-        _o.PricingMargem = temPricing ? Math.Round(pr.Margem, 6) : 0;
-        _o.PricingPrecoImpostos = temPricing && pr.PrecoAoCliente is decimal pci ? Math.Round(pci, 2) : 0;
-        if (!Textos.Igual(_o.FiancaSeguro, "Sim")) _o.TipoGarantia = "";
-        if (!Cambio.Converte(_o)) { _o.CambioTaxa = 0; _o.CambioSeguranca = 0; }
-        var now = DateTime.Now;
-        _o.Id = Guid.NewGuid().ToString("N");
-        _o.EquipmentId = string.Join(";", _equipIds);
-        if (string.IsNullOrWhiteSpace(_o.OfferDate)) _o.OfferDate = now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-        _o.CreatedAt = now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-        _o.OurReference = string.IsNullOrWhiteSpace(_o.OurReference) ? _o.OfferCode : _o.OurReference;
-        _o.TotalAmount = Total;
-        _o.TotalReais = Math.Round(Cambio.ParaReais(_o, Total), 2);
-        OffersRepo.Save(_o);
-        for (var n = 0; n < _items.Count; n++)
-        {
-            var it = _items[n];
-            it.Id = Guid.NewGuid().ToString("N");
-            it.OfferId = _o.Id;
-            it.Ordem = n + 1;
-            OffersRepo.SaveItem(it);
-        }
-        Nav.NavigateTo($"/ofertas/{_o.Id}");
-    }
 }

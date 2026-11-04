@@ -25,6 +25,7 @@ else
         <div><h1>Oferta @_o.OfferCode</h1><p class="subtitle">@_o.ClientName · @Cambio.Dinheiro(_o, _o.TotalAmount)</p></div>
         <div class="page-actions">
             <a class="btn-ghost" href="/ofertas">← Ofertas</a>
+            <a class="btn-ghost" href="@($"/gerar-proposta/{_o.Id}")" title="Abre na Gerar Proposta, por etapas, para continuar ou corrigir">✎ Editar</a>
             <button class="btn-accent" @onclick="GerarWord" disabled="@_gerando"
                     title="Preenche o modelo de proposta comercial da equipe (Word)">@(_gerando ? "Gerando…" : "⬇ Proposta comercial (Word)")</button>
             <button class="btn-primary" @onclick="Imprimir">Imprimir / PDF</button>
