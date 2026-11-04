@@ -1,3 +1,5 @@
+using AfmHsa.Data;
+
 namespace AfmHsa.Models;
 
 // Oferta comercial no template Howden/Chart (versão funcional da migração).
@@ -50,6 +52,23 @@ public class CommercialOffer
     public string ImportacaoModo { get; set; } = "";
     public string Moeda { get; set; } = "EUR";
     public decimal TaxaCambio { get; set; }
+    // Pricing (fórmula do axiaisvent — Data/CalculoPricing.cs). Percentuais em
+    // fração: 0,52 = 52%. País e Benefício entram nos impostos.
+    public string Pais { get; set; } = "Brasil";
+    public string Beneficio { get; set; } = "Sem benefício";
+    public decimal RiscoAdicional { get; set; } = CalculoPricing.RiscoAdicionalPadrao;
+    public decimal MargemNegociacao { get; set; } = CalculoPricing.MargemNegociacaoPadrao;
+    /// <summary>"margem" (calcula o preço pela margem alvo) ou "preco" (a margem sai do preço-meta).</summary>
+    public string PricingModo { get; set; } = "margem";
+    public decimal MargemAlvo { get; set; } = PricingDaProposta.MargemAlvoPadrao;
+    /// <summary>Venda líquida (sem impostos) que o cliente aceita, no modo "preco".</summary>
+    public decimal PrecoMeta { get; set; }
+    // Resultado do pricing no momento em que a proposta foi salva (para consulta).
+    public decimal PricingCusto { get; set; }
+    public decimal PricingMarkup { get; set; }
+    public decimal PricingVendaLiquida { get; set; }
+    public decimal PricingMargem { get; set; }
+    public decimal PricingPrecoImpostos { get; set; }
     // Totais / controle
     public decimal TotalAmount { get; set; }
     public string Status { get; set; } = "Rascunho";

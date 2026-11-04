@@ -17,7 +17,9 @@ public class OfferRepository
         "validity_text, observations, sgi_text, terms_text, total_amount, status, created_at, " +
         "pv, revisao, bu, ncm_reducao_icms, segmento_margem, venda_para, destino, estado, reforma, " +
         "prazo_entrega, cliente_com, fianca_seguro, portal, rep1, rep2, categories, product, market_segments, " +
-        "importacao_modo, moeda, taxa_cambio",
+        "importacao_modo, moeda, taxa_cambio, " +
+        "pais, beneficio, risco_adicional, margem_negociacao, pricing_modo, margem_alvo, preco_meta, " +
+        "pricing_custo, pricing_markup, pricing_venda_liquida, pricing_margem, pricing_preco_impostos",
         r => new CommercialOffer
         {
             Id = Fmt.S(r, 0), OfferCode = Fmt.S(r, 1), ClientUnitId = Fmt.S(r, 2), EquipmentId = Fmt.S(r, 3),
@@ -33,6 +35,13 @@ public class OfferRepository
             Portal = Fmt.S(r, 35), Rep1 = Fmt.S(r, 36), Rep2 = Fmt.S(r, 37), Categories = Fmt.S(r, 38),
             Product = Fmt.S(r, 39), MarketSegments = Fmt.S(r, 40),
             ImportacaoModo = Fmt.S(r, 41), Moeda = Fmt.S(r, 42), TaxaCambio = Fmt.Dec(Fmt.S(r, 43)),
+            // propostas gravadas antes do pricing não têm estes campos: ficam vazios/zero
+            Pais = Fmt.S(r, 44), Beneficio = Fmt.S(r, 45),
+            RiscoAdicional = Fmt.Dec(Fmt.S(r, 46)), MargemNegociacao = Fmt.Dec(Fmt.S(r, 47)),
+            PricingModo = Fmt.S(r, 48), MargemAlvo = Fmt.Dec(Fmt.S(r, 49)), PrecoMeta = Fmt.Dec(Fmt.S(r, 50)),
+            PricingCusto = Fmt.Dec(Fmt.S(r, 51)), PricingMarkup = Fmt.Dec(Fmt.S(r, 52)),
+            PricingVendaLiquida = Fmt.Dec(Fmt.S(r, 53)), PricingMargem = Fmt.Dec(Fmt.S(r, 54)),
+            PricingPrecoImpostos = Fmt.Dec(Fmt.S(r, 55)),
         }, orderBy: "created_at DESC");
 
     public CommercialOffer? Get(string id) => All().FirstOrDefault(o => o.Id == id);
@@ -54,6 +63,12 @@ public class OfferRepository
         new("rep1", o.Rep1), new("rep2", o.Rep2), new("categories", o.Categories), new("product", o.Product),
         new("market_segments", o.MarketSegments),
         new("importacao_modo", o.ImportacaoModo), new("moeda", o.Moeda), new("taxa_cambio", D(o.TaxaCambio)),
+        new("pais", o.Pais), new("beneficio", o.Beneficio),
+        new("risco_adicional", D(o.RiscoAdicional)), new("margem_negociacao", D(o.MargemNegociacao)),
+        new("pricing_modo", o.PricingModo), new("margem_alvo", D(o.MargemAlvo)), new("preco_meta", D(o.PrecoMeta)),
+        new("pricing_custo", D(o.PricingCusto)), new("pricing_markup", D(o.PricingMarkup)),
+        new("pricing_venda_liquida", D(o.PricingVendaLiquida)), new("pricing_margem", D(o.PricingMargem)),
+        new("pricing_preco_impostos", D(o.PricingPrecoImpostos)),
     });
 
     public void Delete(string id) => _s.WriteRow("commercialOffers",
