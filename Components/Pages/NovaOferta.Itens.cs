@@ -2,6 +2,7 @@ using System.Globalization;
 using AfmHsa.Data;
 using AfmHsa.Models;
 using Microsoft.AspNetCore.Components;
+using Microsoft.JSInterop;
 
 namespace AfmHsa.Components.Pages;
 
@@ -402,4 +403,70 @@ public partial class NovaOferta
             return _equipamentos.Count(e => !ja.Contains(e.Id));
         }
     }
+
+    // =====================================================================
+    // arquivos do pricing: a planilha da equipe preenchida e o custo por item
+    // =====================================================================
+
+    private bool _gerandoExcel;
+
+    /// <summary>A planilha de pricing (R_HSAXYZ0000-0.xlsm) preenchida com esta proposta.</summary>
+    private async Task GerarPricingExcel()
+    {
+        if (_gerandoExcel) return;
+        _gerandoExcel = true; _erro = null;
+        try
+        {
+            var modelo = Path.Combine(Ambiente.ContentRootPath, PricingExcel.CaminhoDoModelo);
+            if (!File.Exists(modelo)) { _erro = $"A planilha de pricing não está em {PricingExcel.CaminhoDoModelo}."; return; }
+            var c = Custos;
+            var ipi = PricingDaProposta.IpiDosItens(c.ComCusto.Select(x => (x.It, x.Unit)));
+            var entrada = PricingDaProposta.EntradaDe(_o, c.Nacionais, c.Importados, ipi);
+            var r = PricingAtual(c);
+            var bytes = PricingExcel.Gerar(_o, entrada, r, Conversao.Ler(), modelo);
+            await JS.InvokeVoidAsync("appDownload", PricingExcel.NomeDoArquivo(_o), PricingExcel.TipoMime, Convert.ToBase64String(bytes));
+            _msg = "Pricing em Excel gerado: ao abrir, habilite o conteúdo (macros) para a planilha recalcular.";
+        }
+        catch (Exception ex) { _erro = "Não deu para gerar o pricing em Excel: " + ex.Message; }
+        finally { _gerandoExcel = false; }
+    }
+
+    /// <summary>O custo de cada item (com o TA, quando há) e o preço dele, numa planilha.</summary>
+    private async Task GerarCustoPorItem()
+    {
+        if (_gerandoExcel) return;
+        if (_items.Count == 0) { _erro = "Nenhum item na proposta."; return; }
+        _gerandoExcel = true; _erro = null;
+        try
+        {
+            AtualizarPrecos();
+            var c = Custos;
+            var r = PricingAtual(c);
+            var linhas = new List<CustoDoItemNaPlanilha>();
+            for (var i = 0; i < _items.Count; i++)
+            {
+                var it = _items[i];
+                var demais = it == _itemDemais;
+                var rf = RefDoItem(it);
+                var origem = demais ? "tabela do pricing"
+                    : it.Importado ? (_o.ImportacaoModo == "item" ? "importado (por item)" : "importado (por total)")
+                    : it.CustoManual is > 0 ? "digitado"
+                    : rf.Nacionalizado && rf.Custo is > 0 ? "Nacionalização" : "sem custo";
+                linhas.Add(new CustoDoItemNaPlanilha(
+                    i + 1, it.PartNumber, demais ? it.Description : DescricaoSemPn(it), demais ? "" : ModeloDoItem(it),
+                    demais ? "" : SerialDoItem(it), demais ? "" : TagDoItem(it), origem,
+                    demais ? 0 : PrazoDoItem(it), it.Quantity,
+                    demais ? DemaisCustos(c, r) : CustoBaseDoItem(it), demais ? 0m : Math.Round(it.CustoTa, 2),
+                    it.PrecoMeta, it.UnitPrice, it.TotalPrice));
+            }
+            var nivel = PricingDaProposta.NivelEfetivo(r, _o.ImpostosNoPreco).Rotulo;
+            var bytes = CustoPorItemExcel.Gerar(_o, linhas, r, nivel);
+            await JS.InvokeVoidAsync("appDownload", CustoPorItemExcel.NomeDoArquivo(_o), CustoPorItemExcel.TipoMime, Convert.ToBase64String(bytes));
+            var comTa = _items.Count(x => x.CustoTa > 0m);
+            _msg = $"Custo por item gerado{(comTa > 0 ? $" — {Plural(comTa, "item", "itens")} com TA, marcado(s) em amarelo" : "")}.";
+        }
+        catch (Exception ex) { _erro = "Não deu para gerar o custo por item: " + ex.Message; }
+        finally { _gerandoExcel = false; }
+    }
+
 }

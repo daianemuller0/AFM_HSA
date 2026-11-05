@@ -817,6 +817,11 @@
 
 @if (_etapa == 4)
 {
+<div class="arquivos-preco">
+    <button class="btn-ghost" disabled="@_gerandoExcel" title="A planilha de pricing da equipe (R_HSAXYZ0000-0.xlsm) preenchida com esta proposta: macros, fórmulas e abas intactas" @onclick="GerarPricingExcel">⬇ Pricing (Excel)</button>
+    <button class="btn-ghost" disabled="@_gerandoExcel" title="Custo de cada item, o TA (quando há) marcado e o preço" @onclick="GerarCustoPorItem">⬇ Custo por item (Excel)</button>
+    <span class="nota">a planilha de pricing preenchida e o custo de cada item com o preço e o TA</span>
+</div>
         var custos = custosLado;
         var entrada = PricingDaProposta.EntradaDe(_o, custos.Nacionais, custos.Importados);
         var pr = prLado;
@@ -1309,6 +1314,10 @@
         {
             <a class="btn-link" href="@($"/ofertas/{_o.Id}")">ver o resumo da oferta</a>
         }
+    </div>
+    <div class="docs-topo-linha" style="margin-top:10px">
+        <button class="btn-ghost" disabled="@_gerandoExcel" @onclick="GerarPricingExcel">⬇ Pricing (Excel)</button>
+        <button class="btn-ghost" disabled="@_gerandoExcel" @onclick="GerarCustoPorItem">⬇ Custo por item (Excel)</button>
     </div>
     <p class="nota" style="margin:8px 0 0">
         O Word sai no modelo da equipe, só com a parte comercial. Com pendência ele sai mesmo assim, com esses campos

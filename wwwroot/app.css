@@ -1222,3 +1222,7 @@ h1 { font-size: 24px; margin: 0 0 4px; color: var(--primary); letter-spacing: -.
 .item-origem { display: flex; align-items: center; gap: 8px; min-height: 34px; color: var(--text); font-weight: 500; }
 .item-grade .ref-custo { color: #1e40af; background: #eff6ff; border-radius: 6px; padding: 3px 6px; margin-top: 2px; }
 .item-grade .ta { color: #92400e; font-weight: 700; }
+.arquivos-preco {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; padding: 10px 14px;
+    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm);
+}
