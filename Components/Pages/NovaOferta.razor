@@ -681,6 +681,31 @@
             <span class="dash-sub">o preço sai do custo × pricing, na hora; com preço meta, o TA completa o custo até chegar nele</span>
         </div>
         <datalist id="dl-modelos">@foreach (var m in ModelosConhecidos) { <option value="@m" /> }</datalist>
+        @{ var rateio = Rateio(); }
+        <div class="frete-box" id="f-frete">
+            <label>Frete da proposta (R$)
+                <input class="cell num" type="number" min="0" step="0.01" placeholder="sem frete"
+                       value="@(_o.FreteCusto > 0 ? _o.FreteCusto.ToString(CultureInfo.InvariantCulture) : "")" @onchange="MudarFrete" />
+            </label>
+            <div class="frete-info">
+                @if (_o.FreteCusto <= 0m)
+                {
+                    <span>Digite o frete total: ele entra no <strong>custo</strong> de cada item, dividido pelo peso (peso unitário × quantidade).</span>
+                }
+                else if (rateio.PeloPeso && rateio.PesoTotal > 0m)
+                {
+                    <span>Peso total <strong>@rateio.PesoTotal.ToString("#,##0.##", PtBr) kg</strong> · <strong>@Fmt.Brl(_o.FreteCusto / rateio.PesoTotal)</strong> por kg no custo</span>
+                    @if (rateio.SemPeso > 0)
+                    {
+                        <span class="custo-indisp">@Plural(rateio.SemPeso, "item sem peso", "itens sem peso") — não recebe(m) frete</span>
+                    }
+                }
+                else
+                {
+                    <span class="custo-indisp">Nenhum item tem peso: o frete foi dividido pelo valor dos itens. Informe o peso de cada item para dividir pelo peso.</span>
+                }
+            </div>
+        </div>
         @if (_items.Count == 0)
         {
             <div class="empty" style="padding:6px 0 14px">Nenhum item ainda. Marque itens da BOM acima ou preencha o novo item abaixo.</div>
@@ -1612,6 +1637,7 @@
                 var calc = Importacoes;
                 imp = _o.ImportacaoModo == "item" ? calc.UnitarioPorItem : calc.UnitarioPorTotal;
             }
+            var frete = Rateio().Unitario;
             var com = new List<(CommercialOfferItem, decimal)>();
             var sem = new List<CommercialOfferItem>();
             decimal importados = 0, nacionais = 0;
@@ -1628,7 +1654,7 @@
                 }
                 if (unit is decimal c && c > 0)
                 {
-                    c += it.CustoTa;   // o TA do preço meta entra no custo do item
+                    c += frete.GetValueOrDefault(it) + it.CustoTa;   // o frete (pelo peso) e o TA do preço meta entram no custo do item
                     com.Add((it, c));
                     if (it.Importado) importados += c * it.Quantity; else nacionais += c * it.Quantity;
                 }
@@ -2322,6 +2348,15 @@
                 <input class="cell num" type="number" min="1" step="1" @key="@($"qtd-{Versao(it)}")"
                        value="@it.Quantity" @onchange="e => MudarQtdDe(it, e)" />
             </label>
+            <div class="campo">Peso unit. (kg)
+                <input class="cell num" type="number" min="0" step="0.01" placeholder="kg"
+                       value="@(it.PesoKg > 0 ? it.PesoKg.ToString(CultureInfo.InvariantCulture) : "")" @onchange="e => MudarPesoDe(it, e)" />
+                @if (!novo && _o.FreteCusto > 0m)
+                {
+                    var freteIt = FreteDo(it);
+                    <small>@(freteIt > 0m ? $"frete {Fmt.Brl(freteIt)}/un. no custo" : "sem frete")</small>
+                }
+            </div>
             <div class="campo">Preço meta (@Cambio.MoedaDoPreco(_o).Rotulo())
                 <input class="cell num" type="number" min="0" step="0.01" placeholder="sem meta"
                        value="@(it.PrecoMeta > 0 ? it.PrecoMeta.ToString(CultureInfo.InvariantCulture) : "")" @onchange="e => MudarMeta(it, e)" />

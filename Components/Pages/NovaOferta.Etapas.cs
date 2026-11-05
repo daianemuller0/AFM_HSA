@@ -134,6 +134,10 @@ public partial class NovaOferta : IDisposable
         var semNcm = _items.Count(i => i != _itemDemais && V(i.Ncm));
         Avisa(semNcm > 0, $"{Plural(semNcm, "item", "itens")} sem NCM (sai \"a definir\")", 3, "f-itens");
         var semCusto = Custos.SemCusto.Count(i => i != _itemDemais);
+        var frete = Rateio();
+        Avisa(_o.FreteCusto > 0m && !frete.PeloPeso, "Frete dividido pelo valor: informe o peso dos itens para dividir pelo peso", 3, "f-frete");
+        Avisa(_o.FreteCusto > 0m && frete.PeloPeso && frete.PesoTotal > 0m && frete.SemPeso > 0,
+            $"{Plural(frete.SemPeso, "item sem peso", "itens sem peso")} — não recebe(m) frete", 3, "f-frete");
         Falta(semCusto > 0, $"{Plural(semCusto, "item", "itens")} sem custo (digite o custo ou marque importado)", 3, "f-itens");
 
         // 4 — preço

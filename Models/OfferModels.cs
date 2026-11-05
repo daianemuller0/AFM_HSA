@@ -53,6 +53,12 @@ public class CommercialOffer
 
     /// <summary>Em que língua a proposta sai: "pt", "en" ou "es".</summary>
     public string Idioma { get; set; } = "pt";
+
+    /// <summary>
+    /// Frete da proposta (R$, total). Entra no custo dos itens, dividido pelo
+    /// peso de cada um (peso unitário × quantidade); sem peso em nenhum item, pelo valor.
+    /// </summary>
+    public decimal FreteCusto { get; set; }
     // Condições comerciais (editáveis)
     public string IntroText { get; set; } = "";
     public string TaxText { get; set; } = "";
@@ -233,6 +239,9 @@ public class CommercialOfferItem
 
     /// <summary>TA: o custo (R$, unitário) acrescentado para o preço chegar na meta. Calculado.</summary>
     public decimal CustoTa { get; set; }
+
+    /// <summary>Peso unitário (kg): é por ele que o frete da proposta se divide entre os itens.</summary>
+    public decimal PesoKg { get; set; }
 
     /// <summary>Item importado: o custo vem da planilha de importação.</summary>
     public bool Importado { get; set; }

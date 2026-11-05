@@ -1310,3 +1310,10 @@ tr.inativo td { color: #9aa5b1; }
 .mapa-pop-origem { font-size: 11px; color: #94a3b8; margin-top: 6px; }
 .mapa-pop-link { display: inline-block; margin-top: 8px; font-weight: 600; }
 .acesso-campos label.chk-inline { flex-direction: row; align-items: center; gap: 6px; color: var(--secondary); }
+
+/* ---------- frete ---------- */
+.frete-box { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; background: #f5f9fd; border: 1px solid #d7e3f0;
+    border-radius: 12px; padding: 10px 14px; margin: 4px 0 12px; }
+.frete-box label { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--muted); font-weight: 600; }
+.frete-box input { width: 160px; }
+.frete-info { display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; color: var(--secondary); padding-bottom: 6px; }

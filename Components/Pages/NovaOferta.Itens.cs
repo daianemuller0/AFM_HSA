@@ -36,9 +36,48 @@ public partial class NovaOferta
     private decimal? CustoBaseDoItem(CommercialOfferItem it) =>
         it == _itemDemais ? null : it.Importado ? CustoImportadoDo(it) : CustoNacionalDe(it);
 
-    /// <summary>O custo unitário (R$) do item como entra no pricing: o base mais o TA do preço meta; null = sem custo (pendência).</summary>
+    /// <summary>O custo unitário (R$) do item como entra no pricing: o base, o frete dele e o TA do preço meta; null = sem custo (pendência).</summary>
     private decimal? CustoDoItem(CommercialOfferItem it) =>
-        CustoBaseDoItem(it) is decimal b && b > 0m ? b + it.CustoTa : null;
+        CustoBaseDoItem(it) is decimal b && b > 0m ? b + FreteDo(it) + it.CustoTa : null;
+
+    // =====================================================================
+    // Frete: o valor total da proposta diluído no custo dos itens pelo peso
+    // =====================================================================
+
+    /// <param name="PeloPeso">false = nenhum item tem peso, e o frete foi dividido pelo valor (custo × quantidade)</param>
+    private sealed record RateioDeFrete(Dictionary<CommercialOfferItem, decimal> Unitario, bool PeloPeso, decimal PesoTotal, int SemPeso);
+
+    /// <summary>
+    /// O frete unitário (R$) de cada item: o frete da proposta × (peso
+    /// unitário × quantidade do item) ÷ peso total, dividido pela quantidade
+    /// — ou seja, o mesmo R$/kg para todos. Sem peso em nenhum item, o
+    /// frete é dividido pelo valor, para não sumir do preço (a tela avisa).
+    /// </summary>
+    private RateioDeFrete Rateio()
+    {
+        var unit = new Dictionary<CommercialOfferItem, decimal>();
+        var itens = _items.Where(i => i != _itemDemais && i.Quantity > 0).ToList();
+        var pesoTotal = itens.Sum(i => Math.Max(0m, i.PesoKg) * i.Quantity);
+        var semPeso = itens.Count(i => i.PesoKg <= 0m);
+        if (_o.FreteCusto <= 0m || itens.Count == 0) return new(unit, true, pesoTotal, semPeso);
+        if (pesoTotal > 0m)
+        {
+            foreach (var it in itens.Where(i => i.PesoKg > 0m))
+                unit[it] = _o.FreteCusto * it.PesoKg / pesoTotal;   // (frete × peso × qtd ÷ total) ÷ qtd
+            return new(unit, true, pesoTotal, semPeso);
+        }
+        var valores = itens.Select(i => (It: i, V: (CustoBaseDoItem(i) ?? 0m) * i.Quantity)).Where(x => x.V > 0m).ToList();
+        var valorTotal = valores.Sum(x => x.V);
+        if (valorTotal > 0m)
+            foreach (var (it, v) in valores) unit[it] = _o.FreteCusto * v / valorTotal / it.Quantity;
+        return new(unit, false, 0m, semPeso);
+    }
+
+    private decimal FreteDo(CommercialOfferItem it) => Rateio().Unitario.GetValueOrDefault(it);
+
+    private void MudarFrete(ChangeEventArgs e) => _o.FreteCusto = Numero(e) is decimal v && v > 0m ? Math.Round(v, 2) : 0m;
+
+    private void MudarPesoDe(CommercialOfferItem it, ChangeEventArgs e) => it.PesoKg = Numero(e) is decimal v && v > 0m ? v : 0m;
 
     /// <summary>
     /// O preço de cada item = custo × fator do pricing no nível de impostos
@@ -86,13 +125,15 @@ public partial class NovaOferta
             var fator = r.CustoTotal > 0m && r.VendaLiquida > 0m ? PricingDaProposta.FatorNoNivel(r, _o.ImpostosNoPreco) : 0m;
             if (fator <= 0m) return;
             var mudou = false;
+            var frete = Rateio().Unitario;
             foreach (var it in _items.Where(i => i.PrecoMeta > 0m && i != _itemDemais))
             {
                 var ta = 0m;
                 if (CustoBaseDoItem(it) is decimal b && b > 0m)
                 {
+                    // o frete já está no custo: o TA só completa o que falta depois dele
                     var custoParaMeta = Cambio.ParaReais(_o, it.PrecoMeta) / fator;
-                    ta = Math.Max(0m, Math.Ceiling((custoParaMeta - b) * 10000m) / 10000m);
+                    ta = Math.Max(0m, Math.Ceiling((custoParaMeta - b - frete.GetValueOrDefault(it)) * 10000m) / 10000m);
                 }
                 if (Math.Abs(ta - it.CustoTa) >= 0.0001m) { it.CustoTa = ta; mudou = true; }
             }
@@ -484,7 +525,8 @@ public partial class NovaOferta
                     i + 1, it.PartNumber, demais ? it.Description : DescricaoSemPn(it), demais ? "" : ModeloDoItem(it),
                     demais ? "" : SerialDoItem(it), demais ? "" : TagDoItem(it), origem,
                     demais ? 0 : PrazoDoItem(it), it.Quantity,
-                    demais ? DemaisCustos(c, r) : CustoBaseDoItem(it), demais ? 0m : Math.Round(it.CustoTa, 2),
+                    demais ? DemaisCustos(c, r) : CustoBaseDoItem(it), demais ? 0m : Math.Round(FreteDo(it), 2), demais ? 0m : it.PesoKg,
+                    demais ? 0m : Math.Round(it.CustoTa, 2),
                     it.PrecoMeta, it.UnitPrice, it.TotalPrice));
             }
             var nivel = PricingDaProposta.NivelEfetivo(r, _o.ImpostosNoPreco).Rotulo;

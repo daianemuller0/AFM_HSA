@@ -32,7 +32,7 @@ public class OfferRepository
         "pricing_custo, pricing_markup, pricing_venda_liquida, pricing_margem, pricing_preco_impostos, " +
         "tipo_outras_garantias, outras_garantias, pricing_custos, moeda_venda, cambio_taxa, cambio_direcao, " +
         "cambio_seguranca, total_reais, contato_email, contato_telefone, sua_referencia, incoterm, incoterm_local, " +
-        "plantas, equipamentos_proposta, impostos_no_preco, vendedor, idioma",
+        "plantas, equipamentos_proposta, impostos_no_preco, vendedor, idioma, frete_custo",
         r => new CommercialOffer
         {
             Id = Fmt.S(r, 0), OfferCode = Fmt.S(r, 1), ClientUnitId = Fmt.S(r, 2), EquipmentId = Fmt.S(r, 3),
@@ -70,7 +70,7 @@ public class OfferRepository
             Plantas = Json(Fmt.S(r, 71), new List<PlantaDaProposta>()),
             EquipamentosDaProposta = Json(Fmt.S(r, 72), new List<EquipamentoDaProposta>()),
             ImpostosNoPreco = Fmt.S(r, 73) is { Length: > 0 } ip ? ip : "liquido",
-            Vendedor = Fmt.S(r, 74), Idioma = Fmt.S(r, 75) is { Length: > 0 } id ? id : "pt",
+            Vendedor = Fmt.S(r, 74), Idioma = Fmt.S(r, 75) is { Length: > 0 } id ? id : "pt", FreteCusto = Fmt.Dec(Fmt.S(r, 76)),
         }, orderBy: "created_at DESC");
 
     public CommercialOffer? Get(string id) => All().FirstOrDefault(o => o.Id == id);
@@ -105,7 +105,7 @@ public class OfferRepository
         new("plantas", JsonSerializer.Serialize(o.Plantas)),
         new("equipamentos_proposta", JsonSerializer.Serialize(o.EquipamentosDaProposta)),
         new("impostos_no_preco", o.ImpostosNoPreco),
-        new("vendedor", o.Vendedor), new("idioma", o.Idioma),
+        new("vendedor", o.Vendedor), new("idioma", o.Idioma), new("frete_custo", D(o.FreteCusto)),
         new("risco_adicional", D(o.RiscoAdicional)), new("margem_negociacao", D(o.MargemNegociacao)),
         new("pricing_modo", o.PricingModo), new("margem_alvo", D(o.MargemAlvo)), new("preco_meta", D(o.PrecoMeta)),
         new("pricing_custo", D(o.PricingCusto)), new("pricing_markup", D(o.PricingMarkup)),
@@ -121,7 +121,7 @@ public class OfferRepository
         "id, offer_id, description, quantity, unit_price, total_price, " +
         "equipment_id, part_number, nacionalizado, custo_referencia, custo_data, ultima_venda, ultima_venda_data, " +
         "importado, valor_moeda, custo_importacao, ordem, ncm, custo_manual, custo_unitario, prazo_entrega_dias, " +
-        "modelo, serial_number, tag, preco_meta, custo_ta",
+        "modelo, serial_number, tag, preco_meta, custo_ta, peso_kg",
         r => new CommercialOfferItem
         {
             Id = Fmt.S(r, 0), OfferId = Fmt.S(r, 1), Description = Fmt.S(r, 2),
@@ -133,7 +133,7 @@ public class OfferRepository
             CustoImportacao = DecOuNull(Fmt.S(r, 15)), Ordem = Fmt.Int(Fmt.S(r, 16)), Ncm = Fmt.S(r, 17),
             CustoManual = DecOuNull(Fmt.S(r, 18)), CustoUnitario = DecOuNull(Fmt.S(r, 19)), PrazoEntregaDias = Fmt.Int(Fmt.S(r, 20)),
             Modelo = Fmt.S(r, 21), SerialNumber = Fmt.S(r, 22), Tag = Fmt.S(r, 23),
-            PrecoMeta = Fmt.Dec(Fmt.S(r, 24)), CustoTa = Fmt.Dec(Fmt.S(r, 25)),
+            PrecoMeta = Fmt.Dec(Fmt.S(r, 24)), CustoTa = Fmt.Dec(Fmt.S(r, 25)), PesoKg = Fmt.Dec(Fmt.S(r, 26)),
         });
 
     /// <summary>Vazio continua vazio: "custo não disponível" não pode virar R$ 0,00.</summary>
@@ -163,6 +163,6 @@ public class OfferRepository
             new("custo_manual", DOuVazio(it.CustoManual)), new("custo_unitario", DOuVazio(it.CustoUnitario)),
             new("prazo_entrega_dias", it.PrazoEntregaDias.ToString()),
             new("modelo", it.Modelo), new("serial_number", it.SerialNumber), new("tag", it.Tag),
-            new("preco_meta", D(it.PrecoMeta)), new("custo_ta", D(it.CustoTa)),
+            new("preco_meta", D(it.PrecoMeta)), new("custo_ta", D(it.CustoTa)), new("peso_kg", D(it.PesoKg)),
         });
 }
