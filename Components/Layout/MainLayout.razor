@@ -1,6 +1,8 @@
 @inherits LayoutComponentBase
 @implements IDisposable
 @inject LocState Loc
+@inject NavigationManager Nav
+@inject AppUserRepository Usuarios
 
 <div class="app-shell">
     <NavMenu />
@@ -24,7 +26,7 @@
                     <Authorized>
                         <div class="user">
                             <div class="user-name">@context.User.Identity?.Name</div>
-                            <div class="user-role">@context.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value</div>
+                            <div class="user-role">@Acessos.NomeDoPerfil(context.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value)</div>
                         </div>
                         <div class="avatar">@Iniciais(context.User.Identity?.Name)</div>
                         <form method="post" action="/auth/logout">
@@ -37,13 +39,37 @@
             </div>
         </header>
         <main class="content">
-            @Body
+            @if (_semAcesso)
+            {
+                <div class="panel sem-acesso">
+                    <h1>Sem acesso a esta página</h1>
+                    <p>O seu login não inclui esta tela. Se precisar dela, peça ao administrador (Dados e Importação → Logins e acessos).</p>
+                    <a class="btn-primary" href="/">Ir para o início</a>
+                </div>
+            }
+            else
+            {
+                @Body
+            }
         </main>
     </div>
 </div>
 
 @code {
     private string _lang = "pt";
+    private bool _semAcesso;
+
+    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+
+    /// <summary>Cada tela confere se o login pode abri-la (Acessos): a lista vem do cadastro, a cada navegação.</summary>
+    protected override async Task OnParametersSetAsync()
+    {
+        _semAcesso = false;
+        if (AuthState is null) return;
+        var user = (await AuthState).User;
+        if (user.Identity?.IsAuthenticated != true) return;
+        _semAcesso = !Acessos.PodeAbrir(Acessos.PaginasDe(user, Usuarios), "/" + Nav.ToBaseRelativePath(Nav.Uri));
+    }
 
     protected override void OnInitialized()
     {

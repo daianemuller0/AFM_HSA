@@ -1,14 +1,19 @@
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace AfmHsa.Data;
 
 /// <summary>
-/// O custo que uma proposta usou para um part number: quem colocar o mesmo PN
-/// depois vê a referência (valor, data, modelo do equipamento e serial number).
+/// Uma referência de preço: o que a Howden mandou ao cliente para um part
+/// number — vendido ou não, o cliente recebeu, e isso vale como referência na
+/// próxima proposta. Nasce de duas formas: ao salvar uma proposta (um registro
+/// por item) ou importada de uma planilha (o histórico de propostas enviadas).
+/// Leva também o custo e o TA usados, para quem montar a próxima proposta.
 /// </summary>
 public sealed class ReferenciaDeCusto
 {
-    /// <summary>O id do item da proposta: salvar de novo atualiza a mesma referência.</summary>
+    /// <summary>O id do item da proposta (salvar de novo atualiza a mesma); na planilha, um código da linha.</summary>
     public string Id { get; set; } = "";
     public string PartNumber { get; set; } = "";
     public string Descricao { get; set; } = "";
@@ -16,43 +21,75 @@ public sealed class ReferenciaDeCusto
     public decimal Valor { get; set; }
     /// <summary>TA usado na proposta para chegar no preço meta (R$, unitário); 0 = sem TA.</summary>
     public decimal Ta { get; set; }
-    /// <summary>yyyy-MM-dd.</summary>
+    /// <summary>yyyy-MM-dd: a data da proposta.</summary>
     public string Data { get; set; } = "";
     public string Modelo { get; set; } = "";
     public string SerialNumber { get; set; } = "";
-    /// <summary>"digitado" ou "importação".</summary>
+    /// <summary>De onde veio o custo ("digitado", "importação", "nacionalização") ou "planilha".</summary>
     public string Origem { get; set; } = "";
     public string PropostaId { get; set; } = "";
-    /// <summary>"OF-…-00".</summary>
+    /// <summary>O código da proposta (sem a revisão).</summary>
     public string Proposta { get; set; } = "";
     public string Cliente { get; set; } = "";
     public string Usuario { get; set; } = "";
 
+    public string Revisao { get; set; } = "";
+    /// <summary>As plantas do item (ou da proposta), como saem no Word.</summary>
+    public string Plantas { get; set; } = "";
+    /// <summary>UF do cliente.</summary>
+    public string Estado { get; set; } = "";
+    /// <summary>A unidade Howden de onde a proposta sai (HSA-SP, HSA-ES, HCHL, HPU).</summary>
+    public string Intercompany { get; set; } = "";
+    public decimal Quantidade { get; set; }
+    /// <summary>Preço unitário enviado ao cliente, sem impostos, na <see cref="Moeda"/>.</summary>
+    public decimal PrecoUnitLiquido { get; set; }
+    public decimal PrecoTotalLiquido { get; set; }
+    /// <summary>BRL, USD, EUR...; vazio = BRL.</summary>
+    public string Moeda { get; set; } = "";
+
     public DateTime? DataComoData =>
         DateTime.TryParseExact(Data, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) ? d : null;
+
+    public Moeda MoedaDoPreco => Moedas.Ler(Moeda);
 }
 
-/// <summary>As referências de custo (entidade "referencias_custo"), gravadas ao salvar a proposta.</summary>
+/// <summary>As referências de preço e custo (entidade "referencias_custo").</summary>
 public sealed class ReferenciaDeCustoRepository
 {
     private const string Entidade = "referencias_custo";
+    public const string OrigemPlanilha = "planilha";
     private readonly ParquetStore _store;
     public ReferenciaDeCustoRepository(ParquetStore store) => _store = store;
 
     public List<ReferenciaDeCusto> Todas() => _store
         .ReadLatest(Entidade,
-            "id, part_number, descricao, valor, ta, data, modelo, serial_number, origem, proposta_id, proposta, cliente, usuario",
+            "id, part_number, descricao, valor, ta, data, modelo, serial_number, origem, proposta_id, proposta, cliente, usuario, " +
+            "revisao, plantas, estado, intercompany, quantidade, preco_unit_liquido, preco_total_liquido, moeda",
             r => new ReferenciaDeCusto
             {
                 Id = Fmt.S(r, 0), PartNumber = Fmt.S(r, 1), Descricao = Fmt.S(r, 2), Valor = Fmt.Dec(Fmt.S(r, 3)),
                 Ta = Fmt.Dec(Fmt.S(r, 4)), Data = Fmt.S(r, 5), Modelo = Fmt.S(r, 6), SerialNumber = Fmt.S(r, 7),
                 Origem = Fmt.S(r, 8), PropostaId = Fmt.S(r, 9), Proposta = Fmt.S(r, 10), Cliente = Fmt.S(r, 11),
-                Usuario = Fmt.S(r, 12),
+                Usuario = Fmt.S(r, 12), Revisao = Fmt.S(r, 13), Plantas = Fmt.S(r, 14), Estado = Fmt.S(r, 15),
+                Intercompany = Fmt.S(r, 16), Quantidade = Fmt.Dec(Fmt.S(r, 17)), PrecoUnitLiquido = Fmt.Dec(Fmt.S(r, 18)),
+                PrecoTotalLiquido = Fmt.Dec(Fmt.S(r, 19)), Moeda = Fmt.S(r, 20),
             })
+        .Select(SepararRevisao)
         .OrderByDescending(r => r.Data).ThenByDescending(r => r.Proposta)
         .ToList();
 
-    /// <summary>A referência mais recente do part number, de outra proposta (null = nenhuma).</summary>
+    /// <summary>As referências antigas gravavam "CÓDIGO-C2" na proposta: vira proposta + revisão.</summary>
+    private static ReferenciaDeCusto SepararRevisao(ReferenciaDeCusto r)
+    {
+        if (r.Revisao.Length == 0 && System.Text.RegularExpressions.Regex.Match(r.Proposta, @"^(.+)-C(\d+)$") is { Success: true } m)
+        {
+            r.Proposta = m.Groups[1].Value;
+            r.Revisao = m.Groups[2].Value;
+        }
+        return r;
+    }
+
+    /// <summary>O custo mais recente do part number, de outra proposta (null = nenhum).</summary>
     public static ReferenciaDeCusto? MaisRecente(IEnumerable<ReferenciaDeCusto> todas, string? partNumber, string propostaAtual)
     {
         var pn = IntelligenceService.NormPn(partNumber);
@@ -61,13 +98,151 @@ public sealed class ReferenciaDeCustoRepository
             .OrderByDescending(r => r.Data).ThenByDescending(r => r.Proposta).FirstOrDefault();
     }
 
-    public void Gravar(ReferenciaDeCusto r) => _store.WriteRow(Entidade, new KeyValuePair<string, object?>[]
+    /// <summary>
+    /// O último preço enviado para o part number, de outra proposta: primeiro
+    /// o deste cliente, senão o de qualquer um (null = nenhum).
+    /// </summary>
+    public static ReferenciaDeCusto? UltimoPreco(IEnumerable<ReferenciaDeCusto> todas, string? partNumber, string propostaAtual, string? cliente)
     {
-        new("id", r.Id), new("part_number", r.PartNumber), new("descricao", r.Descricao),
-        new("valor", r.Valor.ToString(CultureInfo.InvariantCulture)), new("ta", r.Ta.ToString(CultureInfo.InvariantCulture)),
-        new("data", r.Data), new("modelo", r.Modelo), new("serial_number", r.SerialNumber), new("origem", r.Origem),
-        new("proposta_id", r.PropostaId), new("proposta", r.Proposta), new("cliente", r.Cliente), new("usuario", r.Usuario),
-    });
+        var pn = IntelligenceService.NormPn(partNumber);
+        if (pn.Length == 0) return null;
+        var doPn = todas.Where(r => r.PropostaId != propostaAtual && r.PrecoUnitLiquido > 0 && IntelligenceService.NormPn(r.PartNumber) == pn)
+            .OrderByDescending(r => r.Data).ThenByDescending(r => r.Proposta).ThenByDescending(r => r.Revisao).ToList();
+        return doPn.FirstOrDefault(r => Textos.Igual(r.Cliente, cliente) && (cliente ?? "").Trim().Length > 0) ?? doPn.FirstOrDefault();
+    }
+
+    public void Gravar(ReferenciaDeCusto r) => _store.WriteRow(Entidade, Linha(r));
+
+    public void GravarVarias(IEnumerable<ReferenciaDeCusto> refs) => _store.WriteBatch(Entidade, refs.Select(Linha).ToList());
+
+    private static IReadOnlyList<KeyValuePair<string, object?>> Linha(ReferenciaDeCusto r)
+    {
+        string N(decimal v) => v.ToString(CultureInfo.InvariantCulture);
+        return new KeyValuePair<string, object?>[]
+        {
+            new("id", r.Id), new("part_number", r.PartNumber), new("descricao", r.Descricao),
+            new("valor", N(r.Valor)), new("ta", N(r.Ta)),
+            new("data", r.Data), new("modelo", r.Modelo), new("serial_number", r.SerialNumber), new("origem", r.Origem),
+            new("proposta_id", r.PropostaId), new("proposta", r.Proposta), new("cliente", r.Cliente), new("usuario", r.Usuario),
+            new("revisao", r.Revisao), new("plantas", r.Plantas), new("estado", r.Estado), new("intercompany", r.Intercompany),
+            new("quantidade", N(r.Quantidade)), new("preco_unit_liquido", N(r.PrecoUnitLiquido)),
+            new("preco_total_liquido", N(r.PrecoTotalLiquido)), new("moeda", r.Moeda),
+        };
+    }
 
     public void Apagar(string id) => _store.WriteRow(Entidade, new KeyValuePair<string, object?>[] { new("id", id) }, deleted: true);
+
+    // ================= planilha =================
+
+    /// <summary>As colunas da planilha, na ordem da tela; os apelidos aceitos vêm depois do nome.</summary>
+    public static readonly (string Nome, string[] Apelidos)[] Colunas =
+    {
+        ("Proposta", new[] { "proposta", "nossa referencia", "codigo", "codigo da proposta" }),
+        ("Revisão", new[] { "revisao", "rev" }),
+        ("Cliente", new[] { "cliente" }),
+        ("Plantas", new[] { "plantas", "planta", "unidade do cliente" }),
+        ("Estado", new[] { "estado", "uf" }),
+        ("Intercompany", new[] { "intercompany", "unidade", "bu", "unidade howden" }),
+        ("Part Number", new[] { "part number", "partnumber", "pn", "codigo da peca" }),
+        ("Quantidade", new[] { "quantidade", "qtd", "qtde", "quant" }),
+        ("Valor unitário líquido", new[] { "valor unitario liquido", "valor unit liquido", "preco unitario liquido", "preco unitario", "valor unitario", "unitario liquido" }),
+        ("Valor total líquido", new[] { "valor total liquido", "preco total liquido", "valor total", "preco total", "total liquido" }),
+        ("Data", new[] { "data", "data da proposta" }),
+        ("Custo unit. (R$)", new[] { "custo unit (r$)", "custo unit", "custo unitario", "custo unit r$", "custo" }),
+        ("TA (R$)", new[] { "ta (r$)", "ta", "ta r$" }),
+        ("Descrição", new[] { "descricao", "descricao da peca" }),
+        ("Moeda", new[] { "moeda" }),
+    };
+
+    private static string ChaveDaColuna(string s) =>
+        new(Textos.Simples(s).Where(c => char.IsLetterOrDigit(c) || c == ' ').ToArray());
+
+    /// <summary>
+    /// Lê a planilha (xlsx, xls ou csv) e grava as referências. A mesma linha
+    /// (proposta, revisão, cliente e part number) importada de novo atualiza
+    /// a que já existe, em vez de duplicar.
+    /// </summary>
+    public (int Gravadas, List<string> Avisos) Importar(byte[] arquivo, string nome, string usuario)
+    {
+        var avisos = new List<string>();
+        var (cab, linhas) = ImportService.LerPlanilha(arquivo, nome);
+        var indice = new Dictionary<string, int>();
+        for (var i = 0; i < cab.Length; i++)
+        {
+            var h = ChaveDaColuna(cab[i]);
+            foreach (var (col, apelidos) in Colunas)
+                if (!indice.ContainsKey(col) && apelidos.Any(a => ChaveDaColuna(a) == h)) { indice[col] = i; break; }
+        }
+        if (!indice.ContainsKey("Part Number"))
+            return (0, new List<string> { "A planilha não tem a coluna \"Part Number\". Baixe o modelo para ver as colunas." });
+        foreach (var (col, _) in Colunas.Where(c => c.Nome is not "Moeda" && !indice.ContainsKey(c.Nome)))
+            avisos.Add($"Coluna \"{col}\" não encontrada (fica vazia).");
+
+        string C(string[] l, string col) => indice.TryGetValue(col, out var i) && i < l.Length ? (l[i] ?? "").Trim() : "";
+        var novas = new List<ReferenciaDeCusto>();
+        var n = 1;
+        foreach (var l in linhas)
+        {
+            n++;
+            var pn = C(l, "Part Number");
+            if (pn.Length == 0) continue;
+            var r = new ReferenciaDeCusto
+            {
+                Proposta = C(l, "Proposta"), Revisao = C(l, "Revisão"), Cliente = C(l, "Cliente"), Plantas = C(l, "Plantas"),
+                Estado = C(l, "Estado"), Intercompany = C(l, "Intercompany"), PartNumber = pn,
+                Quantidade = Numero(C(l, "Quantidade")) ?? 0m, PrecoUnitLiquido = Numero(C(l, "Valor unitário líquido")) ?? 0m,
+                PrecoTotalLiquido = Numero(C(l, "Valor total líquido")) ?? 0m, Data = DataIso(C(l, "Data")),
+                Valor = Numero(C(l, "Custo unit. (R$)")) ?? 0m, Ta = Numero(C(l, "TA (R$)")) ?? 0m,
+                Descricao = C(l, "Descrição"), Moeda = Moedas.Ler(C(l, "Moeda")).Codigo(),
+                Origem = OrigemPlanilha, Usuario = usuario,
+            };
+            if (r.PrecoTotalLiquido == 0m && r.PrecoUnitLiquido > 0m && r.Quantidade > 0m) r.PrecoTotalLiquido = r.PrecoUnitLiquido * r.Quantidade;
+            if (r.PrecoUnitLiquido == 0m && r.PrecoTotalLiquido > 0m && r.Quantidade > 0m) r.PrecoUnitLiquido = Math.Round(r.PrecoTotalLiquido / r.Quantidade, 2);
+            if (C(l, "Data").Length > 0 && r.Data.Length == 0) avisos.Add($"Linha {n}: data \"{C(l, "Data")}\" não entendida.");
+            r.Id = "pl-" + Hash($"{r.Proposta}|{r.Revisao}|{r.Cliente}|{IntelligenceService.NormPn(pn)}|{r.Plantas}");
+            novas.Add(r);
+        }
+        // a mesma linha duas vezes na planilha: fica a última
+        novas = novas.GroupBy(r => r.Id).Select(g => g.Last()).ToList();
+        if (novas.Count > 0) GravarVarias(novas);
+        return (novas.Count, avisos);
+    }
+
+    /// <summary>O modelo da planilha de importação, com uma linha de exemplo.</summary>
+    public static byte[] Modelo() => Planilha.Xlsx("Referências", Colunas.Select(c => c.Nome).ToList(), new[]
+    {
+        (IReadOnlyList<string>)new[] { "HSA2026-0147", "2", "Vale", "São Luís", "MA", "HSA-SP", "HW-NAC-A", "3", "3853,22", "11559,66", "05/11/2026", "2100,00", "0", "Rolamento", "BRL" },
+    });
+
+    private static string Hash(string s) =>
+        Convert.ToHexString(SHA1.HashData(Encoding.UTF8.GetBytes(s.ToUpperInvariant())))[..20].ToLowerInvariant();
+
+    /// <summary>"1.234,56", "1234.56", "R$ 1.234,56" ou o número do Excel.</summary>
+    public static decimal? Numero(string? texto)
+    {
+        var t = new string((texto ?? "").Where(c => char.IsDigit(c) || c is ',' or '.' or '-').ToArray());
+        if (t.Length == 0) return null;
+        var virgula = t.LastIndexOf(',');
+        var ponto = t.LastIndexOf('.');
+        if (virgula >= 0 && ponto >= 0)
+            t = virgula > ponto ? t.Replace(".", "").Replace(',', '.') : t.Replace(",", "");
+        else if (virgula >= 0)
+            t = t.Replace(',', '.');
+        else if (ponto >= 0 && t.Count(c => c == '.') > 1)
+            t = t.Replace(".", "");
+        return decimal.TryParse(t, NumberStyles.Number, CultureInfo.InvariantCulture, out var v) ? v : null;
+    }
+
+    /// <summary>dd/MM/yyyy, yyyy-MM-dd ou o número de série do Excel → yyyy-MM-dd ("" = não entendida).</summary>
+    public static string DataIso(string? texto)
+    {
+        var t = (texto ?? "").Trim();
+        if (t.Length == 0) return "";
+        string[] formatos = { "yyyy-MM-dd", "dd/MM/yyyy", "d/M/yyyy", "dd/MM/yy", "dd-MM-yyyy", "dd.MM.yyyy", "yyyy-MM-dd HH:mm:ss", "dd/MM/yyyy HH:mm:ss" };
+        if (DateTime.TryParseExact(t, formatos, CultureInfo.InvariantCulture, DateTimeStyles.None, out var d))
+            return d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        if (double.TryParse(t, NumberStyles.Number, CultureInfo.InvariantCulture, out var serie) && serie is > 20000 and < 80000)
+            return DateTime.FromOADate(serie).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        return "";
+    }
 }

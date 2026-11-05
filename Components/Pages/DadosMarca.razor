@@ -9,20 +9,29 @@
 @inject ImportService Importer
 @inject BrandingRepository Brand
 @inject IJSRuntime JS
+@inject AuthenticationStateProvider Auth
 
 <PageTitle>Dados e Importação · AFM HSA</PageTitle>
 
 <h1>Dados e Importação</h1>
-<p class="subtitle">Segmentos, equipe comercial, importação de dados e logo / marca em um só lugar.</p>
+<p class="subtitle">Segmentos, equipe comercial, importação de dados, logo / marca@(_ehAdm ? " e os logins de acesso" : "") em um só lugar.</p>
 
 <div class="views">
     <button class="view @(_tab == "segmentos" ? "active" : "")" @onclick='() => _tab = "segmentos"'>Segmentos</button>
     <button class="view @(_tab == "equipe" ? "active" : "")" @onclick='() => _tab = "equipe"'>Equipe Comercial</button>
     <button class="view @(_tab == "import" ? "active" : "")" @onclick='() => _tab = "import"'>Importação de Dados</button>
     <button class="view @(_tab == "logo" ? "active" : "")" @onclick='() => _tab = "logo"'>Logo / Marca</button>
+    @if (_ehAdm)
+    {
+        <button class="view @(_tab == "logins" ? "active" : "")" @onclick='() => _tab = "logins"'>Logins e acessos</button>
+    }
 </div>
 
-@if (_tab == "segmentos")
+@if (_tab == "logins" && _ehAdm)
+{
+    <LoginsAcessos />
+}
+else if (_tab == "segmentos")
 {
     <p class="subtitle">O segmento é o eixo da divisão comercial: cada vendedor atua num segmento, e a planta puxa o vendedor pelo segmento dela.</p>
 
@@ -204,6 +213,8 @@ else
 
 @code {
     private string _tab = "segmentos";
+    /// <summary>Só o administrador vê a aba de logins.</summary>
+    private bool _ehAdm;
     private List<Salesperson> _sps = new();
     private List<Segment> _segs = new();
     private List<ClientUnit> _units = new();
@@ -233,7 +244,11 @@ else
     private Branding _brand = new();
     private string? _logoMsg;
 
-    protected override void OnInitialized() => Carregar();
+    protected override async Task OnInitializedAsync()
+    {
+        _ehAdm = Acessos.EhAdm((await Auth.GetAuthenticationStateAsync()).User);
+        Carregar();
+    }
 
     private void Carregar()
     {

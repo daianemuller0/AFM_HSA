@@ -275,32 +275,60 @@ public partial class NovaOferta
     private void GravarReferenciasDeCusto(IEnumerable<string> itensApagados)
     {
         var porId = _refsCusto.ToDictionary(r => r.Id);
-        var hoje = DateTime.Today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        var data = DateTime.TryParseExact(_o.OfferDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d)
+            ? d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : DateTime.Today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+        // o preço do item está no nível de impostos escolhido: a referência guarda o líquido
+        var r = PricingAtual(Custos);
+        var noNivel = PricingDaProposta.ValorNoNivel(r, _o.ImpostosNoPreco) ?? r.ValorDaProposta;
+        var paraLiquido = noNivel > 0m && r.ValorDaProposta > 0m ? r.ValorDaProposta / noNivel : 1m;
+        var todasAsPlantas = string.Join("; ", _o.Plantas.Select(PlantasDaProposta.Rotulo).Where(t => t.Length > 0));
+
         foreach (var it in _items.Where(i => i != _itemDemais && i.Id.Length > 0))
         {
             var custo = CustoBaseDoItem(it);
-            var origem = it.Importado ? "importação" : it.CustoManual is > 0 ? "digitado" : "";
-            if (it.PartNumber.Trim().Length == 0 || custo is not > 0m || origem.Length == 0)
+            if (it.PartNumber.Trim().Length == 0 || (custo is not > 0m && it.UnitPrice <= 0m))
             {
                 if (porId.ContainsKey(it.Id)) RefsCusto.Apagar(it.Id);
                 continue;
             }
+            var origem = it.Importado ? "importação" : it.CustoManual is > 0 ? "digitado" : RefDoItem(it).Nacionalizado ? "nacionalização" : "proposta";
+            var planta = PlantasDaProposta.PlantaDe(_o, PlantasDaProposta.DoItem(_o, it));
+            var unit = Math.Round(it.UnitPrice * paraLiquido, 2);
             var nova = new ReferenciaDeCusto
             {
-                Id = it.Id, PartNumber = it.PartNumber.Trim(), Descricao = DescricaoSemPn(it), Valor = Math.Round(custo.Value, 2),
-                Ta = Math.Round(it.CustoTa, 2), Data = hoje, Modelo = ModeloDoItem(it), SerialNumber = SerialDoItem(it),
-                Origem = origem, PropostaId = _o.Id, Proposta = PropostaWord.Referencia(_o), Cliente = _o.ClientName,
-                Usuario = _usuario,
+                Id = it.Id, PartNumber = it.PartNumber.Trim(), Descricao = DescricaoSemPn(it), Valor = Math.Round(custo ?? 0m, 2),
+                Ta = Math.Round(it.CustoTa, 2), Data = data, Modelo = ModeloDoItem(it), SerialNumber = SerialDoItem(it),
+                Origem = origem, PropostaId = _o.Id, Proposta = _o.OfferCode.Trim(), Revisao = PropostaWord.Ou(_o.Revisao, "0"),
+                Cliente = _o.ClientName, Usuario = _usuario,
+                Plantas = planta is not null ? PlantasDaProposta.Rotulo(planta) : todasAsPlantas,
+                Estado = _o.Estado ?? "", Intercompany = _o.Bu ?? "", Quantidade = it.Quantity,
+                PrecoUnitLiquido = unit, PrecoTotalLiquido = Math.Round(unit * it.Quantity, 2), Moeda = Cambio.MoedaDoPreco(_o).Codigo(),
             };
-            // sem mudança no que importa, a referência fica como estava (com a data dela)
-            if (porId.TryGetValue(it.Id, out var antiga) && antiga.Valor == nova.Valor && antiga.Ta == nova.Ta
-                && antiga.PartNumber == nova.PartNumber && antiga.Modelo == nova.Modelo && antiga.SerialNumber == nova.SerialNumber
-                && antiga.Origem == nova.Origem && antiga.Proposta == nova.Proposta)
-                continue;
+            // sem mudança, a referência fica como estava
+            if (porId.TryGetValue(it.Id, out var antiga) && Igual(antiga, nova)) continue;
             RefsCusto.Gravar(nova);
         }
         foreach (var id in itensApagados.Where(porId.ContainsKey)) RefsCusto.Apagar(id);
         LerReferenciasDeCusto();
+    }
+
+    private static bool Igual(ReferenciaDeCusto a, ReferenciaDeCusto b) =>
+        a.Valor == b.Valor && a.Ta == b.Ta && a.PartNumber == b.PartNumber && a.Modelo == b.Modelo && a.SerialNumber == b.SerialNumber
+        && a.Origem == b.Origem && a.Proposta == b.Proposta && a.Revisao == b.Revisao && a.Cliente == b.Cliente && a.Plantas == b.Plantas
+        && a.Estado == b.Estado && a.Intercompany == b.Intercompany && a.Quantidade == b.Quantidade && a.PrecoUnitLiquido == b.PrecoUnitLiquido
+        && a.Moeda == b.Moeda && a.Data == b.Data && a.Descricao == b.Descricao;
+
+    /// <summary>
+    /// O último preço enviado ao cliente como meta do item, na moeda desta
+    /// proposta (de R$ converte; de outra moeda, só se for a mesma).
+    /// </summary>
+    private decimal? MetaDoPrecoEnviado(ReferenciaDeCusto refPreco)
+    {
+        var moedaDaProposta = Cambio.MoedaDoPreco(_o);
+        if (refPreco.MoedaDoPreco == moedaDaProposta) return Math.Round(refPreco.PrecoUnitLiquido, 2);
+        if (refPreco.MoedaDoPreco == Moeda.Brl) return Math.Round(Cambio.ParaVenda(_o, refPreco.PrecoUnitLiquido), 2);
+        return null;
     }
 
     /// <summary>O prazo que vale para o item: o dele, ou o da proposta.</summary>

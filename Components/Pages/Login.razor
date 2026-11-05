@@ -61,6 +61,10 @@
             {
                 <div class="alert-error">E-mail ou senha inválidos.</div>
             }
+            else if (ErrorFlag == "2")
+            {
+                <div class="alert-error">Este login está desativado. Fale com o administrador.</div>
+            }
 
             <form method="post" action="/auth/login" class="login-form">
                 <label>

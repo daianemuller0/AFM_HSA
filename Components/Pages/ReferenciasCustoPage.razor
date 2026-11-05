@@ -2,69 +2,216 @@
 @attribute [Authorize]
 @rendermode InteractiveServer
 @inject ReferenciaDeCustoRepository Refs
+@inject IJSRuntime JS
+@inject AuthenticationStateProvider Auth
 
-<PageTitle>Referências de custo · AFM HSA</PageTitle>
+<PageTitle>Referências de preço · AFM HSA</PageTitle>
 
 <div class="page-head">
     <div>
-        <h1>Referências de custo</h1>
+        <h1>Referências de preço e custo</h1>
         <p class="subtitle">
-            O custo que cada proposta usou para um part number (digitado ou de importação), gravado ao salvar. Na Gerar Proposta,
-            quando o mesmo part number aparece, a referência mais recente aparece embaixo do custo, com "usar".
+            O que já enviamos ao cliente para cada part number — vendido ou não, é referência. Nascem ao salvar uma proposta
+            (um registro por item) ou de uma planilha. Na Gerar Proposta, ao digitar o part number, o último preço enviado
+            aparece no item, com "meta = este preço".
         </p>
     </div>
 </div>
 
-<div class="toolbar" style="gap:10px; flex-wrap:wrap">
-    <input class="cell" style="min-width:340px" placeholder="Buscar por part number, descrição, modelo, serial, proposta ou cliente"
-           value="@_busca" @oninput="e => _busca = e.Value?.ToString() ?? string.Empty" />
-    <span class="nota">@Filtradas.Count() de @_todas.Count referência(s)</span>
+<div class="ref-topo">
+    <div class="toolbar" style="gap:10px; flex-wrap:wrap; margin:0">
+        <input class="cell" style="min-width:260px; flex:1" placeholder="Buscar por proposta, cliente, planta, part number, descrição…"
+               value="@_busca" @oninput="e => _busca = e.Value?.ToString() ?? string.Empty" />
+        <span class="nota">@Filtradas.Count() de @_todas.Count referência(s)</span>
+        <button class="btn-ghost" @onclick="BaixarModelo">⬇ Modelo da planilha</button>
+        <button class="btn-ghost" @onclick="Exportar">⬇ Exportar a lista</button>
+    </div>
+    <label class="dropzone @(_arrastando ? "arrastando" : "")" @ondragenter="() => _arrastando = true" @ondragleave="() => _arrastando = false"
+           @ondrop="() => _arrastando = false">
+        <InputFile OnChange="Importar" accept=".xlsx,.xlsm,.xls,.csv" />
+        <span class="dz-ico">⇪</span>
+        <span><strong>Arraste a planilha aqui</strong> ou clique para escolher<br />
+            <small>.xlsx, .xls ou .csv · as colunas do modelo; a mesma proposta, revisão, cliente e part number atualiza em vez de duplicar</small></span>
+    </label>
 </div>
+@if (_msg is not null)
+{
+    <div class="@(_msgOk ? "alert-ok" : "alert-error")" style="margin-bottom:10px">@_msg
+        @if (_avisos.Count > 0) { <ul style="margin:6px 0 0 18px">@foreach (var a in _avisos.Take(8)) { <li>@a</li> }</ul> }
+    </div>
+}
 
 <div class="tabela-rolante">
-    <table class="grid">
+    <table class="grid grid-ordenavel">
         <thead>
-            <tr><th>Part Number</th><th>Descrição</th><th class="right">Custo unit. (R$)</th><th class="right">TA (R$)</th><th>Data</th>
-                <th>Modelo</th><th>Serial Number</th><th>Origem</th><th>Proposta</th><th>Cliente</th><th>Quem</th></tr>
+            <tr>
+                @foreach (var c in Colunas)
+                {
+                    <th class="@(c.Direita ? "right" : "") nowrap" @onclick="() => Ordenar(c.Nome)" title="Ordenar por @c.Nome">
+                        @c.Nome <span class="seta">@(_ordem == c.Nome ? (_crescente ? "▲" : "▼") : "↕")</span>
+                    </th>
+                }
+                <th></th>
+            </tr>
         </thead>
         <tbody>
-            @foreach (var r in Filtradas.Take(300))
+            @foreach (var r in Filtradas.Take(_limite))
             {
                 <tr>
+                    <td class="nowrap">
+                        @if (r.PropostaId.Length > 0) { <a class="btn-link" href="@($"/gerar-proposta/{r.PropostaId}")">@Traco(r.Proposta)</a> }
+                        else { @Traco(r.Proposta) }
+                    </td>
+                    <td>@Traco(r.Revisao)</td>
+                    <td>@Traco(r.Cliente)</td>
+                    <td>@Traco(r.Plantas)</td>
+                    <td>@Traco(r.Estado)</td>
+                    <td class="nowrap">@Traco(r.Intercompany)</td>
                     <td class="nowrap"><strong>@r.PartNumber</strong></td>
-                    <td>@r.Descricao</td>
-                    <td class="right nowrap">@Fmt.Brl(r.Valor)</td>
+                    <td class="right">@(r.Quantidade > 0 ? r.Quantidade.ToString("0.##") : "—")</td>
+                    <td class="right nowrap">@(r.PrecoUnitLiquido > 0 ? Moedas.Dinheiro(r.MoedaDoPreco, r.PrecoUnitLiquido) : "—")</td>
+                    <td class="right nowrap">@(r.PrecoTotalLiquido > 0 ? Moedas.Dinheiro(r.MoedaDoPreco, r.PrecoTotalLiquido) : "—")</td>
+                    <td class="nowrap">@(r.Data.Length > 0 ? Fmt.Date(r.Data) : "—")</td>
+                    <td class="right nowrap">@(r.Valor > 0 ? Fmt.Brl(r.Valor) : "—")</td>
                     <td class="right nowrap">@(r.Ta > 0 ? Fmt.Brl(r.Ta) : "—")</td>
-                    <td class="nowrap">@Fmt.Date(r.Data)</td>
-                    <td>@(r.Modelo.Length > 0 ? r.Modelo : "—")</td>
-                    <td>@(r.SerialNumber.Length > 0 ? r.SerialNumber : "—")</td>
-                    <td>@r.Origem</td>
-                    <td class="nowrap"><a class="btn-link" href="@($"/gerar-proposta/{r.PropostaId}")">@r.Proposta</a></td>
-                    <td>@r.Cliente</td>
-                    <td>@r.Usuario</td>
+                    <td title="@Detalhe(r)">@Traco(r.Descricao)</td>
+                    <td class="nowrap">
+                        @if (r.Origem == ReferenciaDeCustoRepository.OrigemPlanilha)
+                        {
+                            <button class="btn-link" title="Apagar esta referência importada" @onclick="() => Apagar(r)">✕</button>
+                        }
+                    </td>
                 </tr>
             }
             @if (!Filtradas.Any())
             {
-                <tr><td colspan="11" class="empty">@(_todas.Count == 0 ? "Nenhuma referência ainda: elas nascem ao salvar uma proposta com custo digitado ou de importação." : "Nenhuma referência com esse texto.")</td></tr>
+                <tr><td colspan="15" class="empty">@(_todas.Count == 0 ? "Nenhuma referência ainda: salve uma proposta com itens ou arraste uma planilha aqui em cima." : "Nenhuma referência com esse texto.")</td></tr>
             }
         </tbody>
     </table>
 </div>
+@if (Filtradas.Count() > _limite)
+{
+    <button class="btn-ghost" style="margin-top:10px" @onclick="() => _limite += 500">Mostrar mais (@(Filtradas.Count() - _limite) restantes)</button>
+}
 
 @code {
     private List<ReferenciaDeCusto> _todas = new();
     private string _busca = "";
+    private string _ordem = "Data";
+    private bool _crescente;
+    private int _limite = 500;
+    private bool _arrastando;
+    private string? _msg;
+    private bool _msgOk;
+    private List<string> _avisos = new();
+    private string _usuario = "";
 
-    protected override void OnInitialized() => _todas = Refs.Todas();
+    private sealed record Coluna(string Nome, Func<ReferenciaDeCusto, IComparable> Chave, bool Direita = false);
+
+    /// <summary>As colunas da tela, na ordem pedida pela equipe; clicar no título ordena.</summary>
+    private static readonly Coluna[] Colunas =
+    {
+        new("Proposta", r => r.Proposta),
+        new("Revisão", r => int.TryParse(r.Revisao, out var n) ? n : -1),
+        new("Cliente", r => Textos.Simples(r.Cliente)),
+        new("Plantas", r => Textos.Simples(r.Plantas)),
+        new("Estado", r => r.Estado),
+        new("Intercompany", r => r.Intercompany),
+        new("Part Number", r => IntelligenceService.NormPn(r.PartNumber)),
+        new("Quantidade", r => r.Quantidade, true),
+        new("Valor unit. líquido", r => r.PrecoUnitLiquido, true),
+        new("Valor total líquido", r => r.PrecoTotalLiquido, true),
+        new("Data", r => r.Data),
+        new("Custo unit. (R$)", r => r.Valor, true),
+        new("TA (R$)", r => r.Ta, true),
+        new("Descrição", r => Textos.Simples(r.Descricao)),
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        _todas = Refs.Todas();
+        var u = (await Auth.GetAuthenticationStateAsync()).User;
+        _usuario = u.Identity?.Name ?? "";
+    }
 
     private IEnumerable<ReferenciaDeCusto> Filtradas
     {
         get
         {
             var termos = Textos.Simples(_busca).Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            return _todas.Where(r => termos.All(t => Textos.Simples(
-                $"{r.PartNumber} {r.Descricao} {r.Modelo} {r.SerialNumber} {r.Proposta} {r.Cliente} {r.Usuario}").Contains(t)));
+            var lista = _todas.Where(r => termos.All(t => Textos.Simples(
+                $"{r.Proposta} {r.Revisao} {r.Cliente} {r.Plantas} {r.Estado} {r.Intercompany} {r.PartNumber} {r.Descricao} {r.Modelo} {r.SerialNumber} {r.Usuario}").Contains(t)));
+            var col = Colunas.FirstOrDefault(c => c.Nome == _ordem) ?? Colunas[10];
+            // vazio (sem valor, sem texto) fica sempre no fim, nos dois sentidos
+            var comVazio = lista.OrderBy(r => Vazio(col.Chave(r)));
+            return _crescente ? comVazio.ThenBy(col.Chave) : comVazio.ThenByDescending(col.Chave);
         }
+    }
+
+    private static bool Vazio(IComparable v) => v switch
+    {
+        string t => t.Length == 0,
+        decimal d => d == 0m,
+        int n => n < 0,
+        _ => false,
+    };
+
+    private void Ordenar(string coluna)
+    {
+        if (_ordem == coluna) _crescente = !_crescente;
+        else { _ordem = coluna; _crescente = coluna is not ("Data" or "Valor unit. líquido" or "Valor total líquido" or "Quantidade"); }
+    }
+
+    private static string Traco(string? s) => string.IsNullOrWhiteSpace(s) ? "—" : s;
+
+    private static string Detalhe(ReferenciaDeCusto r) => string.Join(" · ", new[]
+    {
+        r.Modelo.Length > 0 ? "Modelo " + r.Modelo : "", r.SerialNumber.Length > 0 ? "SN " + r.SerialNumber : "",
+        r.Origem.Length > 0 ? "custo: " + r.Origem : "", r.Usuario,
+    }.Where(t => t.Length > 0));
+
+    private async Task Importar(InputFileChangeEventArgs e)
+    {
+        _arrastando = false;
+        _avisos = new();
+        try
+        {
+            using var ms = new MemoryStream();
+            await e.File.OpenReadStream(30 * 1024 * 1024).CopyToAsync(ms);
+            var (gravadas, avisos) = Refs.Importar(ms.ToArray(), e.File.Name, _usuario);
+            _avisos = avisos;
+            _msgOk = gravadas > 0;
+            _msg = gravadas > 0 ? $"{gravadas} referência(s) importada(s) de {e.File.Name}." : $"Nenhuma linha importada de {e.File.Name}.";
+            _todas = Refs.Todas();
+        }
+        catch (Exception ex)
+        {
+            _msgOk = false;
+            _msg = "Não foi possível ler a planilha: " + ex.Message;
+        }
+    }
+
+    private void Apagar(ReferenciaDeCusto r)
+    {
+        Refs.Apagar(r.Id);
+        _todas.Remove(r);
+    }
+
+    private async Task BaixarModelo() =>
+        await JS.InvokeVoidAsync("appDownload", "modelo_referencias_de_preco.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", Convert.ToBase64String(ReferenciaDeCustoRepository.Modelo()));
+
+    private async Task Exportar()
+    {
+        var linhas = Filtradas.Select(r => (IReadOnlyList<string>)new[]
+        {
+            r.Proposta, r.Revisao, r.Cliente, r.Plantas, r.Estado, r.Intercompany, r.PartNumber, r.Quantidade.ToString("0.##"),
+            r.PrecoUnitLiquido.ToString("0.00"), r.PrecoTotalLiquido.ToString("0.00"), r.DataComoData?.ToString("dd/MM/yyyy") ?? "",
+            r.Valor.ToString("0.00"), r.Ta.ToString("0.00"), r.Descricao, r.MoedaDoPreco.Codigo(),
+        });
+        var bytes = Planilha.Xlsx("Referências", ReferenciaDeCustoRepository.Colunas.Select(c => c.Nome).ToList(), linhas);
+        await JS.InvokeVoidAsync("appDownload", "referencias_de_preco.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", Convert.ToBase64String(bytes));
     }
 }

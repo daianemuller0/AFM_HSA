@@ -1,7 +1,14 @@
 @page "/"
 @attribute [Authorize]
 @inject NavigationManager Nav
+@inject AuthenticationStateProvider Auth
+@inject AppUserRepository Usuarios
 
 @code {
-    protected override void OnInitialized() => Nav.NavigateTo("/dashboard");
+    // o início é a primeira tela que o login pode abrir (o aplicador cai na Gerar Proposta)
+    protected override async Task OnInitializedAsync()
+    {
+        var paginas = Acessos.PaginasDe((await Auth.GetAuthenticationStateAsync()).User, Usuarios);
+        Nav.NavigateTo(Acessos.Inicio(paginas));
+    }
 }

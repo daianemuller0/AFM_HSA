@@ -78,7 +78,7 @@ public class ImportService
     // ---- leitura do arquivo (xlsx / xls / csv) ----------------------------
 
     /// <summary>Devolve (cabeçalho, linhas de dados) já como texto, qualquer que seja o formato.</summary>
-    private static (string[] Header, List<string[]> Rows) LerPlanilha(byte[] bytes, string fileName)
+    internal static (string[] Header, List<string[]> Rows) LerPlanilha(byte[] bytes, string fileName)
     {
         var ext = (Path.GetExtension(fileName ?? "") ?? "").ToLowerInvariant();
         return Formato(bytes, ext) switch

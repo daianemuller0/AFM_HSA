@@ -16,6 +16,10 @@
     {
         <text>@Filtradas.Count planta(s) cadastrada(s)</text>
     }
+    else if (_aba == "mapa")
+    {
+        <text>Onde estão as plantas: cor por segmento, vendedor ou oportunidades; o tamanho é a base instalada. Clique numa planta para ver e abrir.</text>
+    }
     else
     {
         <text>Controle da base pelo equipamento: os iguais ficam juntos, em qualquer planta.</text>
@@ -25,11 +29,16 @@
 <div class="tabs">
     <button class="tab @(_aba == "plantas" ? "active" : "")" @onclick='() => _aba = "plantas"'>Por planta</button>
     <button class="tab @(_aba == "equipamentos" ? "active" : "")" @onclick='() => _aba = "equipamentos"'>Por equipamento</button>
+    <button class="tab @(_aba == "mapa" ? "active" : "")" @onclick='() => _aba = "mapa"'>Mapa</button>
 </div>
 
 @if (_aba == "equipamentos")
 {
     <ControleEquipamentos />
+}
+else if (_aba == "mapa")
+{
+    <MapaPlantas Plantas="_all" Dados="PontoDoMapa" />
 }
 else
 {
@@ -262,12 +271,22 @@ else
         Carregar();
     }
 
+    /// <summary>O que o mapa mostra de cada planta.</summary>
+    private MapaPlantas.Ponto PontoDoMapa(ClientUnit u) => new(
+        u.Id, u.NomeUnidade, NomeCliente(u.CompanyId), u.Cidade, u.Estado, u.Segmento,
+        _nomeVendedor.GetValueOrDefault(u.VendedorId, ""),
+        _equipCount.GetValueOrDefault(u.Id), _oppCount.GetValueOrDefault(u.Id), _oppValor.GetValueOrDefault(u.Id));
+
+    private Dictionary<string, string> _nomeVendedor = new();
+
     private void Carregar()
     {
         _all = Units.All();
         _empresas = Empresas.All();
         _segs = Segmentos.All();
-        _vendedores = Vendedores.All().Where(v => v.Ativo).ToList();
+        var todosVendedores = Vendedores.All();
+        _vendedores = todosVendedores.Where(v => v.Ativo).ToList();
+        _nomeVendedor = todosVendedores.GroupBy(v => v.Id).ToDictionary(g => g.Key, g => g.First().Nome);
         _nomeEmpresa = _empresas.ToDictionary(c => c.Id, c => c.Nome);
         _equipCount = Base.All().GroupBy(b => b.ClientUnitId).ToDictionary(g => g.Key, g => g.Count());
         var open = Intel.OpenOpportunities();

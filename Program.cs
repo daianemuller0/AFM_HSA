@@ -56,6 +56,7 @@ builder.Services.AddScoped<ConversaoRepository>();
 builder.Services.AddScoped<TempoRepository>();
 builder.Services.AddScoped<CondicoesComerciaisRepository>();
 builder.Services.AddScoped<ReferenciaDeCustoRepository>();
+builder.Services.AddScoped<PosicaoDaPlantaRepository>();
 // Parâmetros da planilha de custos de importação (padrão: versão 02/03/2022);
 // a seção "Importacao" do appsettings substitui só os valores que trouxer.
 builder.Services.AddSingleton(sp =>
@@ -102,6 +103,8 @@ app.MapPost("/auth/login", async (HttpContext http, IConfiguration cfg, AfmHsa.D
 
     async Task SignIn(string id, string nome, string perfil, string salespersonId)
     {
+        // o perfil (adm, gestao, aplicador) é o papel; o adm leva também "admin", que as telas antigas conferem
+        perfil = Acessos.NormalizarPerfil(perfil);
         var claims = new List<Claim>
         {
             new(ClaimTypes.NameIdentifier, id),
@@ -109,16 +112,19 @@ app.MapPost("/auth/login", async (HttpContext http, IConfiguration cfg, AfmHsa.D
             new(ClaimTypes.Role, perfil),
             new("salesperson_id", salespersonId),
         };
+        if (perfil == Acessos.Adm) claims.Add(new(ClaimTypes.Role, "admin"));
         var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
         await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity));
     }
 
     // 1) Usuário individual da base (tabela users) — e-mail + senha.
+    // (a senha é gravada em hash; os cadastros antigos, em texto, também valem)
     var u = users.All().FirstOrDefault(x =>
-        x.Email.Equals(email, StringComparison.OrdinalIgnoreCase) && x.Password == senha);
+        x.Email.Equals(email, StringComparison.OrdinalIgnoreCase) && Acessos.SenhaConfere(x.Password, senha));
     if (u != null)
     {
-        await SignIn(u.Id, u.Nome, string.IsNullOrEmpty(u.Perfil) ? "vendedor" : u.Perfil, u.SalespersonId);
+        if (!u.Ativo) return Results.Redirect("/login?error=2");
+        await SignIn(u.Id, u.Nome, u.Perfil, u.SalespersonId);
         return Results.Redirect("/");
     }
 
@@ -127,7 +133,7 @@ app.MapPost("/auth/login", async (HttpContext http, IConfiguration cfg, AfmHsa.D
     var cfgSenha = cfg["Auth:Senha"] ?? "howden2026";
     if (email.Equals(cfgUsuario, StringComparison.OrdinalIgnoreCase) && senha == cfgSenha)
     {
-        await SignIn("equipe", "Equipe Howden", "admin", "");
+        await SignIn("equipe", "Equipe Howden", Acessos.Adm, "");
         return Results.Redirect("/");
     }
 

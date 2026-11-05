@@ -1,0 +1,267 @@
+@* O mapa das plantas (aba "Mapa" de Clientes e Unidades). *@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject PosicaoDaPlantaRepository Posicoes
+@inject AuthenticationStateProvider Auth
+
+<div class="mapa-wrap">
+    <div class="mapa-area">
+        <div id="@_elId" class="mapa @(_marcando is not null ? "marcando" : "")"></div>
+        @if (_marcando is not null)
+        {
+            <div class="mapa-aviso">Clique no mapa onde fica <strong>@NomeDe(_marcando)</strong> · <button class="btn-link" @onclick="CancelarMarcacao">cancelar (Esc)</button></div>
+        }
+        @if (_semMapa)
+        {
+            <div class="mapa-aviso erro">Não foi possível carregar o mapa neste navegador.</div>
+        }
+        <div class="mapa-ferramentas">
+            <button class="btn-ghost" @onclick="Ajustar" title="Enquadrar todas as plantas">⤢ Ver todas</button>
+            <label class="chk-inline"><input type="checkbox" checked="@_arrastar" @onchange="TrocarArrastar" /> ajustar posições (arrastar)</label>
+        </div>
+    </div>
+
+    <aside class="mapa-lado">
+        <input class="cell" placeholder="Buscar planta, cliente, cidade…" value="@_busca" @oninput="e => { _busca = e.Value?.ToString() ?? string.Empty; _sujo = true; }" />
+        <div class="mapa-cor-por">
+            Cor por
+            @foreach (var (cod, nome) in new[] { ("segmento", "Segmento"), ("vendedor", "Vendedor"), ("oportunidade", "Oportunidades") })
+            {
+                <button class="chip @(_corPor == cod ? "active" : "")" @onclick="() => TrocarCor(cod)">@nome</button>
+            }
+        </div>
+        <div class="mapa-legenda">
+            @foreach (var g in Legenda())
+            {
+                <button class="mapa-leg @(_ocultas.Contains(g.Nome) ? "off" : "")" title="Mostrar / esconder" @onclick="() => Alternar(g.Nome)">
+                    <span class="bola" style="background:@g.Cor"></span>@g.Nome <small>@g.Qtd</small>
+                </button>
+            }
+        </div>
+        <div class="mapa-resumo">
+            <span><strong>@Visiveis.Count(p => p.Lat is not null)</strong> no mapa</span>
+            <span><strong>@Visiveis.Sum(p => p.Equipamentos)</strong> equipamentos</span>
+            <span><strong>@Fmt.Brl(Visiveis.Sum(p => p.Valor))</strong> em oportunidades</span>
+        </div>
+        @{ var semLocal = Visiveis.Where(p => p.Lat is null || p.Origem == MapaDasPlantas.Estado).ToList(); }
+        @if (semLocal.Count > 0)
+        {
+            <div class="mapa-sem">
+                <div class="pend-etapa">Sem localização exata (@semLocal.Count)</div>
+                @foreach (var p in semLocal.Take(30))
+                {
+                    <div class="mapa-item">
+                        <span class="bola" style="background:@p.Cor"></span>
+                        <span class="mapa-item-txt"><strong>@p.Nome</strong><small>@(p.Cidade.Length > 0 ? $"{p.Cidade} {p.Uf}" : "sem cidade")@(p.Origem == MapaDasPlantas.Estado ? " · no centro do estado" : "")</small></span>
+                        <button class="btn-link" @onclick="() => Marcar(p.Id)">marcar no mapa</button>
+                    </div>
+                }
+            </div>
+        }
+        <div class="mapa-lista">
+            @foreach (var p in Visiveis.Where(p => p.Lat is not null).OrderByDescending(p => p.Valor).ThenByDescending(p => p.Equipamentos).Take(200))
+            {
+                <div class="mapa-item clicavel" @onclick="() => Focar(p.Id)">
+                    <span class="bola" style="background:@p.Cor"></span>
+                    <span class="mapa-item-txt"><strong>@p.Nome</strong><small>@p.Empresa · @p.Cidade @p.Uf</small></span>
+                    <span class="mapa-item-num" title="equipamentos · oportunidades">@p.Equipamentos · @p.Oportunidades</span>
+                    @if (p.Origem == MapaDasPlantas.Manual)
+                    {
+                        <button class="btn-link" title="Voltar para a posição da cidade" @onclick:stopPropagation="true" @onclick="() => VoltarACidade(p.Id)">↺</button>
+                    }
+                </div>
+            }
+        </div>
+    </aside>
+</div>
+
+@code {
+    /// <param name="Equipamentos">base instalada da planta</param>
+    public sealed record Ponto(string Id, string Nome, string Empresa, string Cidade, string Uf, string Segmento, string Vendedor,
+        int Equipamentos, int Oportunidades, decimal Valor);
+
+    [Parameter, EditorRequired] public IReadOnlyList<ClientUnit> Plantas { get; set; } = Array.Empty<ClientUnit>();
+    [Parameter, EditorRequired] public Func<ClientUnit, Ponto> Dados { get; set; } = default!;
+
+    private sealed class NoMapa
+    {
+        public string Id = "", Nome = "", Empresa = "", Cidade = "", Uf = "", Segmento = "", Vendedor = "", Cor = "#64748b", Grupo = "", Origem = "";
+        public int Equipamentos, Oportunidades;
+        public decimal Valor;
+        public double? Lat, Lon;
+    }
+
+    private readonly string _elId = "mapa-" + Guid.NewGuid().ToString("N")[..8];
+    private DotNetObjectReference<MapaPlantas>? _ref;
+    private bool _pronto, _semMapa, _sujo = true, _arrastar;
+    private string _busca = "", _corPor = "segmento", _usuario = "";
+    private string? _marcando;
+    private readonly HashSet<string> _ocultas = new();
+    private List<NoMapa> _todos = new();
+    private Dictionary<string, PosicaoDaPlanta> _manuais = new();
+
+    // cores que se distinguem bem entre si (e dos ladrilhos do mapa)
+    private static readonly string[] Paleta =
+        { "#1d4ed8", "#16a34a", "#ea580c", "#9333ea", "#0891b2", "#db2777", "#ca8a04", "#4f46e5", "#059669", "#dc2626", "#7c3aed", "#0d9488" };
+
+    protected override async Task OnInitializedAsync()
+    {
+        _usuario = (await Auth.GetAuthenticationStateAsync()).User.Identity?.Name ?? "";
+        _manuais = Posicoes.Todas();
+    }
+
+    protected override void OnParametersSet()
+    {
+        Montar();
+        _sujo = true;
+    }
+
+    private void Montar()
+    {
+        _todos = Plantas.Select(u =>
+        {
+            var d = Dados(u);
+            var pos = MapaDasPlantas.Localizar(u, _manuais);
+            return new NoMapa
+            {
+                Id = d.Id, Nome = d.Nome, Empresa = d.Empresa, Cidade = d.Cidade, Uf = d.Uf, Segmento = d.Segmento, Vendedor = d.Vendedor,
+                Equipamentos = d.Equipamentos, Oportunidades = d.Oportunidades, Valor = d.Valor,
+                Lat = pos?.Lat, Lon = pos?.Lon, Origem = pos?.Origem ?? "",
+            };
+        }).ToList();
+        Colorir();
+    }
+
+    /// <summary>A cor de cada planta pelo critério escolhido; a legenda sai da mesma conta.</summary>
+    private void Colorir()
+    {
+        if (_corPor == "oportunidade")
+        {
+            foreach (var p in _todos)
+                (p.Grupo, p.Cor) = p.Valor <= 0m ? ("Sem oportunidade", "#94a3b8")
+                    : p.Valor < 100_000m ? ("Até R$ 100 mil", "#eab308")
+                    : p.Valor < 500_000m ? ("R$ 100 a 500 mil", "#f97316")
+                    : ("Acima de R$ 500 mil", "#dc2626");
+            return;
+        }
+        string Chave(NoMapa p) => _corPor == "vendedor" ? (p.Vendedor.Length > 0 ? p.Vendedor : "Sem vendedor") : (p.Segmento.Length > 0 ? p.Segmento : "Sem segmento");
+        var grupos = _todos.GroupBy(Chave).OrderByDescending(g => g.Count()).Select(g => g.Key).ToList();
+        for (var i = 0; i < grupos.Count; i++)
+        {
+            var cor = grupos[i].StartsWith("Sem ", StringComparison.Ordinal) ? "#94a3b8" : Paleta[i % Paleta.Length];
+            foreach (var p in _todos.Where(p => Chave(p) == grupos[i])) { p.Grupo = grupos[i]; p.Cor = cor; }
+        }
+    }
+
+    private List<NoMapa> Visiveis
+    {
+        get
+        {
+            var termos = Textos.Simples(_busca).Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            return _todos.Where(p => !_ocultas.Contains(p.Grupo)
+                && termos.All(t => Textos.Simples($"{p.Nome} {p.Empresa} {p.Cidade} {p.Uf} {p.Segmento} {p.Vendedor}").Contains(t))).ToList();
+        }
+    }
+
+    private IEnumerable<(string Nome, string Cor, int Qtd)> Legenda()
+    {
+        var ordem = _corPor == "oportunidade"
+            ? new[] { "Acima de R$ 500 mil", "R$ 100 a 500 mil", "Até R$ 100 mil", "Sem oportunidade" }
+            : _todos.GroupBy(p => p.Grupo).OrderByDescending(g => g.Count()).Select(g => g.Key).ToArray();
+        foreach (var nome in ordem)
+        {
+            var doGrupo = _todos.Where(p => p.Grupo == nome).ToList();
+            if (doGrupo.Count > 0) yield return (nome, doGrupo[0].Cor, doGrupo.Count);
+        }
+    }
+
+    private void TrocarCor(string cod)
+    {
+        _corPor = cod;
+        _ocultas.Clear();
+        Colorir();
+        _sujo = true;
+    }
+
+    private void Alternar(string grupo)
+    {
+        if (!_ocultas.Add(grupo)) _ocultas.Remove(grupo);
+        _sujo = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _ref = DotNetObjectReference.Create(this);
+            _pronto = await JS.InvokeAsync<bool>("appMapa.criar", _elId, _ref);
+            if (!_pronto) { _semMapa = true; StateHasChanged(); return; }
+        }
+        if (_pronto && _sujo)
+        {
+            _sujo = false;
+            await JS.InvokeVoidAsync("appMapa.pontos", _elId, Visiveis.Where(p => p.Lat is not null).Select(p => new
+            {
+                id = p.Id, nome = p.Nome, empresa = p.Empresa, cidade = p.Cidade, uf = p.Uf, segmento = p.Segmento, vendedor = p.Vendedor,
+                equipamentos = p.Equipamentos, oportunidades = p.Oportunidades, valor = p.Valor, lat = p.Lat, lon = p.Lon, cor = p.Cor, origem = p.Origem,
+            }));
+        }
+    }
+
+    private string NomeDe(string id) => _todos.FirstOrDefault(p => p.Id == id)?.Nome ?? "a planta";
+
+    private async Task Focar(string id) { if (_pronto) await JS.InvokeVoidAsync("appMapa.focar", _elId, id); }
+    private async Task Ajustar() { if (_pronto) await JS.InvokeVoidAsync("appMapa.ajustar", _elId); }
+
+    private async Task Marcar(string id)
+    {
+        _marcando = id;
+        if (_pronto) await JS.InvokeVoidAsync("appMapa.marcar", _elId, id);
+    }
+
+    private void CancelarMarcacao() => _marcando = null;
+
+    private async Task TrocarArrastar(ChangeEventArgs e)
+    {
+        _arrastar = e.Value is true;
+        if (_pronto) await JS.InvokeVoidAsync("appMapa.arrastar", _elId, _arrastar);
+    }
+
+    private void VoltarACidade(string id)
+    {
+        Posicoes.Apagar(id);
+        _manuais.Remove(id);
+        Montar();
+        _sujo = true;
+    }
+
+    [JSInvokable]
+    public Task Marcado(string id, double lat, double lon) => Gravar(id, lat, lon);
+
+    [JSInvokable]
+    public Task Arrastado(string id, double lat, double lon) => Gravar(id, lat, lon);
+
+    [JSInvokable]
+    public Task Cancelado()
+    {
+        _marcando = null;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private async Task Gravar(string id, double lat, double lon)
+    {
+        Posicoes.Gravar(id, lat, lon, _usuario);
+        _manuais[id] = new PosicaoDaPlanta(id, lat, lon, _usuario, "");
+        _marcando = null;
+        Montar();
+        _sujo = true;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try { if (_pronto) await JS.InvokeVoidAsync("appMapa.destruir", _elId); }
+        catch (JSDisconnectedException) { }
+        _ref?.Dispose();
+    }
+}

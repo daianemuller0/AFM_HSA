@@ -1,0 +1,205 @@
+@* Logins e acessos: só o administrador vê esta aba (Dados e Importação). *@
+@inject AppUserRepository Usuarios
+@inject AuthenticationStateProvider Auth
+
+<div class="panel">
+    <div class="acessos-topo">
+        <div>
+            <div class="dash-title">Logins e acessos</div>
+            <div class="nota">
+                Cada login tem um perfil e as páginas que vê. <strong>Administrador</strong> vê tudo e cria logins;
+                <strong>Gestão</strong> vê tudo menos os logins; <strong>Aplicador</strong> monta propostas.
+                Dá para ligar ou desligar páginas de cada pessoa. A mudança vale na próxima tela que ela abrir.
+            </div>
+        </div>
+        @if (_edit is null)
+        {
+            <button class="btn-primary" @onclick="Novo">+ Novo login</button>
+        }
+    </div>
+
+    @if (_msg is not null)
+    {
+        <div class="@(_msgOk ? "alert-ok" : "alert-error")" style="margin:10px 0">@_msg</div>
+    }
+
+    @if (_edit is not null)
+    {
+        <div class="acesso-form">
+            <div class="acesso-campos">
+                <label>Nome *<input class="cell" @bind="_edit.Nome" placeholder="Nome e sobrenome" /></label>
+                <label>Login (e-mail) *<input class="cell" @bind="_edit.Email" placeholder="nome@chartindustries.com" autocomplete="off" /></label>
+                <label>@(_novo ? "Senha *" : "Nova senha")
+                    <input class="cell" type="password" @bind="_senha" autocomplete="new-password" placeholder="@(_novo ? "mínimo 6 caracteres" : "vazio = mantém a atual")" />
+                </label>
+                <label>Telefone<input class="cell" @bind="_edit.Telefone" /></label>
+                <label class="chk-inline" style="align-self:end"><input type="checkbox" @bind="_edit.Ativo" disabled="@EuMesmo" /> Login ativo</label>
+            </div>
+
+            <div class="dash-title" style="margin-top:14px">Perfil</div>
+            <div class="perfis">
+                @foreach (var (cod, nome, desc) in Acessos.Perfis)
+                {
+                    <button class="perfil-card @(_perfil == cod ? "ativo" : "")" disabled="@(EuMesmo && cod != Acessos.Adm)" @onclick="() => TrocarPerfil(cod)">
+                        <strong>@nome</strong><span>@desc</span>
+                    </button>
+                }
+            </div>
+
+            <div class="dash-title" style="margin-top:14px">
+                O que vê
+                @if (_perfil != Acessos.Adm)
+                {
+                    <button class="btn-link" style="margin-left:8px" @onclick="() => _marcadas = Acessos.PadraoDoPerfil(_perfil).ToHashSet()">voltar ao padrão do perfil</button>
+                }
+            </div>
+            <div class="paginas-grupos">
+                @foreach (var grupo in Acessos.Paginas.GroupBy(p => p.Grupo))
+                {
+                    <div class="paginas-grupo">
+                        <div class="pend-etapa">@grupo.Key</div>
+                        @foreach (var p in grupo)
+                        {
+                            <label class="chk-inline">
+                                <input type="checkbox" checked="@(_perfil == Acessos.Adm || _marcadas.Contains(p.Chave))" disabled="@(_perfil == Acessos.Adm)"
+                                       @onchange="e => Marcar(p.Chave, e)" /> @p.Nome
+                            </label>
+                        }
+                    </div>
+                }
+            </div>
+            @if (_perfil == Acessos.Adm) { <div class="nota">O administrador vê todas as páginas.</div> }
+
+            <div class="toolbar" style="margin-top:14px">
+                <button class="btn-primary" @onclick="Salvar">Salvar login</button>
+                <button class="btn-ghost" @onclick="() => { _edit = null; _msg = null; }">Cancelar</button>
+            </div>
+        </div>
+    }
+
+    <table class="grid" style="margin-top:12px">
+        <thead><tr><th>Nome</th><th>Login</th><th>Perfil</th><th>Vê</th><th>Situação</th><th></th></tr></thead>
+        <tbody>
+            @foreach (var u in _lista)
+            {
+                var paginas = Acessos.PaginasDo(u.Perfil, u.Paginas);
+                <tr class="@(u.Ativo ? "" : "inativo")">
+                    <td><strong>@u.Nome</strong></td>
+                    <td>@u.Email</td>
+                    <td><span class="chip">@Acessos.NomeDoPerfil(u.Perfil)</span></td>
+                    <td class="nota" title="@string.Join(", ", Acessos.Paginas.Where(p => paginas.Contains(p.Chave)).Select(p => p.Nome))">
+                        @(paginas.Count == Acessos.Paginas.Length ? "todas as páginas" : $"{paginas.Count} página(s)")@(u.Paginas.Length > 0 && Acessos.NormalizarPerfil(u.Perfil) != Acessos.Adm ? " · personalizado" : "")
+                    </td>
+                    <td>@(u.Ativo ? "ativo" : "desativado")</td>
+                    <td class="nowrap">
+                        <button class="btn-link" @onclick="() => Editar(u)">editar</button>
+                        @if (u.Id != _meuId)
+                        {
+                            <button class="btn-link" @onclick="() => Apagar(u)">apagar</button>
+                        }
+                    </td>
+                </tr>
+            }
+            @if (_lista.Count == 0)
+            {
+                <tr><td colspan="6" class="empty">Nenhum login criado ainda. Hoje entra-se com o login geral da equipe (administrador, do appsettings).</td></tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    private List<AppUser> _lista = new();
+    private AppUser? _edit;
+    private bool _novo;
+    private string _senha = "";
+    private string _perfil = Acessos.Aplicador;
+    private HashSet<string> _marcadas = new();
+    private string _meuId = "";
+    private string? _msg;
+    private bool _msgOk;
+
+    private bool EuMesmo => _edit is not null && _edit.Id.Length > 0 && _edit.Id == _meuId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = (await Auth.GetAuthenticationStateAsync()).User;
+        _meuId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "";
+        Ler();
+    }
+
+    private void Ler() => _lista = Usuarios.All();
+
+    private void Novo()
+    {
+        _edit = new AppUser { Ativo = true };
+        _novo = true;
+        _senha = "";
+        TrocarPerfil(Acessos.Aplicador);
+        _msg = null;
+    }
+
+    private void Editar(AppUser u)
+    {
+        _edit = new AppUser
+        {
+            Id = u.Id, Nome = u.Nome, Email = u.Email, Password = u.Password, Perfil = u.Perfil, Telefone = u.Telefone,
+            SalespersonId = u.SalespersonId, Paginas = u.Paginas, Ativo = u.Ativo, CriadoEm = u.CriadoEm,
+        };
+        _novo = false;
+        _senha = "";
+        _perfil = Acessos.NormalizarPerfil(u.Perfil);
+        _marcadas = Acessos.PaginasDo(u.Perfil, u.Paginas);
+        _msg = null;
+    }
+
+    private void TrocarPerfil(string perfil)
+    {
+        _perfil = perfil;
+        _marcadas = Acessos.PadraoDoPerfil(perfil).ToHashSet();
+    }
+
+    private void Marcar(string chave, ChangeEventArgs e)
+    {
+        if (e.Value is true) _marcadas.Add(chave); else _marcadas.Remove(chave);
+    }
+
+    private void Salvar()
+    {
+        if (_edit is null) return;
+        _edit.Nome = (_edit.Nome ?? "").Trim();
+        _edit.Email = (_edit.Email ?? "").Trim();
+        string? erro = null;
+        if (_edit.Nome.Length == 0) erro = "Informe o nome.";
+        else if (_edit.Email.Length < 3) erro = "Informe o login (e-mail).";
+        else if (_lista.Any(u => u.Id != _edit.Id && u.Email.Equals(_edit.Email, StringComparison.OrdinalIgnoreCase)))
+            erro = "Já existe um login com esse e-mail.";
+        else if (_novo && _senha.Length < 6) erro = "A senha precisa de pelo menos 6 caracteres.";
+        else if (!_novo && _senha.Length is > 0 and < 6) erro = "A nova senha precisa de pelo menos 6 caracteres.";
+        else if (_perfil != Acessos.Adm && _marcadas.Count == 0) erro = "Marque ao menos uma página.";
+        if (erro is not null) { _msg = erro; _msgOk = false; return; }
+
+        if (_senha.Length > 0) _edit.Password = Acessos.HashDaSenha(_senha);
+        _edit.Perfil = _perfil;
+        // igual ao padrão do perfil = acompanha o perfil (fica vazio)
+        var padrao = Acessos.PadraoDoPerfil(_perfil).ToHashSet();
+        _edit.Paginas = _perfil == Acessos.Adm || _marcadas.SetEquals(padrao) ? ""
+            : string.Join(",", Acessos.Paginas.Where(p => _marcadas.Contains(p.Chave)).Select(p => p.Chave));
+        if (EuMesmo) { _edit.Ativo = true; _edit.Perfil = Acessos.Adm; }
+        Usuarios.Save(_edit);
+        _msg = $"Login de {_edit.Nome} salvo.";
+        _msgOk = true;
+        _edit = null;
+        _senha = "";
+        Ler();
+    }
+
+    private void Apagar(AppUser u)
+    {
+        if (u.Id == _meuId) return;
+        Usuarios.Delete(u.Id);
+        _msg = $"Login de {u.Nome} apagado.";
+        _msgOk = true;
+        Ler();
+    }
+}

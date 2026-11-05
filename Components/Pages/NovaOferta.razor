@@ -963,7 +963,6 @@
                 {
                     <div class="imp-pendencia" style="margin-top:6px">
                         Informe a taxa de conversão — sem ela o preço sai como se já estivesse em @moedaVenda.Rotulo().
-                        A taxa do dia pode ficar gravada na <a href="/conversao">aba Conversão</a>.
                     </div>
                 }
                 @if (OfertaDaTaxa() is { } oferta)
@@ -1748,6 +1747,8 @@
     /// </summary>
     private void PreencherTaxaDoDia()
     {
+        // a aba Conversão saiu do uso (pedido da equipe): a taxa é digitada em cada proposta
+        if (!UsaAbaConversao) return;
         if (!Cambio.Converte(_o) || _o.CambioTaxa > 0m) return;
         var taxas = TaxasDaConversao();
         if (taxas.Para(Cambio.MoedaDoPreco(_o)) is not { } t) return;
@@ -1756,6 +1757,9 @@
         _taxaDoDia = true;
         _taxaAtualizadaEm = taxas.AtualizadaEm;
     }
+
+    /// <summary>A aba Conversão não é mais usada: a taxa não vem mais de lá (ligar aqui se voltar).</summary>
+    private const bool UsaAbaConversao = false;
 
     /// <param name="Texto">O que a tela mostra antes do "usar esta".</param>
     private sealed record OfertaDeTaxa(string Texto, decimal Valor, string Direcao);
@@ -1767,7 +1771,7 @@
     /// </summary>
     private OfertaDeTaxa? OfertaDaTaxa()
     {
-        if (!Cambio.Converte(_o)) return null;
+        if (!UsaAbaConversao || !Cambio.Converte(_o)) return null;
         var taxas = TaxasDaConversao();
         if (taxas.Para(Cambio.MoedaDoPreco(_o)) is not { } daConversao) return null;
         var desta = TaxaNoSentidoDaConversao(daConversao.Direcao);
@@ -2186,6 +2190,7 @@
     {
         var r = RefDoItem(it);
         var refCusto = ReferenciaDeCustoRepository.MaisRecente(_refsCusto, it.PartNumber, _o.Id);
+        var refPreco = ReferenciaDeCustoRepository.UltimoPreco(_refsCusto, it.PartNumber, _o.Id, _o.ClientName);
         var eq = PlantasDaProposta.DoItem(_o, it);
         var custoBase = CustoBaseDoItem(it);
         <div class="item-grade">
@@ -2283,7 +2288,7 @@
                     </small>
                 }
             </div>
-            <div class="campo">Última venda (R$)
+            <div class="campo">Última venda / preço enviado
                 @if (r.UltimaVenda is decimal uv)
                 {
                     <strong class="valor-campo">@Fmt.Brl(uv)</strong>
@@ -2292,6 +2297,19 @@
                 else
                 {
                     <small>@(it.PartNumber.Length > 0 ? "sem venda" : "—")</small>
+                }
+                @if (refPreco is not null)
+                {
+                    var metaEnviada = MetaDoPrecoEnviado(refPreco);
+                    <small class="ref-preco" title="@($"{refPreco.Proposta} rev. {refPreco.Revisao} · {refPreco.Cliente} · {refPreco.Plantas} · {refPreco.Intercompany} · qtd {refPreco.Quantidade:0.##}")">
+                        enviado: <strong>@Moedas.Dinheiro(refPreco.MoedaDoPreco, refPreco.PrecoUnitLiquido)</strong> líq.
+                        · @Fmt.Date(refPreco.Data) · @(Textos.Igual(refPreco.Cliente, _o.ClientName) ? "este cliente" : refPreco.Cliente)
+                        · @refPreco.Proposta@(refPreco.Revisao.Length > 0 ? $"-C{refPreco.Revisao}" : "")
+                        @if (metaEnviada is decimal me && it.PrecoMeta != me)
+                        {
+                            <button class="btn-link" title="Usar o preço já enviado como preço meta do item" @onclick="() => it.PrecoMeta = me">meta = este preço</button>
+                        }
+                    </small>
                 }
             </div>
             <label>Prazo (dias)

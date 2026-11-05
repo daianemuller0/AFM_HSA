@@ -196,4 +196,8 @@ public class AppUser
     public string Perfil { get; set; } = "";
     public string Telefone { get; set; } = "";
     public string SalespersonId { get; set; } = "";
+    /// <summary>As páginas que o usuário vê, separadas por vírgula (chaves de Acessos.Paginas); vazio = as do perfil.</summary>
+    public string Paginas { get; set; } = "";
+    public bool Ativo { get; set; } = true;
+    public string CriadoEm { get; set; } = "";
 }

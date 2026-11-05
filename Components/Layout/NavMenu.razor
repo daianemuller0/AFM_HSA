@@ -3,6 +3,8 @@
 @inject NavigationManager Nav
 @inject LocState Loc
 @inject BrandingRepository Brand
+@inject AuthenticationStateProvider Auth
+@inject AppUserRepository Usuarios
 
 <aside class="sidebar no-print">
     <div class="brand">
@@ -23,7 +25,7 @@
     </div>
 
     <nav class="nav">
-        @foreach (var sec in Sections)
+        @foreach (var sec in Sections.Select(Visivel).Where(x => x.Items.Length > 0))
         {
             var open = !_collapsed.Contains(sec.Name);
             <button class="nav-section nav-section-btn" @onclick="() => Toggle(sec.Name)" aria-expanded="@open">
@@ -71,8 +73,7 @@
         {
             new Item("/gerar-proposta", "Gerar Proposta", "file-plus"),
             new Item("/ofertas", "Propostas", "file-text"),
-            new Item("/conversao", "Conversão", "refresh"),
-            new Item("/referencias-custo", "Referências de custo", "tags"),
+            new Item("/referencias-custo", "Referências de preço", "tags"),
             new Item("/tempos-proposta", "Tempo das propostas", "clock"),
         }),
         new("Controle", new[]
@@ -83,6 +84,12 @@
         }),
     };
 
+    private HashSet<string>? _paginas;
+
+    /// <summary>A seção só com os itens que o login pode abrir (Acessos).</summary>
+    private Section Visivel(Section s) => _paginas is null ? s with { Items = Array.Empty<Item>() }
+        : s with { Items = s.Items.Where(i => Acessos.PodeAbrir(_paginas, i.Href)).ToArray() };
+
     private string _logo = "";
     private string _logoBg = "transparent";
     private readonly HashSet<string> _collapsed = new();
@@ -92,8 +99,9 @@
         if (!_collapsed.Add(name)) _collapsed.Remove(name);
     }
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
+        _paginas = Acessos.PaginasDe((await Auth.GetAuthenticationStateAsync()).User, Usuarios);
         Nav.LocationChanged += OnChanged;
         Loc.Changed += StateHasChanged;
         var b = Brand.Get();

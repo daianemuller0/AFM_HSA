@@ -347,11 +347,27 @@ public class AppUserRepository
     public AppUserRepository(ParquetStore s) => _s = s;
 
     public List<AppUser> All() => _s.ReadLatest("users",
-        "id, nome, email, password, perfil, telefone, salesperson_id",
+        "id, nome, email, password, perfil, telefone, salesperson_id, paginas, ativo, criado_em",
         r => new AppUser
         {
             Id = Fmt.S(r, 0), Nome = Fmt.S(r, 1), Email = Fmt.S(r, 2),
             Password = Fmt.S(r, 3), Perfil = Fmt.S(r, 4), Telefone = Fmt.S(r, 5),
-            SalespersonId = Fmt.S(r, 6),
+            SalespersonId = Fmt.S(r, 6), Paginas = Fmt.S(r, 7),
+            Ativo = Fmt.S(r, 8) != "0", CriadoEm = Fmt.S(r, 9),
         }, orderBy: "nome");
+
+    /// <summary>Grava o login (a senha já vem em hash — ver Acessos.HashDaSenha).</summary>
+    public void Save(AppUser u)
+    {
+        if (string.IsNullOrEmpty(u.Id)) u.Id = Guid.NewGuid().ToString("N");
+        if (string.IsNullOrEmpty(u.CriadoEm)) u.CriadoEm = DateTime.Now.ToString("yyyy-MM-dd HH:mm");
+        _s.WriteRow("users", new KeyValuePair<string, object?>[]
+        {
+            new("id", u.Id), new("nome", u.Nome), new("email", u.Email), new("password", u.Password),
+            new("perfil", u.Perfil), new("telefone", u.Telefone), new("salesperson_id", u.SalespersonId),
+            new("paginas", u.Paginas), new("ativo", u.Ativo ? "1" : "0"), new("criado_em", u.CriadoEm),
+        });
+    }
+
+    public void Delete(string id) => _s.WriteRow("users", new KeyValuePair<string, object?>[] { new("id", id) }, deleted: true);
 }
