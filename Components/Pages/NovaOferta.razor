@@ -45,7 +45,7 @@
             }
             else
             {
-                <span class="nota">nº @_o.OfferCode rev @PropostaWord.Revisao2(_o.Revisao) ao salvar</span>
+                <span class="nota">@PropostaWord.Referencia(_o) ao salvar</span>
             }
         </div>
         <p class="subtitle prop-sub" title="@ClienteEProjeto">@ClienteEProjeto</p>
@@ -161,6 +161,13 @@
 <div class="panel" style="margin-bottom:14px">
     <div class="dash-title">Cliente</div>
     <div class="form3">
+        <label id="f-numero">Nossa referência (código da proposta) *
+            <input class="cell" placeholder="ex.: HSA123.AFM.000045" @bind="_o.OfferCode" />
+            <small class="pricing-dica">arquivos: @PropostaWord.Referencia(_o) · P_@PropostaWord.Referencia(_o) · R_@PropostaWord.Referencia(_o)</small>
+        </label>
+        <label id="f-revisao">Revisão
+            <input class="cell" list="dl-revisao" @bind="_o.Revisao" />
+        </label>
         <label id="f-cliente">Nome do cliente *
             <input class="cell" list="dl-clientes" placeholder="da base ou digitado" @bind="_o.ClientName" />
         </label>
@@ -172,6 +179,25 @@
         <label id="f-telefone">Telefone do contato <input class="cell" placeholder="+55 …" @bind="_o.ContatoTelefone" /></label>
         <label id="f-suaref">Sua referência (do cliente) <input class="cell" placeholder="o número que o cliente deu" @bind="_o.SuaReferencia" /></label>
         <label id="f-projeto">Projeto <input class="cell" @bind="_o.Project" /></label>
+        <label id="f-vendedor">Vendedor (contato na proposta)
+            <select class="cell" @bind="_o.Vendedor">
+                <option value="">— o da unidade —</option>
+                @foreach (var c in ContatosHowden.Todos) { <option value="@c.Nome">@c.Nome · @c.Cargo@(c.Area.Length > 0 ? " · " + c.Area : "")</option> }
+                @if (!string.IsNullOrWhiteSpace(_o.Vendedor) && ContatosHowden.Do(_o.Vendedor) is null)
+                {
+                    <option value="@_o.Vendedor">@_o.Vendedor</option>
+                }
+            </select>
+            @if (ContatosHowden.Do(_o.Vendedor) is { } cv)
+            {
+                <small class="pricing-dica">@string.Join(" · ", cv.Telefones) · @cv.Email</small>
+            }
+        </label>
+        <label id="f-idioma">Idioma da proposta
+            <select class="cell" @bind="_o.Idioma">
+                @foreach (var (cod, nome) in IdiomasDaProposta.Opcoes) { <option value="@cod">@nome</option> }
+            </select>
+        </label>
     </div>
     <datalist id="dl-clientes">@foreach (var c in NomesDeClientes) { <option value="@c" /> }</datalist>
     @if (UltimaDoCliente() is { } ult && ult.Id != _lembrancaUsada)
@@ -403,12 +429,11 @@
     @* os campos que quase nunca mudam: recolhidos, com o que está valendo à vista *@
     <button class="btn-link mais-campos" @onclick="() => _maisCampos = !_maisCampos" aria-expanded="@(_maisCampos ? "true" : "false")">
         @(_maisCampos ? "▾" : "▸") Mais campos
-        <span class="nota">nº @_o.OfferCode · rev @_o.Revisao · segmento @OuTraco(_o.SegmentoMargem) · @Fmt.Date(_o.OfferDate) · ano @_o.Ano · NCM c/red. @OuTraco(_o.NcmReducaoIcms) · IC @OuTraco(_o.ContemProdutoIc) · @OuTraco(_o.Categories) / @OuTraco(_o.Product) · @OuTraco(_o.MarketSegments)</span>
+        <span class="nota">segmento @OuTraco(_o.SegmentoMargem) · @Fmt.Date(_o.OfferDate) · ano @_o.Ano · NCM c/red. @OuTraco(_o.NcmReducaoIcms) · IC @OuTraco(_o.ContemProdutoIc) · @OuTraco(_o.Categories) / @OuTraco(_o.Product) · @OuTraco(_o.MarketSegments)</span>
     </button>
     @if (_maisCampos)
     {
         <div class="form3" style="margin-top:12px">
-            <label id="f-numero">Número da proposta * <input class="cell" @bind="_o.OfferCode" /></label>
             <label id="f-segmento">Segmento (tabela do pricing)
                 <select class="cell" @bind="_o.SegmentoMargem" @bind:after="SegmentoOuProdutoMudou">
                     <option value="">preencher</option>
@@ -416,10 +441,8 @@
                     @ForaDaLista(_o.SegmentoMargem, ListasDoPricing.Segmentos.Select(x => x.Nome))
                 </select>
             </label>
-            <label>Revisão <input class="cell" @bind="_o.Revisao" list="dl-revisao" /></label>
             <label>Data do Pricing <input class="cell" type="date" @bind="DataProposta" /></label>
             <label>Elaborado por <input class="cell" @bind="_o.PreparedBy" /></label>
-            <label>Nossa referência <input class="cell" placeholder="= número da proposta" @bind="_o.OurReference" /></label>
             <label>PV <input class="cell" @bind="_o.Pv" /></label>
             <label id="f-ano">Ano <input class="cell" type="number" min="2000" max="2100" @bind="_o.Ano" /></label>
             <label id="f-ncmred">NCM c/redução base ICMS
@@ -1338,6 +1361,8 @@
         <div><span>Prazo de entrega</span><strong>@(PricingDaProposta.PrazoEmDias(_o.PrazoEntrega) is > 0 and var pz ? $"{pz} dias" : "a confirmar")</strong></div>
         <div><span>Local de entrega</span><strong>@ListasDaProposta.LinhaDoIncoterm(_o.Incoterm, _o.IncotermLocal)</strong></div>
         <div><span>Validade</span><strong>@OuTraco(_o.ValidityText)</strong></div>
+        <div><span>Vendedor (contato)</span><strong>@OuTraco(ContatosHowden.Do(_o.Vendedor)?.Nome ?? _o.Vendedor)</strong></div>
+        <div><span>Idioma</span><strong>@IdiomasDaProposta.Nome(_o.Idioma)</strong></div>
         <div><span>Representante</span><strong>@OuTraco(string.Join(" · ", new[] { _o.Rep1, _o.Rep2 }.Where(r => !string.IsNullOrWhiteSpace(r) && r.Trim() != "-")))</strong></div>
         <div><span>Valor da proposta</span><strong>@Venda(Total) <small class="nota">@PricingDaProposta.NivelEfetivo(prLado, _o.ImpostosNoPreco).Rotulo.ToLowerInvariant()</small></strong></div>
     </div>
@@ -1919,11 +1944,33 @@
 
 
 
-    /// <summary>Número novo que ainda não existe em nenhuma proposta (data e hora + sufixo se preciso).</summary>
+    /// <summary>
+    /// O código da proposta nova: o próximo do padrão que a equipe usa — o
+    /// último código digitado com número no fim, mais um, com os mesmos zeros
+    /// (HSA123.AFM.000045 → HSA123.AFM.000046). Sem nenhum ainda, data e hora.
+    /// Nunca repete um código que já existe.
+    /// </summary>
     private string NumeroSugerido()
     {
-        var baseNum = "OF-" + DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
         var usados = _anteriores.Select(a => a.OfferCode).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var ultimo = _anteriores
+            .Where(a => !a.OfferCode.StartsWith("OF-", StringComparison.OrdinalIgnoreCase)
+                        && System.Text.RegularExpressions.Regex.IsMatch(a.OfferCode, @"\d+$"))
+            .OrderByDescending(a => a.CreatedAt).ThenByDescending(a => a.OfferCode)
+            .Select(a => a.OfferCode.Trim()).FirstOrDefault();
+        if (ultimo is not null)
+        {
+            var m = System.Text.RegularExpressions.Regex.Match(ultimo, @"^(.*?)(\d+)$");
+            var prefixo = m.Groups[1].Value;
+            var digitos = m.Groups[2].Value;
+            var n = long.Parse(digitos, CultureInfo.InvariantCulture);
+            for (var k = 1; k < 10000; k++)
+            {
+                var candidato = prefixo + (n + k).ToString(new string('0', digitos.Length), CultureInfo.InvariantCulture);
+                if (!usados.Contains(candidato)) return candidato;
+            }
+        }
+        var baseNum = "OF-" + DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
         var numero = baseNum;
         for (var i = 2; usados.Contains(numero); i++) numero = $"{baseNum}-{i}";
         return numero;

@@ -47,6 +47,12 @@ public class CommercialOffer
     /// e o total do Word saem nesse nível.
     /// </summary>
     public string ImpostosNoPreco { get; set; } = "liquido";
+
+    /// <summary>O vendedor que assina a proposta (<see cref="ContatosHowden"/>): o contato da capa do Word.</summary>
+    public string Vendedor { get; set; } = "";
+
+    /// <summary>Em que língua a proposta sai: "pt", "en" ou "es".</summary>
+    public string Idioma { get; set; } = "pt";
     // Condições comerciais (editáveis)
     public string IntroText { get; set; } = "";
     public string TaxText { get; set; } = "";

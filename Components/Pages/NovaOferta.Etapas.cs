@@ -67,7 +67,7 @@ public partial class NovaOferta : IDisposable
     private sealed record Pendencia(string Texto, int Etapa, string Alvo = "", bool SoAviso = false);
 
     /// <summary>Os campos que moram no "Mais campos" da etapa 2: a pendência abre o grupo antes de ir.</summary>
-    private static readonly HashSet<string> AlvosDosMaisCampos = new() { "f-numero", "f-ncmred", "f-ic", "f-ano", "f-segmento" };
+    private static readonly HashSet<string> AlvosDosMaisCampos = new() { "f-ncmred", "f-ic", "f-ano", "f-segmento" };
 
     private List<Pendencia> Pendencias()
     {
@@ -81,7 +81,7 @@ public partial class NovaOferta : IDisposable
         Falta(V(_o.ClientName), "Nome do cliente", 2, "f-cliente");
         Falta(V(_o.AttentionTo), "Aos cuidados de (contato)", 2, "f-ac");
         Falta(V(_o.City), "Cidade do cliente", 2, "f-cidade");
-        Falta(V(_o.OfferCode), "Número da proposta", 2, "f-numero");
+        Falta(V(_o.OfferCode), "Nossa referência (código da proposta)", 2, "f-numero");
         Falta(V(_o.PaymentTerms), "Condição de pagamento", 2, "f-pagamento");
         Falta(ListasDaProposta.Incoterms.FirstOrDefault(x => x.Codigo == _o.Incoterm) is { PedeLocal: true } && V(_o.IncotermLocal),
             "Local do incoterm", 2, "f-incoterm-local");
@@ -100,6 +100,19 @@ public partial class NovaOferta : IDisposable
         Avisa(V(_o.ContatoTelefone), "Telefone do contato", 2, "f-telefone");
         Avisa(V(_o.SuaReferencia), "Sua referência (do cliente)", 2, "f-suaref");
         Avisa(V(_o.Project), "Projeto", 2, "f-projeto");
+        Avisa(V(_o.Vendedor), "Vendedor (contato na capa)", 2, "f-vendedor");
+        if (IdiomasDaProposta.Normalizar(_o.Idioma) != IdiomasDaProposta.Portugues)
+        {
+            // o que a equipe digita livre só se traduz quando é uma das frases conhecidas
+            var lingua = IdiomasDaProposta.Nome(_o.Idioma).ToLowerInvariant();
+            var para = "para o " + lingua;
+            Avisa(!TraducaoDaProposta.TemTraducao(_o.PaymentTerms, _o.Idioma),
+                $"Condição de pagamento sem tradução {para} (sai como digitada — pode escrevê-la em {lingua})", 2, "f-pagamento");
+            Avisa(_o.Incoterm == ListasDaProposta.Livre && !TraducaoDaProposta.TemTraducao(_o.IncotermLocal, _o.Idioma),
+                $"Local de entrega sem tradução {para} (sai como digitado)", 2, "f-incoterm");
+            Avisa(!TraducaoDaProposta.TemTraducao(_o.ValidityText, _o.Idioma),
+                $"Validade sem tradução {para} (sai como digitada)", 2, "f-validade");
+        }
         Avisa(_o.Plantas.Count == 0, "Nenhuma planta (sai só a cidade da capa)", 2, "f-plantas");
         for (var n = 0; n < _o.Plantas.Count; n++)
         {
@@ -240,7 +253,8 @@ public partial class NovaOferta : IDisposable
         _o.ClientUnitId = _unitId;
         _o.EquipmentId = string.Join(";", _equipIds);
         if (string.IsNullOrWhiteSpace(_o.OfferDate)) _o.OfferDate = now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-        _o.OurReference = string.IsNullOrWhiteSpace(_o.OurReference) ? _o.OfferCode : _o.OurReference;
+        // "Nossa referência" é o código da proposta
+        _o.OurReference = _o.OfferCode;
         if (string.IsNullOrWhiteSpace(_o.Status)) _o.Status = "Rascunho";
         foreach (var it in _items) it.TotalPrice = it.Quantity * it.UnitPrice;
         _o.TotalAmount = Total;
@@ -535,6 +549,8 @@ public partial class NovaOferta : IDisposable
         _o.Portal = Ou(u.Portal, _o.Portal);
         _o.Rep1 = Ou(u.Rep1, _o.Rep1);
         _o.Rep2 = Ou(u.Rep2, _o.Rep2);
+        _o.Vendedor = Ou(u.Vendedor, _o.Vendedor);
+        _o.Idioma = Ou(u.Idioma, _o.Idioma);
         _o.MarketSegments = Ou(u.MarketSegments, _o.MarketSegments);
         _o.PaymentTerms = Ou(u.PaymentTerms, _o.PaymentTerms);
         _o.Incoterm = Ou(u.Incoterm, _o.Incoterm);

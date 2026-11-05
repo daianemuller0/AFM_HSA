@@ -22,6 +22,9 @@ internal sealed class PreenchimentoDaProposta
 
     /// <summary>Com que impostos os preços da proposta estão (o total da tabela e o "incluso" de cada imposto).</summary>
     private readonly PricingDaProposta.NivelDeImposto _nivel;
+
+    /// <summary>pt, en ou es: o documento é preenchido em português e traduzido no fim (<see cref="Traduzir"/>).</summary>
+    private readonly string _idioma;
     private static readonly CultureInfo Br = new("pt-BR");
 
     public PreenchimentoDaProposta(WordprocessingDocument doc, DadosDaPropostaWord dados)
@@ -37,6 +40,7 @@ internal sealed class PreenchimentoDaProposta
         var importados = comCusto.Where(x => x.It.Importado).Sum(x => x.Custo * x.It.Quantity);
         _pricing = PricingDaProposta.Da(_o, comprados, importados, PricingDaProposta.IpiDosItens(comCusto));
         _nivel = PricingDaProposta.NivelEfetivo(_pricing, _o.ImpostosNoPreco);
+        _idioma = IdiomasDaProposta.Normalizar(_o.Idioma);
     }
 
     public void Preencher()
@@ -58,6 +62,7 @@ internal sealed class PreenchimentoDaProposta
         SoAComercial();
         TirarAssessoria();
         Indice();
+        Traduzir();
         TirarRealce();
 
         _doc.MainDocumentPart!.Document.Save();
@@ -295,6 +300,8 @@ internal sealed class PreenchimentoDaProposta
 
     private List<string> LinhasDoVendedor()
     {
+        // o vendedor escolhido na proposta (lista da equipe): o cartão sai dele
+        if (_d.CartaoDoVendedor is { Count: > 0 } cartao) return cartao.ToList();
         if (_d.Vendedor is not { } v || (v.Nome ?? "").Trim().Length == 0) return new();
 
         // o modelo tem o cartão completo de cada um: nome, cargo, área, telefones e e-mail
@@ -579,7 +586,10 @@ internal sealed class PreenchimentoDaProposta
         var bom = pn.Length == 0 ? null
             : _d.Bom.FirstOrDefault(b => b.EquipmentId == item.EquipmentId && IntelligenceService.NormPn(b.PartNumber) == IntelligenceService.NormPn(pn))
               ?? _d.Bom.FirstOrDefault(b => IntelligenceService.NormPn(b.PartNumber) == IntelligenceService.NormPn(pn));
-        var peca = PrimeiroCom(bom?.DescricaoPt, bom?.DescricaoEn, DescricaoSemPn(item.Description, pn));
+        // a peça na língua da proposta: a BOM tem português e inglês (o espanhol fica com o português, mais próximo)
+        var peca = _idioma == IdiomasDaProposta.Ingles
+            ? PrimeiroCom(bom?.DescricaoEn, bom?.DescricaoPt, DescricaoSemPn(item.Description, pn))
+            : PrimeiroCom(bom?.DescricaoPt, bom?.DescricaoEn, DescricaoSemPn(item.Description, pn));
         var servico = item.Description.StartsWith("Serviços", StringComparison.OrdinalIgnoreCase);
         var paragrafos = celula.Elements<Paragraph>().ToList();
         Paragraph? P(string ancora) => paragrafos.FirstOrDefault(p => Texto(p).Contains(ancora, StringComparison.Ordinal));
@@ -1028,6 +1038,167 @@ internal sealed class PreenchimentoDaProposta
         }
     }
 
+    // ================= inglês e espanhol =================
+
+    /// <summary>
+    /// A proposta em inglês ou espanhol: cada parágrafo do corpo, do
+    /// cabeçalho e do rodapé — ou cada trecho dele, quando há campo no meio
+    /// (a data da primeira nota, o número da página, a página do índice) —
+    /// passa por <see cref="TraducaoDaProposta"/>. A formatação fica a do
+    /// trecho; o que não tem tradução (nome do cliente, descrição digitada)
+    /// fica como está.
+    /// </summary>
+    private void Traduzir()
+    {
+        if (_idioma == IdiomasDaProposta.Portugues) return;
+        foreach (var parte in Partes())
+        {
+            foreach (var p in parte.Descendants<Paragraph>().Where(p => !p.Descendants<Paragraph>().Any()).ToList())
+            {
+                var comCampo = p.Descendants<FieldChar>().Any() || p.Descendants<SimpleField>().Any();
+                foreach (var trecho in Trechos(p))
+                {
+                    var texto = TextoDos(trecho);
+                    if (TraducaoDaProposta.Traduzir(texto, _idioma, comCampo) is not { } traducao) continue;
+                    if (traducao == texto.Trim()) continue;
+                    Reescrever(trecho, texto, traducao);
+                }
+            }
+            parte.Save();
+        }
+        Lingua();
+    }
+
+    /// <summary>
+    /// Os trechos de texto corrido de um parágrafo: runs seguidos, fora de
+    /// campo. Campo (código ou resultado) e controle de conteúdo cortam o trecho.
+    /// </summary>
+    private static List<List<Run>> Trechos(Paragraph p)
+    {
+        var trechos = new List<List<Run>>();
+        var atual = new List<Run>();
+        // a pilha dos campos abertos: true = ainda no código (o "PAGEREF ..."), false = já no resultado.
+        // O resultado é texto como outro qualquer: as entradas do índice moram no resultado do campo TOC.
+        var campos = new Stack<bool>();
+        void Fechar()
+        {
+            if (atual.Count > 0 && atual.Any(r => r.Elements<Text>().Any(t => t.Text.Length > 0))) trechos.Add(atual);
+            atual = new List<Run>();
+        }
+        void Andar(OpenXmlElement pai)
+        {
+            foreach (var e in pai.ChildElements)
+            {
+                switch (e)
+                {
+                    case Run r:
+                        if (r.GetFirstChild<FieldChar>() is { } fc)
+                        {
+                            Fechar();
+                            var tipo = fc.FieldCharType?.Value;
+                            if (tipo == FieldCharValues.Begin) campos.Push(true);
+                            else if (tipo == FieldCharValues.Separate && campos.Count > 0) { campos.Pop(); campos.Push(false); }
+                            else if (tipo == FieldCharValues.End && campos.Count > 0) campos.Pop();
+                        }
+                        else if (campos.Contains(true) || r.GetFirstChild<FieldCode>() is not null) Fechar();
+                        else if (r.Elements<Text>().Any() || r.Elements<TabChar>().Any() || r.Elements<NoBreakHyphen>().Any()) atual.Add(r);
+                        break;
+                    case Hyperlink or InsertedRun or CustomXmlRun:
+                        Andar(e);
+                        break;
+                    case SdtElement or SimpleField:
+                        Fechar();
+                        break;
+                }
+            }
+        }
+        Andar(p);
+        Fechar();
+        return trechos;
+    }
+
+    private static string TextoDos(List<Run> runs) => string.Concat(runs.SelectMany(r => r.ChildElements)
+        .Select(e => e switch { Text t => t.Text, TabChar => "\t", NoBreakHyphen => "-", _ => "" }));
+
+    /// <summary>
+    /// Escreve a tradução no trecho. Com partes (‖) e o mesmo número de grupos
+    /// de formatação, cada parte vai no seu grupo (o "Banco:" continua em
+    /// negrito); senão tudo vai no primeiro. Os espaços das pontas ficam.
+    /// </summary>
+    private static void Reescrever(List<Run> trecho, string original, string traducao)
+    {
+        var partes = traducao.Split(TraducaoDaProposta.Parte);
+        if (original.Length > 0 && char.IsWhiteSpace(original[0]) && !char.IsWhiteSpace(partes[0].FirstOrDefault(' ')))
+            partes[0] = " " + partes[0];
+        if (original.Length > 0 && original[^1] == ' ' && partes[^1].Length > 0 && partes[^1][^1] != ' ')
+            partes[^1] += " ";
+
+        var comTexto = trecho.Where(r => r.Elements<Text>().Any() || r.Elements<NoBreakHyphen>().Any()).ToList();
+        var grupos = new List<List<Run>>();
+        string? anterior = null;
+        foreach (var r in comTexto)
+        {
+            var formato = Formato(r);
+            if (grupos.Count == 0 || formato != anterior) grupos.Add(new List<Run>());
+            grupos[^1].Add(r);
+            anterior = formato;
+        }
+        if (grupos.Count == 0) return;
+        if (partes.Length != grupos.Count)
+        {
+            partes = new[] { string.Concat(partes) };
+            grupos = new List<List<Run>> { comTexto };
+        }
+        for (var i = 0; i < grupos.Count; i++)
+        {
+            var primeiro = true;
+            foreach (var r in grupos[i])
+            {
+                foreach (var h in r.Elements<NoBreakHyphen>().ToList()) h.Remove();
+                foreach (var h in r.Elements<SoftHyphen>().ToList()) h.Remove();
+                var textos = r.Elements<Text>().ToList();
+                if (primeiro && textos.Count == 0)
+                {
+                    r.Append(new Text());
+                    textos = r.Elements<Text>().ToList();
+                }
+                foreach (var t in textos)
+                {
+                    if (primeiro)
+                    {
+                        t.Text = partes[i];
+                        t.Space = SpaceProcessingModeValues.Preserve;
+                        primeiro = false;
+                    }
+                    else t.Remove();
+                }
+            }
+        }
+    }
+
+    /// <summary>O que se vê da formatação de um run (negrito, itálico, sublinhado, sobrescrito, cor, tamanho).</summary>
+    private static string Formato(Run r)
+    {
+        var rp = r.RunProperties;
+        if (rp is null) return "";
+        return string.Join("|", new OpenXmlElement?[] { rp.Bold, rp.Italic, rp.Underline, rp.VerticalTextAlignment, rp.Color, rp.FontSize, rp.Highlight }
+            .Select(e => e?.OuterXml ?? "-"));
+    }
+
+    /// <summary>A língua de revisão do Word (corretor ortográfico) passa a ser a da proposta.</summary>
+    private void Lingua()
+    {
+        var lingua = _idioma == IdiomasDaProposta.Ingles ? "en-US" : "es-ES";
+        var raizes = new List<OpenXmlPartRootElement>(Partes());
+        if (_doc.MainDocumentPart!.StyleDefinitionsPart?.Styles is { } estilos) raizes.Add(estilos);
+        foreach (var raiz in raizes)
+        {
+            foreach (var l in raiz.Descendants<Languages>())
+                if (l.Val?.Value is { } v && v.StartsWith("pt", StringComparison.OrdinalIgnoreCase)) l.Val = lingua;
+            raiz.Save();
+        }
+    }
+
     // ================= ferramentas (as do axiaisvent) =================
 
     private List<Paragraph> Paragrafos() => _corpo.Elements<Paragraph>().ToList();
@@ -1056,7 +1227,10 @@ internal sealed class PreenchimentoDaProposta
     /// <summary>Escreve o texto no parágrafo com a formatação do primeiro run que tinha texto; "\n" vira quebra de linha.</summary>
     private static void Escrever(Paragraph p, string texto)
     {
-        var modelo = p.Elements<Run>().FirstOrDefault(r => r.Elements<Text>().Any()) ?? p.Elements<Run>().FirstOrDefault();
+        // o texto pode estar dentro de um hiperlink (o e-mail do cartão de contato): a formatação vem de lá
+        var modelo = p.Elements<Run>().FirstOrDefault(r => r.Elements<Text>().Any())
+                     ?? p.Descendants<Run>().FirstOrDefault(r => r.Elements<Text>().Any())
+                     ?? p.Elements<Run>().FirstOrDefault();
         var formato = modelo?.RunProperties?.CloneNode(true) as RunProperties;
 
         p.RemoveAllChildren<Run>();

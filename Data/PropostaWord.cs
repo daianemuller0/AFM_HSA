@@ -11,7 +11,8 @@ public sealed record DadosDaPropostaWord(
     IReadOnlyDictionary<string, Equipment> Equipamentos,
     IReadOnlyList<InstalledBase> BaseDaUnidade,
     IReadOnlyList<BomItem> Bom,
-    IReadOnlyList<SalesRecord> VendasDaUnidade);
+    IReadOnlyList<SalesRecord> VendasDaUnidade,
+    IReadOnlyList<string>? CartaoDoVendedor = null);
 
 /// <summary>
 /// Gera a proposta comercial PREENCHENDO o modelo em Word da equipe
@@ -40,9 +41,14 @@ public static class PropostaWord
 {
     public const string CaminhoDoModelo = "wwwroot/modelos/proposta-comercial.docx";
 
-    /// <summary>A referência da proposta (o "Título" do modelo): número e revisão, "HSA123.AFM.000045-00".</summary>
+    /// <summary>
+    /// A referência da proposta — a "Nossa referência" da capa, o "Ref." do
+    /// cabeçalho e o nome dos arquivos: o código da proposta e a revisão,
+    /// "HSA123.AFM.000045-C0". O pricing sai como P_&lt;referência&gt; e o custo
+    /// como R_&lt;referência&gt;: os três com o mesmo código.
+    /// </summary>
     public static string Referencia(CommercialOffer o) =>
-        $"{Ou(o.OfferCode, "SEM-NUMERO")}-{Revisao2(o.Revisao)}";
+        $"{Ou(o.OfferCode, "SEM-NUMERO")}-C{Ou(o.Revisao, "0")}";
 
     /// <summary>"0" → "00", "1" → "01"; o que não for número fica como está.</summary>
     public static string Revisao2(string? revisao)
@@ -54,7 +60,7 @@ public static class PropostaWord
     /// <summary>O nome do arquivo, sem caractere que o Windows recuse.</summary>
     public static string NomeDoArquivo(CommercialOffer o)
     {
-        var nome = $"{Referencia(o)} - Proposta Comercial.docx";
+        var nome = $"{Referencia(o)}.docx";
         foreach (var c in Path.GetInvalidFileNameChars().Concat(new[] { '/', '\\', ':', '*', '?', '"', '<', '>', '|' }))
             nome = nome.Replace(c, '_');
         return nome;
@@ -74,6 +80,9 @@ public static class PropostaWord
         PlantasDaProposta.Completar(o, itens, unidades, equipamentos, baseInstalada);
         var principal = unidades.FirstOrDefault(u => u.Id == PlantasDaProposta.UnidadePrincipal(o));
         var vendedor = principal is null ? null : vendedores.FirstOrDefault(v => v.Id == principal.VendedorId);
+        // o vendedor escolhido na proposta manda; sem escolha, o da unidade
+        var cartao = ContatosHowden.Do(o.Vendedor) is { } escolhido ? ContatosHowden.Cartao(escolhido)
+            : !string.IsNullOrWhiteSpace(o.Vendedor) ? new List<string> { o.Vendedor.Trim() } : null;
         var unidadesDaProposta = PlantasDaProposta.Unidades(o);
 
         var porChave = new Dictionary<string, Equipment>();
@@ -100,7 +109,8 @@ public static class PropostaWord
             o, itens, vendedor, porChave,
             baseInstalada.Where(b => unidadesDaProposta.Contains(b.ClientUnitId) || cadastrados.Contains(b.EquipmentId)).ToList(),
             bom.Where(b => cadastrados.Contains(b.EquipmentId)).ToList(),
-            vendas.Where(v => unidadesDaProposta.Contains((v.ClientUnitId ?? "").Trim())).ToList());
+            vendas.Where(v => unidadesDaProposta.Contains((v.ClientUnitId ?? "").Trim())).ToList(),
+            cartao);
     }
 
     public static byte[] Gerar(DadosDaPropostaWord dados, string caminhoDoModelo)

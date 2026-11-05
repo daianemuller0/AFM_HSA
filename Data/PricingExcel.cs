@@ -19,7 +19,8 @@ public static class PricingExcel
     public const string Aba = "PRICING";
     public const string TipoMime = "application/vnd.ms-excel.sheet.macroEnabled.12";
 
-    public static string NomeDoArquivo(CommercialOffer o) => Limpo($"{PropostaWord.Referencia(o)} - Pricing.xlsm");
+    /// <summary>P_&lt;código da proposta&gt;-C&lt;revisão&gt;.xlsm</summary>
+    public static string NomeDoArquivo(CommercialOffer o) => Limpo($"P_{PropostaWord.Referencia(o)}.xlsm");
 
     internal static string Limpo(string nome)
     {

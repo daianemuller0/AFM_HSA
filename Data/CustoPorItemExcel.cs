@@ -19,7 +19,8 @@ public static class CustoPorItemExcel
 {
     public const string TipoMime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-    public static string NomeDoArquivo(CommercialOffer o) => PricingExcel.Limpo($"{PropostaWord.Referencia(o)} - Custo por item.xlsx");
+    /// <summary>R_&lt;código da proposta&gt;-C&lt;revisão&gt;.xlsx</summary>
+    public static string NomeDoArquivo(CommercialOffer o) => PricingExcel.Limpo($"R_{PropostaWord.Referencia(o)}.xlsx");
 
     public static byte[] Gerar(CommercialOffer o, IReadOnlyList<CustoDoItemNaPlanilha> linhas, CalculoPricing.Resultado r,
         string nivelDeImposto)

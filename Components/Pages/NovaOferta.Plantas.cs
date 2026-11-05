@@ -100,6 +100,11 @@ public partial class NovaOferta
         if (uf.Length > 0 && ListasDoPricing.EstadosDo(_o.Destino).Contains(uf)) _o.Estado = Auto(_o.Estado, ref _autoUf, uf);
         if (principal is not null)
             _o.MarketSegments = Auto(_o.MarketSegments, ref _autoMercado, PricingDaProposta.MarketSegmentDo(principal.Segmento));
+        // o vendedor da unidade, quando está na lista da equipe e ninguém escolheu outro
+        if (principal is not null && string.IsNullOrWhiteSpace(_o.Vendedor)
+            && Vendedores.All().FirstOrDefault(v => v.Id == principal.VendedorId) is { } daUnidade
+            && ContatosHowden.Do(daUnidade.Nome) is { } contato)
+            _o.Vendedor = contato.Nome;
     }
 
     /// <summary>As unidades da base do mesmo cliente (pelo nome digitado ou pelas plantas já escolhidas): aparecem primeiro na lista.</summary>
