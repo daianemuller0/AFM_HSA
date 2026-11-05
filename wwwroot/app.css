@@ -1226,3 +1226,7 @@ h1 { font-size: 24px; margin: 0 0 4px; color: var(--primary); letter-spacing: -.
     display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; padding: 10px 14px;
     background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm);
 }
+/* "a partir da margem / do preço" não cabia em 1/4 da largura ao lado do painel: ganha duas colunas */
+.pricing-campos .pricing-modo-campo { grid-column: span 2; }
+.pricing-modo button { min-width: 0; }
+@media (max-width: 1100px) { .pricing-campos .pricing-modo-campo { grid-column: span 2; } }
