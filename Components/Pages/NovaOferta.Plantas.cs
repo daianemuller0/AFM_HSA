@@ -157,7 +157,7 @@ public partial class NovaOferta
         _o.EquipamentosDaProposta.Add(new EquipamentoDaProposta
         {
             Id = PlantasDaProposta.NovoId("x"),
-            Tipo = "Ventilador",
+            Tipo = PlantasDaProposta.Compressor,
             PlantaId = _o.Plantas.FirstOrDefault()?.Id ?? "",
         });
         _irAoCampo = "f-equipamentos";
@@ -176,8 +176,7 @@ public partial class NovaOferta
     private void MudarEquipDoItem(CommercialOfferItem it, ChangeEventArgs e)
     {
         it.EquipmentId = e.Value?.ToString() ?? "";
-        if (string.IsNullOrWhiteSpace(it.Ncm) && _o.EquipamentosDaProposta.FirstOrDefault(x => x.Id == it.EquipmentId) is { } eq)
-            it.Ncm = ListasDaProposta.NcmPadrao(eq.Tipo);
+        if (string.IsNullOrWhiteSpace(it.Ncm)) it.Ncm = ListasDaProposta.NcmPadrao();
     }
 
     private string ItensDoEquip(EquipamentoDaProposta eq) =>
@@ -212,16 +211,15 @@ public partial class NovaOferta
     private List<Equipment> EquipamentosDaBusca()
     {
         var termos = Textos.Simples(_buscaEquip).Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (string.Join("", termos).Length < 2) return new();
         _indiceEquip ??= _equipamentos.ToDictionary(e => e.Id, e => Textos.Simples(string.Join(' ',
             new[] { e.Modelo, e.Nome, e.DocNum, e.Tipo, e.Aplicacao, e.Fabricante }
             .Concat(_base.Where(b => b.EquipmentId == e.Id)
-                .SelectMany(b => new[] { b.Tag, b.PlantName, b.City, b.SiteUnit, _units.Any(u => u.Id == b.ClientUnitId) ? Intel.UnitLabel(b.ClientUnitId) : "" })))));
+                .SelectMany(b => new[] { b.Tag, b.SerialNo, b.PlantName, b.City, b.SiteUnit, _units.Any(u => u.Id == b.ClientUnitId) ? Intel.UnitLabel(b.ClientUnitId) : "" })))));
         var ja = _o.EquipamentosDaProposta.Select(x => x.EquipmentId).ToHashSet();
         return _equipamentos
             .Where(e => !ja.Contains(e.Id) && _indiceEquip.TryGetValue(e.Id, out var t) && termos.All(t.Contains))
             .OrderBy(e => e.Modelo)
-            .Take(15)
+            .Take(50)
             .ToList();
     }
 

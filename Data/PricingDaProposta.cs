@@ -67,7 +67,8 @@ public static class PricingDaProposta
         return padrao.Select((p, i) => i < o.EventosFianca.Count ? o.EventosFianca[i] : p with { Percentual = 0m }).ToList();
     }
 
-    public static CalculoPricing.Entrada EntradaDe(CommercialOffer o, decimal itensComprados, decimal itensImportados) => new(
+    public static CalculoPricing.Entrada EntradaDe(CommercialOffer o, decimal itensComprados, decimal itensImportados,
+        decimal? aliquotaIpi = null) => new(
         Custos: CustosDa(o, itensComprados, itensImportados),
         Segmento: (o.SegmentoMargem ?? "").Trim(),
         Product: o.Product ?? "",
@@ -88,12 +89,14 @@ public static class PricingDaProposta
         OutrasGarantias: o.OutrasGarantias,
         Portal: o.Portal ?? "",
         Rep1: Representante(o.Rep1),
-        Rep2: Representante(o.Rep2));
+        Rep2: Representante(o.Rep2),
+        AliquotaIpi: aliquotaIpi);
 
     /// <summary>O pricing da proposta, pelo modo escolhido (margem pedida ou preço de venda).</summary>
-    public static CalculoPricing.Resultado Da(CommercialOffer o, decimal itensComprados, decimal itensImportados)
+    public static CalculoPricing.Resultado Da(CommercialOffer o, decimal itensComprados, decimal itensImportados,
+        decimal? aliquotaIpi = null)
     {
-        var e = EntradaDe(o, itensComprados, itensImportados);
+        var e = EntradaDe(o, itensComprados, itensImportados, aliquotaIpi);
         var r = o.PricingModo == "preco"
             ? CalculoPricing.PeloPreco(e, o.PrecoMeta)
             : CalculoPricing.PelaMargem(e, o.MargemAlvo);
@@ -164,6 +167,77 @@ public static class PricingDaProposta
             if (chaves.Any(c => t.Contains(c))) return mercado;
         return "";
     }
+
+    // ---------------------------------------------------------------------
+    // custo do item, IPI pela NCM e os níveis de imposto do preço
+    // ---------------------------------------------------------------------
+
+    /// <summary>
+    /// O custo unitário (R$) de um item gravado: importação, digitado ou a
+    /// referência da Nacionalização. null = sem custo.
+    /// </summary>
+    public static decimal? CustoGravado(CommercialOfferItem it) =>
+        it.CustoUnitario is > 0 ? it.CustoUnitario
+        : it.Importado ? (it.CustoImportacao is > 0 ? it.CustoImportacao : null)
+        : it.CustoManual is > 0 ? it.CustoManual
+        : it.Nacionalizado && it.CustoReferencia is > 0 ? it.CustoReferencia : null;
+
+    /// <summary>
+    /// O IPI do pricing pela NCM dos itens, ponderado pelo custo: com todas as
+    /// peças em 8414.90.39 (compressor) dá 0%. Sem NCM em nenhum item, null
+    /// (a alíquota da planilha).
+    /// </summary>
+    public static decimal? IpiDosItens(IEnumerable<(CommercialOfferItem It, decimal Custo)> itens)
+    {
+        decimal peso = 0m, soma = 0m;
+        foreach (var (it, custo) in itens)
+        {
+            if (ListasDaProposta.NcmDo(it.Ncm) is not { } ncm || custo <= 0m) continue;
+            var c = custo * Math.Max(it.Quantity, 1);
+            peso += c;
+            soma += c * ncm.Ipi;
+        }
+        return peso > 0m ? Math.Round(soma / peso, 6) : null;
+    }
+
+    /// <param name="Rotulo">como a tela mostra</param>
+    /// <param name="NoWord">a opção da lista do total da tabela de preço do modelo</param>
+    public sealed record NivelDeImposto(string Codigo, string Rotulo, string NoWord, bool PisCofins, bool Icms, bool Ipi);
+
+    /// <summary>Com que impostos o preço vai ao cliente — as quatro opções do total da tabela de preço do modelo.</summary>
+    public static readonly NivelDeImposto[] Niveis =
+    {
+        new("liquido", "Sem impostos (valor líquido)", "VALOR LÍQUIDO", false, false, false),
+        new("pis_cofins", "Com PIS e COFINS", "VALOR COM PIS E COFINS", true, false, false),
+        new("pis_cofins_icms", "Com PIS, COFINS e ICMS", "VALOR COM PIS, COFINS E ICMS", true, true, false),
+        new("todos", "Com PIS, COFINS, ICMS e IPI", "VALOR COM PIS, COFINS, ICMS E IPI", true, true, true),
+    };
+
+    public static NivelDeImposto NivelDe(string? codigo) => Niveis.FirstOrDefault(n => n.Codigo == codigo) ?? Niveis[0];
+
+    /// <summary>
+    /// O valor da proposta (R$) num nível de imposto: o quadro PREÇO DE VENDA
+    /// (K13 a K16), com a MO de Reforma/Service (S81) somada quando há imposto.
+    /// null = o nível não existe nesta proposta (exportação, Back to Back, sem
+    /// Estado, procurar Financeiro).
+    /// </summary>
+    public static decimal? ValorNoNivel(CalculoPricing.Resultado r, string? codigo)
+    {
+        var nivel = NivelDe(codigo);
+        if (nivel.Codigo == "liquido") return r.ValorDaProposta;
+        if (r.SemImpostos || r.ExportacaoComBackToBack || r.BackToBack100) return null;
+        decimal? mp = nivel.Ipi ? r.PrecoComImpostos : nivel.Icms ? r.VendaComIcms : r.VendaComPisCofins;
+        if (mp is null) return null;
+        return mp + (r.ServicoOuReforma ? r.VendaMoComIss ?? 0m : 0m);
+    }
+
+    /// <summary>O nível que vale de fato: o escolhido, ou o líquido quando ele não existe nesta proposta.</summary>
+    public static NivelDeImposto NivelEfetivo(CalculoPricing.Resultado r, string? codigo) =>
+        ValorNoNivel(r, codigo) is not null ? NivelDe(codigo) : Niveis[0];
+
+    /// <summary>O fator custo → preço no nível de imposto escolhido.</summary>
+    public static decimal FatorNoNivel(CalculoPricing.Resultado r, string? codigo) =>
+        r.CustoTotal <= 0m ? 0m : (ValorNoNivel(r, codigo) ?? r.ValorDaProposta) / r.CustoTotal;
 
     /// <summary>
     /// O fator que leva o custo ao preço (como o "Fator" do axiaisvent): o

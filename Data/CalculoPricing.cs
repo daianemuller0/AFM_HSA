@@ -130,7 +130,8 @@ public static class CalculoPricing
         IReadOnlyList<OutraGarantia> OutrasGarantias,     // N64:R67
         string Portal,                                    // P4
         string Rep1,                                      // P5
-        string Rep2)                                      // P6
+        string Rep2,                                      // P6
+        decimal? AliquotaIpi = null)                      // D64 pela NCM dos itens; null = a da planilha (3,25%)
     {
         public decimal ValorDe(string codigo) => Custos.Where(c => c.Codigo == codigo).Sum(c => c.Valor);
     }
@@ -303,7 +304,7 @@ public static class CalculoPricing
         // ---------- alíquotas ("-" = zero) ----------
         var aliqPis = exportacao || (recap && nb) || zfm ? 0m : Pis;              // D61
         var aliqCofins = exportacao || (recap && nb) || zfm ? 0m : Cofins;        // D62
-        var aliqIpi = exportacao || expB2B || nb || zfm ? 0m : Ipi;              // D64
+        var aliqIpi = exportacao || expB2B || nb || zfm ? 0m : e.AliquotaIpi ?? Ipi;   // D64
         var aliqIcms = AliquotaIcms(e, exportacao || expB2B || (zfm && industrializacao));   // D63
         decimal aliqIss = 0m, aliqIssOutro = 0m;
         if (servRef)

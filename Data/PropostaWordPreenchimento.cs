@@ -19,6 +19,9 @@ internal sealed class PreenchimentoDaProposta
     private readonly CommercialOffer _o;
     private readonly Body _corpo;
     private readonly CalculoPricing.Resultado _pricing;
+
+    /// <summary>Com que impostos os preços da proposta estão (o total da tabela e o "incluso" de cada imposto).</summary>
+    private readonly PricingDaProposta.NivelDeImposto _nivel;
     private static readonly CultureInfo Br = new("pt-BR");
 
     public PreenchimentoDaProposta(WordprocessingDocument doc, DadosDaPropostaWord dados)
@@ -29,11 +32,11 @@ internal sealed class PreenchimentoDaProposta
         _corpo = doc.MainDocumentPart!.Document.Body!;
 
         // as alíquotas da proposta (PIS, COFINS, ICMS, IPI, ISS) vêm do pricing
-        var comprados = dados.Itens.Where(i => !i.Importado && i.Nacionalizado && i.CustoReferencia is > 0)
-            .Sum(i => i.CustoReferencia!.Value * i.Quantity);
-        var importados = dados.Itens.Where(i => i.Importado && i.CustoImportacao is > 0)
-            .Sum(i => i.CustoImportacao!.Value * i.Quantity);
-        _pricing = PricingDaProposta.Da(_o, comprados, importados);
+        var comCusto = dados.Itens.Select(i => (It: i, Custo: PricingDaProposta.CustoGravado(i) ?? 0m)).Where(x => x.Custo > 0m).ToList();
+        var comprados = comCusto.Where(x => !x.It.Importado).Sum(x => x.Custo * x.It.Quantity);
+        var importados = comCusto.Where(x => x.It.Importado).Sum(x => x.Custo * x.It.Quantity);
+        _pricing = PricingDaProposta.Da(_o, comprados, importados, PricingDaProposta.IpiDosItens(comCusto));
+        _nivel = PricingDaProposta.NivelEfetivo(_pricing, _o.ImpostosNoPreco);
     }
 
     public void Preencher()
@@ -413,6 +416,7 @@ internal sealed class PreenchimentoDaProposta
         var revisao = PropostaWord.Ou(_o.Revisao, "0");
         EscreverNaCelula(celulas[0], new[] { revisao });
         EscreverNaCelula(celulas[1], new[] { _o.PreparedBy ?? "" });
+        EscreverNaCelula(celulas[2], new[] { "RRT" });
         Alargar(tabela, coluna: 1, texto: _o.PreparedBy ?? "");
         EscreverNaCelula(celulas[3], new[] { revisao.TrimStart('0').Length == 0 ? "Emissão inicial" : $"Revisão {revisao} da proposta" });
 
@@ -497,8 +501,8 @@ internal sealed class PreenchimentoDaProposta
         var celTotal = total.Elements<TableCell>().ToList();
         if (celTotal.Count >= 2)
         {
-            // os preços da proposta são sem impostos (a opção "VALOR LÍQUIDO" da lista do modelo)
-            EscreverNaCelula(celTotal[0], new[] { "VALOR LÍQUIDO" });
+            // a opção da lista do modelo com os impostos em que os preços estão
+            EscreverNaCelula(celTotal[0], new[] { _nivel.NoWord });
             EscreverNaCelula(celTotal[^1], new[] { Dinheiro(Total) });
         }
 
@@ -546,19 +550,14 @@ internal sealed class PreenchimentoDaProposta
               ?? _d.Bom.FirstOrDefault(b => IntelligenceService.NormPn(b.PartNumber) == IntelligenceService.NormPn(pn));
         var peca = PrimeiroCom(bom?.DescricaoPt, bom?.DescricaoEn, DescricaoSemPn(item.Description, pn));
         var servico = item.Description.StartsWith("Serviços", StringComparison.OrdinalIgnoreCase);
-        var tipo = Textos.Simples(eq?.Tipo).Contains("compress") ? "Compressor"
-            : Textos.Igual(eq?.Tipo, "Outro") ? "Equipamento" : "Ventilador";
-
         var paragrafos = celula.Elements<Paragraph>().ToList();
         Paragraph? P(string ancora) => paragrafos.FirstOrDefault(p => Texto(p).Contains(ancora, StringComparison.Ordinal));
         void Tirar(Paragraph? p) { if (p is not null) { p.Remove(); paragrafos.Remove(p); } }
 
-        // título (a lista "Partes e Peças de Ventilador Howden Modelo") e a peça
+        // título: o sistema é de compressores ("Partes e Peças para Compressor <modelo>") e, embaixo, a peça
         var titulo = paragrafos.FirstOrDefault(p => Texto(p).Contains("PREENCHER!!", StringComparison.Ordinal));
         if (titulo is not null)
-            Escrever(titulo, eq is not null && eq.Modelo.Trim().Length > 0
-                ? (tipo == "Equipamento" ? $"Partes e Peças – Modelo {eq.Modelo.Trim()}" : $"Partes e Peças de {tipo} Howden Modelo {eq.Modelo.Trim()}")
-                : peca);
+            Escrever(titulo, eq is not null && eq.Modelo.Trim().Length > 0 ? $"Partes e Peças para Compressor {eq.Modelo.Trim()}" : peca);
         var pPeca = paragrafos.FirstOrDefault(p => Texto(p).Trim() == "XXXXXX");
         if (pPeca is not null)
         {
@@ -567,50 +566,50 @@ internal sealed class PreenchimentoDaProposta
         }
         Tirar(P("(EX: Rotor, Eixo, Cone, Selo)"));
 
-        // REFERÊNCIAS — do equipamento da proposta (TAG, aplicação e planta
-        // digitados ou trazidos do cadastro); a base instalada completa o que faltar
+        // REFERÊNCIAS — do equipamento da proposta (a ficha do cadastrado ou o
+        // que foi digitado na etapa Itens), nesta ordem: modelo do compressor,
+        // Serial Number, TAG, Part Number; depois a planta (com mais de uma),
+        // a aplicação e o último fornecimento, quando há. As linhas nascem da
+        // primeira linha de referência do modelo (marcador e recuo dela).
         var daProposta = PlantasDaProposta.DoItem(_o, item);
         var planta = PlantasDaProposta.PlantaDe(_o, daProposta);
         var cadastroId = daProposta is { Cadastrado: true } ? daProposta.EquipmentId : daProposta is null ? item.EquipmentId : "";
         var instalados = cadastroId.Length == 0 ? new List<InstalledBase>()
             : _d.BaseDaUnidade.Where(b => b.EquipmentId == cadastroId
                                           && (planta is not { Cadastrada: true } || b.ClientUnitId == planta.UnitId)).ToList();
-        var tags = daProposta is not null ? (daProposta.Tag ?? "").Trim()
-            : string.Join(", ", instalados.Select(b => (b.Tag ?? "").Trim()).Where(t => t.Length > 0).Distinct());
+        string DaBase(Func<InstalledBase, string?> campo) =>
+            string.Join(", ", instalados.Select(b => (campo(b) ?? "").Trim()).Where(t => t.Length > 0).Distinct());
+        var tags = daProposta is not null ? (daProposta.Tag ?? "").Trim() : DaBase(b => b.Tag);
+        var serial = daProposta is not null ? (daProposta.SerialNumber ?? "").Trim() : DaBase(b => b.SerialNo);
         var modelo = (eq?.Modelo ?? "").Trim();
         var aplicacao = PrimeiroCom(eq?.Aplicacao, instalados.Select(b => b.Process).FirstOrDefault(x => (x ?? "").Trim().Length > 0));
         var ultima = UltimoFornecimento(item, pn);
-        var original = string.Join(", ", instalados.Select(b => (b.ContractNo ?? "").Trim()).Where(t => t.Length > 0).Distinct());
+        var original = DaBase(b => b.ContractNo);
 
-        // com mais de uma planta, cada item diz a sua (a capa só tem a cidade):
-        // a linha nasce da "Aplicação:" do modelo, com o mesmo marcador
-        var comPlanta = false;
-        if (planta is not null && _o.Plantas.Count > 1 && P("Aplicação:") is { } pAplicacao)
+        var linhasDoModelo = new[] { "Modelo do ventilador", "Aplicação:", "Fornecimento / Original:", "Desenho de Conjunto:", "Part Number:" }
+            .Select(P).Where(p => p is not null).Select(p => p!).ToList();
+        var referencias = new List<string>();
+        void Ref(string rotulo, string valor) { if (valor.Length > 0) referencias.Add($"{rotulo}: {valor}"); }
+        Ref("Modelo do compressor", modelo);
+        Ref("Serial Number", serial);
+        Ref("TAG", tags);
+        Ref("Part Number", pn);
+        if (planta is not null && _o.Plantas.Count > 1) Ref("Planta", PlantasDaProposta.Rotulo(planta));
+        Ref("Aplicação", aplicacao);
+        if (ultima.Length > 0 || original.Length > 0)
+            Ref("Último Fornecimento / Original", PropostaWord.Ou(ultima, "—") + (original.Length > 0 ? $" / {original}" : ""));
+        if (linhasDoModelo.Count > 0)
         {
-            comPlanta = true;
-            var pPlanta = (Paragraph)pAplicacao.CloneNode(true);
-            pAplicacao.InsertBeforeSelf(pPlanta);
-            Escrever(pPlanta, $"Planta: {PlantasDaProposta.Rotulo(planta)}");
-            paragrafos.Insert(paragrafos.IndexOf(pAplicacao), pPlanta);
+            var molde = linhasDoModelo[0];
+            foreach (var texto in referencias)
+            {
+                var linha = (Paragraph)molde.CloneNode(true);
+                molde.InsertBeforeSelf(linha);
+                Escrever(linha, texto);
+            }
+            foreach (var antiga in linhasDoModelo) Tirar(antiga);
         }
-
-        var linhasRef = 0;
-        void Ref(string ancora, string texto)
-        {
-            var p = P(ancora);
-            if (p is null) return;
-            if (texto.Length == 0) { Tirar(p); return; }
-            Escrever(p, texto);
-            linhasRef++;
-        }
-        Ref("Modelo do ventilador", modelo.Length == 0 && tags.Length == 0 ? ""
-            : $"Modelo do {tipo.ToLowerInvariant()}: {PropostaWord.Ou(modelo, "—")}" + (tags.Length > 0 ? $" / TAG: {tags}" : ""));
-        Ref("Aplicação:", aplicacao.Length > 0 ? $"Aplicação: {aplicacao}" : "");
-        Ref("Fornecimento / Original:", ultima.Length == 0 && original.Length == 0 ? ""
-            : $"Último Fornecimento / Original: {PropostaWord.Ou(ultima, "—")}" + (original.Length > 0 ? $" / {original}" : ""));
-        Ref("Desenho de Conjunto:", "");
-        Ref("Part Number:", pn.Length > 0 ? $"Part Number: {pn}" : "");
-        if (linhasRef == 0 && !comPlanta) Tirar(P("REFERÊNCIAS"));
+        if (referencias.Count == 0) Tirar(P("REFERÊNCIAS"));
 
         // ESCOPO DE FORNECIMENTO
         var material = (bom?.Material ?? "").Trim();
@@ -636,7 +635,7 @@ internal sealed class PreenchimentoDaProposta
         if (servico) Tirar(P("mbalagem apropriada para transporte"));
 
         // prazo de entrega: a tabelinha "Prazo de entrega: XXXX Dias"
-        var dias = PricingDaProposta.PrazoEmDias(_o.PrazoEntrega);
+        var dias = item.PrazoEntregaDias > 0 ? item.PrazoEntregaDias : PricingDaProposta.PrazoEmDias(_o.PrazoEntrega);
         var tabPrazo = celula.Descendants<Table>().FirstOrDefault(tb => tb.Descendants<Text>().Any(t => t.Text.Trim() == "XXXX"));
         if (tabPrazo is not null && dias > 0)
         {
@@ -740,13 +739,13 @@ internal sealed class PreenchimentoDaProposta
         }
         else
         {
-            if (pis is not null) Escrever(pis, $"PIS: {Pct(r.AliqPis)} não incluso;");
-            if (cofins is not null) Escrever(cofins, $"COFINS: {Pct(r.AliqCofins)} não incluso;");
+            if (pis is not null) Escrever(pis, $"PIS: {Pct(r.AliqPis)} {Incluso(_nivel.PisCofins)};");
+            if (cofins is not null) Escrever(cofins, $"COFINS: {Pct(r.AliqCofins)} {Incluso(_nivel.PisCofins)};");
 
             var uf = (_o.Estado ?? "").Trim();
             if (icmsSp is not null)
                 Escrever(icmsSp, r.ProcurarFinanceiro ? "ICMS: a confirmar com o Financeiro (revenda ou cliente não-contribuinte);"
-                    : r.AliqIcms is decimal icms ? $"ICMS: ({Pct(icms)} - {PropostaWord.Ou(uf, "ESTADO")}) não incluso"
+                    : r.AliqIcms is decimal icms ? $"ICMS: ({Pct(icms)} - {PropostaWord.Ou(uf, "ESTADO")}) {Incluso(_nivel.Icms)}"
                     : "ICMS: (INDICAR ESTADO) não incluso");
 
             // IPI: uma linha por NCM dos itens (a NCM diz a alíquota); sem NCM, a do pricing
@@ -756,8 +755,8 @@ internal sealed class PreenchimentoDaProposta
                 var linhas = r.AliqIpi == 0m && Textos.Igual(_o.ClienteCom, "Zona Franca de Manaus")
                     ? new List<string> { "IPI: não incide (Zona Franca de Manaus);" }
                     : ncms.Count > 0
-                        ? ncms.Select(n => $"IPI: {Pct(n!.Ipi)} não incluso; NCM {n!.Texto}").ToList()
-                        : new List<string> { $"IPI: {Pct(r.AliqIpi)} não incluso;" };
+                        ? ncms.Select(n => $"IPI: {Pct(n!.Ipi)} {Incluso(_nivel.Ipi)}; NCM {n!.Texto}").ToList()
+                        : new List<string> { $"IPI: {Pct(r.AliqIpi)} {Incluso(_nivel.Ipi)};" };
                 foreach (var l in linhas)
                 {
                     var novo = (Paragraph)ipiModelo.CloneNode(true);
@@ -790,6 +789,8 @@ internal sealed class PreenchimentoDaProposta
     /// ele com PIS/COFINS, com ICMS e com IPI — o mesmo gross-up do pricing
     /// (S75, S76, S77), item a item com o IPI da NCM dele, na moeda do preço.
     /// </summary>
+    private static string Incluso(bool sim) => sim ? "incluso" : "não incluso";
+
     private void DetalhamentoDosImpostos(CalculoPricing.Resultado r)
     {
         var tabela = Tabelas().FirstOrDefault(t => Texto(t).StartsWith("Valor Total Líquido", StringComparison.Ordinal));
@@ -798,10 +799,14 @@ internal sealed class PreenchimentoDaProposta
         if (linhas.Count < 4) return;
 
         var industrializacao = Textos.Igual(_o.VendaPara, "Industrialização");
-        decimal liquido = Total, comPisCofins = 0, comIcms = 0, comIpi = 0;
+        // os preços podem estar com impostos: o detalhamento parte do líquido de cada item
+        var noNivel = PricingDaProposta.ValorNoNivel(r, _nivel.Codigo) ?? r.ValorDaProposta;
+        var paraLiquido = noNivel > 0m && r.ValorDaProposta > 0m ? r.ValorDaProposta / noNivel : 1m;
+        decimal liquido = Total * paraLiquido, comPisCofins = 0, comIcms = 0, comIpi = 0;
         var fatorPisCofins = 1m - r.AliqPis - r.AliqCofins;
-        foreach (var it in _d.Itens)
+        foreach (var itemDaProposta in _d.Itens)
         {
+            var it = new CommercialOfferItem { Ncm = itemDaProposta.Ncm, TotalPrice = itemDaProposta.TotalPrice * paraLiquido };
             var ipi = ListasDaProposta.NcmDo(it.Ncm)?.Ipi ?? r.AliqIpi;
             if (Textos.Igual(_o.ClienteCom, "Zona Franca de Manaus")) ipi = 0m;
             var s75 = fatorPisCofins > 0 ? it.TotalPrice / fatorPisCofins : it.TotalPrice;
@@ -856,6 +861,15 @@ internal sealed class PreenchimentoDaProposta
             Achar("FCA – Terminal de carga (Aeroporto"), Achar("CIF – Porto de"),
             Achar("DAP – LOCAL"), Achar("DDP – LOCAL"),
         };
+        if (_o.Incoterm == ListasDaProposta.Livre)
+        {
+            var primeira = paragrafos.FirstOrDefault(p => p is not null);
+            foreach (var p in paragrafos) if (p is not null && p != primeira) p.Remove();
+            if (primeira is not null) Escrever(primeira, PropostaWord.Ou(_o.IncotermLocal, "A COMBINAR"));
+            Achar("Equipamento montado sobre base")?.Remove();
+            Achar("Equipamento fornecido desmontado")?.Remove();
+            return;
+        }
         var escolhido = Array.FindIndex(ListasDaProposta.Incoterms, i => i.Codigo == _o.Incoterm);
         var fica = escolhido >= 0 ? escolhido : 0;
         var codigo = ListasDaProposta.Incoterms[fica].Codigo;

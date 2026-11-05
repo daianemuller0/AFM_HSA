@@ -54,6 +54,7 @@ builder.Services.AddScoped<BomRepository>();
 builder.Services.AddScoped<NacionalizacaoRepository>();
 builder.Services.AddScoped<ConversaoRepository>();
 builder.Services.AddScoped<TempoRepository>();
+builder.Services.AddScoped<CondicoesComerciaisRepository>();
 // Parâmetros da planilha de custos de importação (padrão: versão 02/03/2022);
 // a seção "Importacao" do appsettings substitui só os valores que trouxer.
 builder.Services.AddSingleton(sp =>

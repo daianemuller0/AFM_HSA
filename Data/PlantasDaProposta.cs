@@ -10,7 +10,8 @@ namespace AfmHsa.Data;
 /// </summary>
 public static class PlantasDaProposta
 {
-    public static readonly string[] TiposDeEquipamento = { "Ventilador", "Compressor", "Outro" };
+    /// <summary>O sistema é de compressores: o equipamento da proposta é um compressor.</summary>
+    public const string Compressor = "Compressor";
 
     public static string NovoId(string prefixo) => $"{prefixo}-{Guid.NewGuid().ToString("N")[..8]}";
 
@@ -59,9 +60,10 @@ public static class PlantasDaProposta
             Id = e.Id,
             EquipmentId = e.Id,
             PlantaId = planta?.Id ?? "",
-            Tipo = TipoDe(e.Tipo),
+            Tipo = Compressor,
             Modelo = (e.Modelo ?? "").Trim().Length > 0 ? e.Modelo.Trim() : (e.Nome ?? "").Trim(),
             Tag = string.Join(", ", daPlanta.Select(b => (b.Tag ?? "").Trim()).Where(t => t.Length > 0).Distinct()),
+            SerialNumber = string.Join(", ", daPlanta.Select(b => (b.SerialNo ?? "").Trim()).Where(t => t.Length > 0).Distinct()),
             Aplicacao = Primeiro(e.Aplicacao, daPlanta.Select(b => b.Process).FirstOrDefault(x => (x ?? "").Trim().Length > 0)),
         };
     }

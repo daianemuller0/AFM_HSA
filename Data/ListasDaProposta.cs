@@ -31,9 +31,13 @@ public static class ListasDaProposta
             "DDP – {0}, carregado sobre caminhão (descarregamento por conta do cliente).", true),
     };
 
+    /// <summary>Local de entrega fora das seis linhas do modelo: o texto (em IncotermLocal) sai como foi escrito.</summary>
+    public const string Livre = "LIVRE";
+
     /// <summary>A linha de entrega como sai na proposta; sem local, fica o "DESTINO" do modelo para a equipe ver.</summary>
     public static string LinhaDoIncoterm(string codigo, string local)
     {
+        if (codigo == Livre) return (local ?? "").Trim();
         var i = Incoterms.FirstOrDefault(x => x.Codigo == codigo);
         if (i is null) return codigo.Trim();
         if (!i.PedeLocal) return i.Texto;
@@ -66,13 +70,15 @@ public static class ListasDaProposta
         new("8414.90.32", "8414.90.32 = 5% IPI (Peça de compressor que contém Anéis de segmento)", 0.05m),
         new("8414.90.33", "8414.90.33 = 5% IPI (Peça de compressor que contém Blocos de cilindros ,cabeçotes e cárteres)", 0.05m),
         new("8414.90.34", "8414.90.34 = 5% IPI (Peça de compressor que contém Válvulas)", 0.05m),
-        new("8414.90.39", "8414.90.39 = 0% IPI (Outras peças de compressor)", 0m),
+        new("8414.90.39", "8414.90.39 = 0% de IPI (Outras peças de compressor)", 0m),
         new("8483.40.10", "8483.40.10 = 0% IPI (Redutores, multiplicadores, caixas de transmissão e variadores de velocidade, incluindo os conversores de torque)", 0m),
     };
 
     public static Ncm? NcmDo(string? codigo) => Ncms.FirstOrDefault(n => n.Codigo == (codigo ?? "").Trim());
 
-    /// <summary>NCM sugerida para a peça de um equipamento: ventilador → partes e peças de ventilador; compressor e "Outro" ficam para escolher.</summary>
-    public static string NcmPadrao(string? tipoDoEquipamento) =>
-        Textos.Simples(tipoDoEquipamento) is var t && (t.Contains("compress") || t == "outro") ? "" : "8414.90.20";
+    /// <summary>A NCM de compressor, que o sistema usa em toda peça: 8414.90.39 = 0% de IPI (Outras peças de compressor).</summary>
+    public const string NcmDeCompressor = "8414.90.39";
+
+    /// <summary>NCM sugerida para a peça: este sistema é de compressores, então é sempre a de compressor (dá para trocar no item).</summary>
+    public static string NcmPadrao(string? tipoDoEquipamento = null) => NcmDeCompressor;
 }

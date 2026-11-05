@@ -21,6 +21,8 @@
 
 <PageTitle>Gerar Proposta · AFM HSA</PageTitle>
 @{
+    // o preço de cada item é o custo × pricing, sempre atualizado
+    AtualizarPrecos();
     // calculadas uma vez por desenho: a barra de etapas, o painel do lado e a
     // etapa Documentos olham as mesmas listas (como no axiaisvent)
     var pendTodas = Pendencias();
@@ -248,15 +250,26 @@
 <div class="panel" style="margin-bottom:14px">
     <div class="dash-title">Condições comerciais <span class="dash-sub">saem no documento</span></div>
     <div class="form3">
-        <label id="f-pagamento">Condição de pagamento
-            <select class="cell" @bind="_o.PaymentTerms">
-                @foreach (var p in OfferDefaults.PaymentOptions) { <option value="@p">@p</option> }
-                @if (!string.IsNullOrWhiteSpace(_o.PaymentTerms) && !OfferDefaults.PaymentOptions.Contains(_o.PaymentTerms))
-                {
-                    <option value="@_o.PaymentTerms">@_o.PaymentTerms</option>
-                }
-            </select>
-        </label>
+        <div class="campo" id="f-pagamento">Condição de pagamento
+            <span class="com-mais">
+                <select class="cell" @bind="_o.PaymentTerms">
+                    @foreach (var p in OpcoesDePagamento) { <option value="@p">@p</option> }
+                    @if (!string.IsNullOrWhiteSpace(_o.PaymentTerms) && !OpcoesDePagamento.Contains(_o.PaymentTerms))
+                    {
+                        <option value="@_o.PaymentTerms">@_o.PaymentTerms</option>
+                    }
+                </select>
+                <button class="btn-mais" title="Escrever uma condição que não está na lista e incluir na base" @onclick="() => AbrirNovaCondicao(CondicoesComerciaisRepository.Pagamento)">+</button>
+            </span>
+            @if (_novaCondicao == CondicoesComerciaisRepository.Pagamento)
+            {
+                <span class="nova-condicao">
+                    <input class="cell" placeholder="ex.: 30% no pedido e 70% na entrega" value="@_textoNovaCondicao" @oninput="e => _textoNovaCondicao = e.Value?.ToString() ?? string.Empty" />
+                    <button class="btn-primary" @onclick="IncluirCondicao">Incluir na base</button>
+                    <button class="btn-link" @onclick="() => _novaCondicao = null">cancelar</button>
+                </span>
+            }
+        </div>
         <label id="f-prazo">Prazo de entrega
             <span class="com-sufixo">
                 <input class="cell num" type="number" min="0" step="1" placeholder="a confirmar"
@@ -266,11 +279,32 @@
             </span>
         </label>
         <label id="f-validade">Validade <input class="cell" @bind="_o.ValidityText" /></label>
-        <label id="f-incoterm">Local de entrega (Incoterms)
-            <select class="cell" @bind="_o.Incoterm">
-                @foreach (var i in ListasDaProposta.Incoterms) { <option value="@i.Codigo">@i.Rotulo</option> }
-            </select>
-        </label>
+        <div class="campo" id="f-incoterm">Local de entrega (Incoterms)
+            <span class="com-mais">
+                <select class="cell" value="@ValorDoIncoterm" @onchange="EscolherIncoterm">
+                    @foreach (var i in ListasDaProposta.Incoterms) { <option value="@i.Codigo">@i.Rotulo</option> }
+                    @if (_entregasDaBase.Count > 0)
+                    {
+                        <optgroup label="incluídos pela equipe">
+                            @foreach (var c in _entregasDaBase) { <option value="@("extra:" + c.Id)">@c.Texto</option> }
+                        </optgroup>
+                    }
+                    @if (_o.Incoterm == ListasDaProposta.Livre && ValorDoIncoterm == ListasDaProposta.Livre)
+                    {
+                        <option value="@ListasDaProposta.Livre">@_o.IncotermLocal</option>
+                    }
+                </select>
+                <button class="btn-mais" title="Escrever um local de entrega que não está na lista e incluir na base" @onclick="() => AbrirNovaCondicao(CondicoesComerciaisRepository.Entrega)">+</button>
+            </span>
+            @if (_novaCondicao == CondicoesComerciaisRepository.Entrega)
+            {
+                <span class="nova-condicao">
+                    <input class="cell" placeholder="o texto como sai na proposta, ex.: FOB – Porto de Vitória (ES)." value="@_textoNovaCondicao" @oninput="e => _textoNovaCondicao = e.Value?.ToString() ?? string.Empty" />
+                    <button class="btn-primary" @onclick="IncluirCondicao">Incluir na base</button>
+                    <button class="btn-link" @onclick="() => _novaCondicao = null">cancelar</button>
+                </span>
+            }
+        </div>
         @if (ListasDaProposta.Incoterms.FirstOrDefault(x => x.Codigo == _o.Incoterm) is { PedeLocal: true } inc)
         {
             <label id="f-incoterm-local">Local (@(inc.Codigo == "FCA-AEROPORTO" ? "aeroporto" : "destino e país"))
@@ -286,12 +320,13 @@
         <span class="dash-sub">os mesmos campos e listas da planilha R_HSAXYZ0000-0</span>
     </div>
     <div class="form3">
-        <label id="f-segmento">Segmento (margem)
-            <select class="cell" @bind="_o.SegmentoMargem" @bind:after="SegmentoOuProdutoMudou">
-                <option value="">preencher</option>
-                @foreach (var (nome, margem) in ListasDoPricing.Segmentos) { <option value="@nome">@nome (margem padrão @Pct(margem))</option> }
-                @ForaDaLista(_o.SegmentoMargem, ListasDoPricing.Segmentos.Select(x => x.Nome))
-            </select>
+        <label id="f-margem-cab">Segmento (margem)
+            <span class="com-sufixo">
+                <input class="cell num" type="number" min="0" max="99" step="0.1" value="@Pct100(_o.MargemAlvo)"
+                       @onchange="MudarMargemDoCabecalho" />
+                <span>%</span>
+            </span>
+            <small class="pricing-dica">a margem pedida no pricing · padrão @Pct(ListasDoPricing.MargemPadraoDo(_o.SegmentoMargem))</small>
         </label>
         <label id="f-bu">BU
             <select class="cell" @bind="_o.Bu">
@@ -368,12 +403,19 @@
     @* os campos que quase nunca mudam: recolhidos, com o que está valendo à vista *@
     <button class="btn-link mais-campos" @onclick="() => _maisCampos = !_maisCampos" aria-expanded="@(_maisCampos ? "true" : "false")">
         @(_maisCampos ? "▾" : "▸") Mais campos
-        <span class="nota">nº @_o.OfferCode · rev @_o.Revisao · @Fmt.Date(_o.OfferDate) · ano @_o.Ano · NCM c/red. @OuTraco(_o.NcmReducaoIcms) · IC @OuTraco(_o.ContemProdutoIc) · @OuTraco(_o.Categories) / @OuTraco(_o.Product) · @OuTraco(_o.MarketSegments)</span>
+        <span class="nota">nº @_o.OfferCode · rev @_o.Revisao · segmento @OuTraco(_o.SegmentoMargem) · @Fmt.Date(_o.OfferDate) · ano @_o.Ano · NCM c/red. @OuTraco(_o.NcmReducaoIcms) · IC @OuTraco(_o.ContemProdutoIc) · @OuTraco(_o.Categories) / @OuTraco(_o.Product) · @OuTraco(_o.MarketSegments)</span>
     </button>
     @if (_maisCampos)
     {
         <div class="form3" style="margin-top:12px">
             <label id="f-numero">Número da proposta * <input class="cell" @bind="_o.OfferCode" /></label>
+            <label id="f-segmento">Segmento (tabela do pricing)
+                <select class="cell" @bind="_o.SegmentoMargem" @bind:after="SegmentoOuProdutoMudou">
+                    <option value="">preencher</option>
+                    @foreach (var (nome, margem) in ListasDoPricing.Segmentos) { <option value="@nome">@nome (margem padrão @Pct(margem))</option> }
+                    @ForaDaLista(_o.SegmentoMargem, ListasDoPricing.Segmentos.Select(x => x.Nome))
+                </select>
+            </label>
             <label>Revisão <input class="cell" @bind="_o.Revisao" list="dl-revisao" /></label>
             <label>Data do Pricing <input class="cell" type="date" @bind="DataProposta" /></label>
             <label>Elaborado por <input class="cell" @bind="_o.PreparedBy" /></label>
@@ -460,8 +502,8 @@
     {
         <div class="tabela-rolante">
         <table class="grid equip-tabela">
-            <colgroup><col style="width:28%" /><col style="width:13%" /><col style="width:15%" /><col style="width:19%" /><col style="width:21%" /><col style="width:4%" /></colgroup>
-            <thead><tr><th>Equipamento</th><th>Tipo</th><th>TAG</th><th>Aplicação</th><th>Planta</th><th></th></tr></thead>
+            <colgroup><col style="width:27%" /><col style="width:15%" /><col style="width:14%" /><col style="width:18%" /><col style="width:22%" /><col style="width:4%" /></colgroup>
+            <thead><tr><th>Equipamento</th><th>Serial Number</th><th>TAG</th><th>Aplicação</th><th>Planta</th><th></th></tr></thead>
             <tbody>
                 @foreach (var eqp in _o.EquipamentosDaProposta)
                 {
@@ -473,28 +515,17 @@
                             {
                                 <strong>@OuTraco(eq.Modelo)</strong>
                                 <span class="sub-cel">
-                                    <span class="selo-base">cadastrado</span> @ItensDoEquip(eq)
+                                    <span class="selo-base">cadastrado</span> @(cadastro is { Tipo.Length: > 0 } ? $"{cadastro.Tipo} " : "")@ItensDoEquip(eq)
                                     @(OndeEstaInstalado(eq.EquipmentId) is { Length: > 0 } onde ? $"· instalado em {onde}" : "· sem base instalada")
                                 </span>
                             }
                             else
                             {
-                                <input class="cell" placeholder="modelo (ex.: VX 2025.00.00)" value="@eq.Modelo" @onchange="e => eq.Modelo = e.Value?.ToString()?.Trim() ?? string.Empty" />
+                                <input class="cell" placeholder="modelo do compressor" value="@eq.Modelo" @onchange="e => eq.Modelo = e.Value?.ToString()?.Trim() ?? string.Empty" />
                                 <span class="sub-cel"><span class="selo-livre">não cadastrado</span> @ItensDoEquip(eq)</span>
                             }
                         </td>
-                        <td>
-                            @if (eq.Cadastrado)
-                            {
-                                @OuTraco(cadastro?.Tipo ?? eq.Tipo)
-                            }
-                            else
-                            {
-                                <select class="cell" value="@eq.Tipo" @onchange="e => eq.Tipo = e.Value?.ToString() ?? string.Empty">
-                                    @foreach (var t in PlantasDaProposta.TiposDeEquipamento) { <option value="@t">@t</option> }
-                                </select>
-                            }
-                        </td>
+                        <td><input class="cell" placeholder="serial" value="@eq.SerialNumber" @onchange="e => eq.SerialNumber = e.Value?.ToString()?.Trim() ?? string.Empty" /></td>
                         <td><input class="cell" placeholder="TAG" value="@eq.Tag" @onchange="e => eq.Tag = e.Value?.ToString()?.Trim() ?? string.Empty" /></td>
                         <td><input class="cell" placeholder="aplicação" value="@eq.Aplicacao" @onchange="e => eq.Aplicacao = e.Value?.ToString()?.Trim() ?? string.Empty" /></td>
                         <td>
@@ -522,19 +553,17 @@
     @if (_buscandoEquip)
     {
         <div class="busca-equip">
-            <input class="cell" placeholder="Buscar em todo o cadastro: modelo, nome, documento, TAG, planta ou cliente"
+            <input class="cell" placeholder="Filtrar o cadastro: modelo, nome, documento, TAG, serial, planta ou cliente"
                    value="@_buscaEquip" @oninput="e => _buscaEquip = e.Value?.ToString() ?? string.Empty" />
             @{ var achados = EquipamentosDaBusca(); }
-            @if (_buscaEquip.Trim().Length < 2)
-            {
-                <span class="nota">digite ao menos 2 letras</span>
-            }
-            else if (achados.Count == 0)
+            @if (achados.Count == 0)
             {
                 <span class="nota">nenhum equipamento cadastrado com esse texto — use "+ Não cadastrado"</span>
             }
             else
             {
+                <span class="nota">@(_buscaEquip.Trim().Length == 0 ? $"{achados.Count} de {TotalParaIncluir} equipamentos do cadastro — digite para filtrar" : $"{achados.Count} encontrado(s)")</span>
+                <div class="lista-equip">
                 <table class="grid">
                     <thead><tr><th>Modelo</th><th>Tipo</th><th>Onde está instalado</th><th></th></tr></thead>
                     <tbody>
@@ -550,6 +579,7 @@
                         }
                     </tbody>
                 </table>
+                </div>
             }
         </div>
     }
@@ -625,17 +655,15 @@
 
     <div class="panel" id="f-itens" style="margin-bottom:16px">
         <div class="dash-title">Itens da proposta
-            <span style="margin-left:8px;font-size:12px;font-weight:600;color:var(--muted)">
-                referência de custo e última venda são só para apoio — o preço é sempre o que você definir
-            </span>
+            <span class="dash-sub">o preço sai do custo × pricing, na hora: mudou o custo, a margem ou os impostos, o preço acompanha</span>
         </div>
         <div class="tabela-rolante">
-        <table class="grid tabela-proposta" style="margin-bottom:12px">
+        <table class="grid tabela-proposta itens-tabela" style="margin-bottom:12px">
             <thead>
                 <tr>
-                    <th>Descrição</th><th>Nacionalizado</th><th>Importado</th><th class="right">Referência de custo (R$)</th>
-                    <th class="right">Última venda (R$)</th><th class="right">Qtd</th>
-                    <th class="right">Preço unitário da proposta (@Cambio.MoedaDoPreco(_o).Rotulo())</th><th class="right">Total</th><th></th>
+                    <th style="min-width:320px">Item</th><th>Origem</th><th class="right">Custo unitário (R$)</th>
+                    <th class="right">Última venda (R$)</th><th class="right">Prazo (dias)</th><th class="right">Qtd</th>
+                    <th class="right">Preço unitário (@Cambio.MoedaDoPreco(_o).Rotulo())</th><th class="right">Total</th><th></th>
                 </tr>
             </thead>
             <tbody>
@@ -644,108 +672,129 @@
                     var it = _items[i];
                     var idx = i;
                     var r = RefDoItem(it);
-                    <tr class="@(it.UnitPrice <= 0 ? "sem-preco" : "")">
+                    var custoIt = CustoDoItem(it);
+                    <tr class="@(custoIt is null ? "sem-preco" : "")">
                         <td>
-                            @it.Description
-                            @if (it != _itemDemais && _o.EquipamentosDaProposta.Count > 0)
+                            @if (it == _itemDemais)
                             {
-                                <select class="cell equip-do-item" title="Equipamento do item (referências no Word)" value="@it.EquipmentId" @onchange="e => MudarEquipDoItem(it, e)">
-                                    <option value="">sem equipamento</option>
-                                    @foreach (var eqp in _o.EquipamentosDaProposta) { <option value="@eqp.Id">@RotuloDoEquip(eqp)</option> }
-                                    @if (it.EquipmentId.Length > 0 && !_o.EquipamentosDaProposta.Any(x => x.Id == it.EquipmentId))
-                                    {
-                                        <option value="@it.EquipmentId">@ModeloDe(it.EquipmentId) (fora da lista)</option>
-                                    }
-                                </select>
+                                <strong>@it.Description</strong>
+                                <span class="sub-cel">os custos da tabela do pricing além dos itens</span>
                             }
-                            else if (it.EquipmentId.Length > 0)
+                            else
                             {
-                                <span class="sub-cel">@ModeloDe(it.EquipmentId)</span>
-                            }
-                            @if (it != _itemDemais)
-                            {
-                                <select class="cell ncm-sel" title="NCM do item na proposta em Word" value="@it.Ncm" @onchange="e => it.Ncm = e.Value?.ToString() ?? string.Empty">
-                                    <option value="">NCM: a definir</option>
-                                    @foreach (var n in ListasDaProposta.Ncms) { <option value="@n.Codigo">NCM @n.Texto</option> }
-                                </select>
-                            }
-                        </td>
-                        <td>@(it.PartNumber.Length > 0 ? SeloNac(r) : Traco)</td>
-                        <td class="nowrap">
-                            <label class="chk-inline" style="color:var(--text)">
-                                <input type="checkbox" checked="@it.Importado" @onchange="e => MarcarImportado(idx, e)" /> importado
-                            </label>
-                            @if (it.Importado)
-                            {
-                                <div class="imp-preco">
-                                    <input class="cell num" type="number" min="0" step="0.01" placeholder="preço unit."
-                                           value="@(it.ValorMoeda > 0 ? it.ValorMoeda.ToString(CultureInfo.InvariantCulture) : "")"
-                                           @onchange="e => MudarValorMoeda(idx, e)" />
-                                    <span>@_o.Moeda</span>
+                                <input class="cell item-desc" placeholder="descrição da peça" value="@it.Description"
+                                       @onchange="e => it.Description = e.Value?.ToString()?.Trim() ?? string.Empty" />
+                                <div class="item-linha2">
+                                    <input class="cell item-pn" placeholder="Part Number" title="Part Number" value="@it.PartNumber" @onchange="e => MudarPn(it, e)" />
+                                    <select class="cell equip-do-item" title="Equipamento do item (as referências no Word vêm dele)" value="@it.EquipmentId" @onchange="e => MudarEquipDoItem(it, e)">
+                                        <option value="">sem equipamento</option>
+                                        @foreach (var eqp in _o.EquipamentosDaProposta) { <option value="@eqp.Id">@RotuloDoEquip(eqp)</option> }
+                                        @if (it.EquipmentId.Length > 0 && !_o.EquipamentosDaProposta.Any(x => x.Id == it.EquipmentId))
+                                        {
+                                            <option value="@it.EquipmentId">@ModeloDe(it.EquipmentId) (fora da lista)</option>
+                                        }
+                                    </select>
+                                    <select class="cell ncm-sel" title="NCM do item na proposta em Word" value="@it.Ncm" @onchange="e => it.Ncm = e.Value?.ToString() ?? string.Empty">
+                                        <option value="">NCM: a definir</option>
+                                        @foreach (var n in ListasDaProposta.Ncms) { <option value="@n.Codigo">NCM @n.Texto</option> }
+                                    </select>
                                 </div>
                             }
                         </td>
-                        <td class="right nowrap">
-                            @if (it.Importado)
+                        <td class="nowrap">
+                            @if (it != _itemDemais)
                             {
-                                var ci = CustoImportadoDo(it);
-                                @if (ci is decimal cu)
+                                @if (it.PartNumber.Length > 0) { @SeloNac(r) }
+                                <label class="chk-inline" style="color:var(--text)">
+                                    <input type="checkbox" checked="@it.Importado" @onchange="e => MarcarImportado(idx, e)" /> importado
+                                </label>
+                                @if (it.Importado)
+                                {
+                                    <div class="imp-preco">
+                                        <input class="cell num" type="number" min="0" step="0.01" placeholder="preço unit."
+                                               value="@(it.ValorMoeda > 0 ? it.ValorMoeda.ToString(CultureInfo.InvariantCulture) : "")"
+                                               @onchange="e => MudarValorMoeda(idx, e)" />
+                                        <span>@_o.Moeda</span>
+                                    </div>
+                                }
+                            }
+                        </td>
+                        <td class="right nowrap">
+                            @if (it == _itemDemais)
+                            {
+                                <strong>@Fmt.Brl(DemaisCustos(custosLado, prLado))</strong>
+                            }
+                            else if (it.Importado)
+                            {
+                                @if (CustoImportadoDo(it) is decimal cu)
                                 {
                                     <strong>@Fmt.Brl(cu)</strong>
                                     <span class="sub-cel">importação @(_o.ImportacaoModo == "item" ? "por item" : "por total (rateio)")</span>
-                                    @if (it.Quantity > 1)
-                                    {
-                                        <span class="sub-cel">@Fmt.Brl(cu * it.Quantity) na linha</span>
-                                    }
                                 }
                                 else
                                 {
-                                    <span class="custo-indisp">@(it.ValorMoeda <= 0 ? $"informe o preço em {_o.Moeda}" : "complete a importação no topo")</span>
+                                    <span class="custo-indisp">@(it.ValorMoeda <= 0 ? $"informe o preço em {_o.Moeda}" : "complete a importação abaixo")</span>
                                 }
-                            }
-                            else if (it.PartNumber.Length > 0)
-                            {
-                                @CelulaCusto(r)
                             }
                             else
                             {
-                                @Traco
+                                <input class="cell num custo-cel" type="number" min="0" step="0.01" placeholder="digitar"
+                                       value="@(CustoNacionalDe(it) is decimal cn ? cn.ToString(CultureInfo.InvariantCulture) : "")"
+                                       @onchange="e => MudarCustoDoItem(it, e)" />
+                                <span class="sub-cel">
+                                    @if (it.CustoManual is not null)
+                                    {
+                                        <span>digitado</span>
+                                        @if (r.Nacionalizado && r.Custo is decimal rc)
+                                        {
+                                            <span> · ref. @Fmt.Brl(rc) </span>
+                                            <button class="btn-link" title="Voltar ao custo da Nacionalização" @onclick="() => it.CustoManual = null">↺</button>
+                                        }
+                                    }
+                                    else if (r.Nacionalizado && r.Custo is not null)
+                                    {
+                                        <span>Nacionalização@(r.CustoData.Length > 0 ? $" · {Fmt.Date(r.CustoData)}" : "")</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="custo-indisp">sem referência: digite o custo</span>
+                                    }
+                                </span>
                             }
                         </td>
                         <td class="right nowrap">
-                            @if (it.PartNumber.Length > 0)
+                            @if (it.PartNumber.Length > 0) { @CelulaUltimaVenda(r) } else { @Traco }
+                        </td>
+                        <td class="right">
+                            @if (it != _itemDemais)
                             {
-                                @CelulaUltimaVenda(r)
-                                @if (r.UltimaVenda is decimal uv && Math.Round(Cambio.ParaVenda(_o, uv), 2) != it.UnitPrice)
-                                {
-                                    <button class="btn-link usar-preco" title="Copiar o valor da última venda para o preço da proposta"
-                                            @onclick="() => UsarPreco(idx, uv)">usar</button>
-                                }
-                            }
-                            else
-                            {
-                                @Traco
+                                <input class="cell num prazo-cel" type="number" min="0" step="1"
+                                       placeholder="@(PricingDaProposta.PrazoEmDias(_o.PrazoEntrega) is > 0 and var pp ? pp.ToString() : "—")"
+                                       title="Vazio = o prazo da proposta. Importados com o mesmo prazo vêm na mesma importação."
+                                       value="@(it.PrazoEntregaDias > 0 ? it.PrazoEntregaDias.ToString() : "")" @onchange="e => MudarPrazoDoItem(it, e)" />
                             }
                         </td>
                         <td class="right">
-                            <input class="cell num qtd-cel" type="number" min="1" value="@it.Quantity"
-                                   @onchange="e => MudarQtd(idx, e)" />
+                            <input class="cell num qtd-cel" type="number" min="1" value="@it.Quantity" @onchange="e => MudarQtd(idx, e)" />
                         </td>
-                        <td class="right">
-                            <input class="cell num preco-cel" type="number" min="0" step="0.01" placeholder="definir"
-                                   value="@(it.UnitPrice > 0 ? it.UnitPrice.ToString(CultureInfo.InvariantCulture) : "")"
-                                   @onchange="e => MudarPreco(idx, e)" />
+                        <td class="right nowrap"><strong>@(it.UnitPrice > 0 ? Venda(it.UnitPrice) : "—")</strong></td>
+                        <td class="right nowrap">@Venda(it.TotalPrice)</td>
+                        <td class="nowrap acoes-item">
+                            @if (it != _itemDemais)
+                            {
+                                <button class="btn-link" title="Duplicar a linha (a cópia vem preenchida, logo abaixo)" aria-label="Duplicar item" @onclick="() => DuplicarItem(idx)">⧉</button>
+                            }
+                            <button class="btn-link" style="color:#b91c1c" title="Tirar o item" aria-label="Tirar item" @onclick="() => Remover(idx)">✕</button>
                         </td>
-                        <td class="right nowrap"><strong>@Venda(it.TotalPrice)</strong></td>
-                        <td><button class="btn-link" style="color:#b91c1c" @onclick="() => Remover(idx)">remover</button></td>
                     </tr>
                 }
-                @if (_items.Count == 0) { <tr><td colspan="9" class="empty">Nenhum item. Selecione equipamentos e itens da BOM acima, ou adicione um item manual.</td></tr> }
+                @if (_items.Count == 0) { <tr><td colspan="9" class="empty">Nenhum item. Marque itens da BOM acima ou inclua um item abaixo.</td></tr> }
             </tbody>
         </table>
         </div>
-        <div class="item-row" style="grid-template-columns:2fr 1.2fr 80px 120px auto">
-            <label>Descrição (item manual) <input class="cell" @bind="_desc" /></label>
+        <div class="item-row" style="grid-template-columns:2fr 1fr 1.3fr 70px 120px auto">
+            <label>Descrição (item novo) <input class="cell" placeholder="ex.: Válvula de sucção" @bind="_desc" /></label>
+            <label>Part Number <input class="cell" @bind="_pnManual" /></label>
             <label>Equipamento
                 <select class="cell" @bind="_equipDoManual">
                     <option value="">sem equipamento</option>
@@ -753,9 +802,10 @@
                 </select>
             </label>
             <label>Qtd <input class="cell num" type="number" @bind="_qtd" /></label>
-            <label>Unitário (@Cambio.MoedaDoPreco(_o).Rotulo()) <input class="cell num" type="number" step="0.01" @bind="_preco" /></label>
+            <label>Custo unit. (R$) <input class="cell num" type="number" step="0.01" placeholder="ou importado" @bind="_preco" /></label>
             <label>&nbsp;<button class="btn-primary" @onclick="AdicionarItem">Adicionar</button></label>
         </div>
+        <p class="nota" style="margin:8px 0 0">Item importado: inclua e marque "importado" na linha, com o preço na moeda — o custo vem da planilha de importação. ⧉ duplica a linha já preenchida.</p>
     </div>
 
         @if (_items.Any(i => i.Importado))
@@ -801,7 +851,7 @@
                         <div class="@(_o.ImportacaoModo == "total" ? "escolhido" : "")">
                             <span>Por total</span>
                             <strong>@Fmt.Brl(imp.TotalPorTotal)</strong>
-                            <small>1 importação de @Me(imp.ValorMoedaTotal)</small>
+                            <small>@(imp.PorTotal.Count == 1 ? $"1 importação de {Me(imp.ValorMoedaTotal)}" : $"{imp.PorTotal.Count} importações, uma por prazo de entrega")</small>
                         </div>
                         <div class="@(_o.ImportacaoModo == "item" ? "escolhido" : "")">
                             <span>Por item</span>
@@ -823,7 +873,7 @@
                     </button>
                     @if (_verMemoria)
                     {
-                        var calculos = _o.ImportacaoModo == "item" ? imp.PorItem : new List<(string, CalculoImportacao)> { ("Importação total", imp.PorTotal!) };
+                        var calculos = _o.ImportacaoModo == "item" ? imp.PorItem : imp.PorTotal;
                         <div class="tabela-rolante">
                         <table class="grid memoria-imp">
                             <thead>
@@ -863,7 +913,6 @@
         var custos = custosLado;
         var entrada = PricingDaProposta.EntradaDe(_o, custos.Nacionais, custos.Importados);
         var pr = prLado;
-        var margemPrecos = MargemDosPrecos(custos);
         var pendencias = PricingDaProposta.Pendencias(_o);
         var riscoPadrao = CalculoPricing.RiscoPadraoDo(_o.SegmentoMargem, _o.Product);
         var margemPadrao = ListasDoPricing.MargemPadraoDo(_o.SegmentoMargem);
@@ -1254,22 +1303,18 @@
             }
 
             <div class="pricing-acoes">
-                <button class="btn-primary" @onclick="AplicarPricing">Aplicar preços do pricing nos @custos.ComCusto.Count item(ns) com custo</button>
                 <span>
-                    Preço unitário sem impostos (como diz a proposta), em @moedaVenda.Rotulo(), proporcional ao custo de cada item
-                    (fator @PricingDaProposta.Fator(pr).ToString("N4", PtBr)). Só muda quando você clica; depois dá para ajustar à mão.
-                    @if (margemPrecos is decimal mp)
-                    {
-                        <br /><span>Com os preços que estão hoje nesses itens, a margem fica em <strong>@Pct(mp)</strong>.</span>
-                    }
+                    Os preços dos itens já saem daqui, em @moedaVenda.Rotulo(): custo de cada item × fator
+                    @PricingDaProposta.FatorNoNivel(pr, _o.ImpostosNoPreco).ToString("N4", PtBr)
+                    (@PricingDaProposta.NivelEfetivo(pr, _o.ImpostosNoPreco).Rotulo.ToLowerInvariant()). Mudou o custo, a margem ou os impostos, o preço acompanha.
                 </span>
             </div>
             @if (demais > 0.005m)
             {
                 <div class="pricing-acoes">
-                    <button class="btn-ghost" @onclick="AdicionarDemais">@(_itemDemais is not null && _items.Contains(_itemDemais) ? "Atualizar" : "Incluir") item "Serviços e demais custos"</button>
-                    <span>A tabela de custo tem @Fmt.Brl(demais) além dos itens (@NomesDosDemais()) — no preço, @VendaDe(demais * PricingDaProposta.Fator(pr)).
-                        Inclua como item da proposta para cobrar à parte.</span>
+                    @if (_itemDemais is null || !_items.Contains(_itemDemais)) { <button class="btn-ghost" @onclick="AdicionarDemais">Incluir item "Serviços e demais custos"</button> }
+                    <span>A tabela de custo tem @Fmt.Brl(demais) além dos itens (@NomesDosDemais()) — no preço, @VendaDe(demais * PricingDaProposta.FatorNoNivel(pr, _o.ImpostosNoPreco)).
+                        @(_itemDemais is not null && _items.Contains(_itemDemais) ? "Já está na proposta como item, com o preço atualizado." : "Inclua como item da proposta para cobrar à parte.")</span>
                 </div>
             }
         }
@@ -1278,8 +1323,25 @@
 @* os preços dos itens ao lado do pricing: ajustar um preço não obriga a
    voltar à etapa Itens *@
 <div class="panel" id="f-precos" style="margin-bottom:14px">
-    <div class="dash-title">Preços dos itens <span class="dash-sub">em @Cambio.MoedaDoPreco(_o).Rotulo(), sem impostos · o "Aplicar preços do pricing" acima preenche os itens com custo</span></div>
-    <div class="tabela-rolante">
+    @{ var nivelEfetivo = PricingDaProposta.NivelEfetivo(prLado, _o.ImpostosNoPreco); }
+    <div class="dash-title">Preço ao cliente <span class="dash-sub">com que impostos os preços saem na proposta (o total do Word diz o mesmo)</span></div>
+    <div class="niveis-imposto" role="radiogroup" aria-label="Impostos no preço">
+        @foreach (var n in PricingDaProposta.Niveis)
+        {
+            var nivel = n;
+            var valorNivel = PricingDaProposta.ValorNoNivel(prLado, n.Codigo);
+            <button class="nivel @(nivelEfetivo.Codigo == n.Codigo ? "on" : "")" role="radio" aria-checked="@(nivelEfetivo.Codigo == n.Codigo ? "true" : "false")"
+                    disabled="@(valorNivel is null)" @onclick="() => _o.ImpostosNoPreco = nivel.Codigo">
+                <strong>@n.Rotulo</strong>
+                <span>@(valorNivel is decimal vn && prLado.CustoTotal > 0 ? VendaDe(vn) : valorNivel is null ? "não se aplica" : "—")</span>
+            </button>
+        }
+    </div>
+    @if (nivelEfetivo.Codigo != _o.ImpostosNoPreco)
+    {
+        <div class="imp-pendencia">Esta proposta não tem esse nível de imposto (exportação, Back to Back, sem Estado ou procurar o Financeiro): os preços saem sem impostos.</div>
+    }
+    <div class="tabela-rolante" style="margin-top:12px">
     <table class="grid tabela-precos">
         <thead>
             <tr><th>Item</th><th class="right">Qtd</th><th class="right">Custo unitário (R$)</th><th class="right">Preço unitário (@Cambio.MoedaDoPreco(_o).Rotulo())</th><th class="right">Total</th></tr>
@@ -1288,8 +1350,7 @@
             @for (int i = 0; i < _items.Count; i++)
             {
                 var it = _items[i];
-                var idx = i;
-                var custoIt = custosLado.ComCusto.FirstOrDefault(x => x.It == it);
+                var custoIt = CustoDoItem(it);
                 <tr class="@(it.UnitPrice <= 0 ? "sem-preco" : "")">
                     <td>@NomeCurto(it)
                         @if (it.PartNumber.Length > 0 && it.Description.Length > 0)
@@ -1298,12 +1359,8 @@
                         }
                     </td>
                     <td class="right">@it.Quantity</td>
-                    <td class="right nowrap">@(custoIt.It is not null ? Fmt.Brl(custoIt.Unit) : it == _itemDemais ? "tabela de custo" : "sem custo")</td>
-                    <td class="right">
-                        <input class="cell num preco-cel" type="number" min="0" step="0.01" placeholder="definir"
-                               value="@(it.UnitPrice > 0 ? it.UnitPrice.ToString(CultureInfo.InvariantCulture) : "")"
-                               @onchange="e => MudarPreco(idx, e)" />
-                    </td>
+                    <td class="right nowrap">@(it == _itemDemais ? Fmt.Brl(DemaisCustos(custosLado, prLado)) : custoIt is decimal cu ? Fmt.Brl(cu) : "sem custo")</td>
+                    <td class="right nowrap"><strong>@(it.UnitPrice > 0 ? Venda(it.UnitPrice) : "—")</strong></td>
                     <td class="right nowrap"><strong>@Venda(it.TotalPrice)</strong></td>
                 </tr>
             }
@@ -1313,7 +1370,7 @@
             }
             else
             {
-                <tr class="memoria-total"><td colspan="4">Valor líquido da proposta</td><td class="right nowrap">@Venda(Total)</td></tr>
+                <tr class="memoria-total"><td colspan="4">Valor da proposta · @nivelEfetivo.Rotulo.ToLowerInvariant()</td><td class="right nowrap">@Venda(Total)</td></tr>
             }
         </tbody>
     </table>
@@ -1366,7 +1423,7 @@
         <div><span>Local de entrega</span><strong>@ListasDaProposta.LinhaDoIncoterm(_o.Incoterm, _o.IncotermLocal)</strong></div>
         <div><span>Validade</span><strong>@OuTraco(_o.ValidityText)</strong></div>
         <div><span>Representante</span><strong>@OuTraco(string.Join(" · ", new[] { _o.Rep1, _o.Rep2 }.Where(r => !string.IsNullOrWhiteSpace(r) && r.Trim() != "-")))</strong></div>
-        <div><span>Valor líquido</span><strong>@Venda(Total)</strong></div>
+        <div><span>Valor da proposta</span><strong>@Venda(Total) <small class="nota">@PricingDaProposta.NivelEfetivo(prLado, _o.ImpostosNoPreco).Rotulo.ToLowerInvariant()</small></strong></div>
     </div>
     <div class="tabela-rolante" style="margin-top:12px">
         <table class="grid">
@@ -1427,15 +1484,14 @@
 </div>
 <aside class="prop-side" aria-label="Resumo da proposta">
     @{
-        var margemLado = MargemDosPrecos(custosLado);
         var temPricingLado = prLado.CustoTotal > 0 && prLado.VendaLiquida > 0;
     }
     <div class="side-total">
-        <div class="kpi-label" style="color:#cfe3f7">Valor líquido@(Cambio.Converte(_o) ? $" em {Cambio.MoedaDoPreco(_o).Rotulo()}" : "")</div>
+        <div class="kpi-label" style="color:#cfe3f7">Valor da proposta@(Cambio.Converte(_o) ? $" em {Cambio.MoedaDoPreco(_o).Rotulo()}" : "")</div>
         @if (Total > 0m)
         {
             <div class="side-total-value">@Venda(Total)</div>
-            <div class="side-total-nota">sem impostos, como sai na proposta</div>
+            <div class="side-total-nota">@PricingDaProposta.NivelEfetivo(prLado, _o.ImpostosNoPreco).Rotulo.ToLowerInvariant(), como sai na proposta</div>
         }
         else
         {
@@ -1462,8 +1518,8 @@
     <div class="panel side-numeros">
         <div class="side-item"><span>Custo total (R$)</span><strong>@(prLado.CustoTotal > 0 ? Fmt.Brl(prLado.CustoTotal) : "—")</strong></div>
         <div class="side-item">
-            <span>@(margemLado is null ? "Margem do pricing" : "Margem com os preços")</span>
-            <strong>@(margemLado is decimal ml ? Pct(ml) : temPricingLado ? Pct(prLado.Margem) : "—")</strong>
+            <span>Margem</span>
+            <strong>@(temPricingLado ? Pct(prLado.Margem) : "—")</strong>
         </div>
         @if (temPricingLado && prLado.PrecoAoCliente is decimal pacLado && !prLado.SemImpostos)
         {
@@ -1536,7 +1592,8 @@
     private string _bomBusca = "";
     private string _desc = "";
     private int _qtd = 1;
-    private decimal _preco;
+    private decimal _preco;          // custo unitário (R$) do item novo
+    private string _pnManual = "";
     private string? _erro;
 
     [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
@@ -1629,10 +1686,9 @@
                 {
                     if (imp is not null && imp.TryGetValue(it, out var u)) unit = u;
                 }
-                else if (it.PartNumber.Length > 0)
+                else
                 {
-                    var r = RefDoItem(it);
-                    if (r.Nacionalizado) unit = r.Custo;
+                    unit = CustoNacionalDe(it);
                 }
                 if (unit is decimal c && c > 0)
                 {
@@ -1646,35 +1702,11 @@
     }
 
     /// <summary>O pricing da proposta como está na tela (custos dos itens + tabela de custo).</summary>
-    private CalculoPricing.Resultado PricingAtual(CustoDosItens c) => PricingDaProposta.Da(_o, c.Nacionais, c.Importados);
+    /// <summary>O pricing da proposta como está na tela; o IPI vem da NCM dos itens (compressor: 0%).</summary>
+    private CalculoPricing.Resultado PricingAtual(CustoDosItens c) =>
+        PricingDaProposta.Da(_o, c.Nacionais, c.Importados, PricingDaProposta.IpiDosItens(c.ComCusto.Select(x => (x.It, x.Unit))));
 
-    /// <summary>
-    /// Margem com os preços digitados nos itens com custo: só quando todo item
-    /// com custo tem preço, a tabela de custo não tem linha digitada à parte e o
-    /// destino não é Back to Back (aí o preço não é a venda líquida).
-    /// </summary>
-    private decimal? MargemDosPrecos(CustoDosItens c)
-    {
-        if (c.Total <= 0 || c.ComCusto.Any(x => x.It.UnitPrice <= 0) || _o.CustosPricing.Any(x => x.Valor != 0m)) return null;
-        if (Textos.Simples(_o.Destino).Contains("back to back")) return null;
-        var venda = Cambio.ParaReais(_o, c.ComCusto.Sum(x => x.It.UnitPrice * x.It.Quantity));
-        return CalculoPricing.PeloPreco(PricingDaProposta.EntradaDe(_o, c.Nacionais, c.Importados), venda).Margem;
-    }
 
-    /// <summary>Só por clique: leva o preço do pricing (sem impostos, na moeda do preço) aos itens com custo.</summary>
-    private void AplicarPricing()
-    {
-        var c = Custos;
-        var r = PricingAtual(c);
-        if (r.CustoTotal <= 0 || r.VendaLiquida <= 0) return;
-        foreach (var (it, unit) in c.ComCusto)
-        {
-            it.UnitPrice = PricingDaProposta.PrecoUnitario(_o, unit, r);
-            it.TotalPrice = it.Quantity * it.UnitPrice;
-        }
-        if (_itemDemais is not null && _items.Contains(_itemDemais)) AtualizarDemais(r, c);
-        _erro = null;
-    }
 
     // item "Serviços e demais custos": o que a tabela de custo tem além dos itens
     private CommercialOfferItem? _itemDemais;
@@ -1868,15 +1900,21 @@
     /// </summary>
     private record ResultadoImportacao(
         List<string> Pendencias,
-        CalculoImportacao? PorTotal, decimal ValorMoedaTotal,
+        List<(string Rotulo, CalculoImportacao Calc)> PorTotal, decimal ValorMoedaTotal,
         List<(string Rotulo, CalculoImportacao Calc)> PorItem,
         Dictionary<CommercialOfferItem, decimal> UnitarioPorTotal,
         Dictionary<CommercialOfferItem, decimal> UnitarioPorItem)
     {
-        public decimal TotalPorTotal => PorTotal?.CustoTotal ?? 0;
+        public decimal TotalPorTotal => PorTotal.Sum(x => x.Calc.CustoTotal);
         public decimal TotalPorItem => PorItem.Sum(x => x.Calc.CustoTotal);
     }
 
+    /// <summary>
+    /// As importações da proposta, nos dois modos (a tela mostra qual sai mais
+    /// barato). "Por total" é uma importação por PRAZO DE ENTREGA: os itens que
+    /// chegam juntos vêm juntos; cada item com prazo próprio vem na importação
+    /// do seu prazo, com rateio pelo valor dentro dela.
+    /// </summary>
     private ResultadoImportacao Importacoes
     {
         get
@@ -1886,15 +1924,21 @@
             if (_o.TaxaCambio <= 0) pend.Add("informe a taxa cambial");
             var semPreco = importados.Count(i => i.ValorMoeda <= 0);
             if (semPreco > 0) pend.Add($"preço em {_o.Moeda} em {semPreco} item(ns)");
-            var vazio = new ResultadoImportacao(pend, null, 0, new(), new(), new());
+            var vazio = new ResultadoImportacao(pend, new(), 0, new(), new(), new());
             if (pend.Count > 0) return vazio;
 
-            // por total: uma importação com a soma (preço × qtd) e rateio pelo valor de cada item
-            var totalMoeda = importados.Sum(i => i.ValorMoeda * i.Quantity);
-            var total = CustoImportacao.Calcular(totalMoeda, _o.TaxaCambio, ParamImportacao);
-            var unitTotal = importados.ToDictionary(i => i, i => Math.Round(total.CustoTotal * i.ValorMoeda / totalMoeda, 2));
+            var porPrazo = importados.GroupBy(PrazoDoItem).OrderBy(g => g.Key).ToList();
+            var porTotal = new List<(string, CalculoImportacao)>();
+            var unitTotal = new Dictionary<CommercialOfferItem, decimal>();
+            foreach (var grupo in porPrazo)
+            {
+                var totalMoeda = grupo.Sum(i => i.ValorMoeda * i.Quantity);
+                var calc = CustoImportacao.Calcular(totalMoeda, _o.TaxaCambio, ParamImportacao);
+                var rotulo = porPrazo.Count == 1 ? "Importação total" : grupo.Key > 0 ? $"Importação {grupo.Key} dias" : "Importação sem prazo";
+                porTotal.Add((rotulo, calc));
+                foreach (var i in grupo) unitTotal[i] = Math.Round(calc.CustoTotal * i.ValorMoeda / totalMoeda, 2);
+            }
 
-            // por item: uma importação por linha (preço × qtd)
             var porItem = new List<(string, CalculoImportacao)>();
             var unitItem = new Dictionary<CommercialOfferItem, decimal>();
             foreach (var i in importados)
@@ -1903,7 +1947,7 @@
                 porItem.Add((i.PartNumber.Length > 0 ? i.PartNumber : i.Description, c));
                 unitItem[i] = Math.Round(c.CustoTotal / i.Quantity, 2);
             }
-            return new ResultadoImportacao(pend, total, totalMoeda, porItem, unitTotal, unitItem);
+            return new ResultadoImportacao(pend, porTotal, importados.Sum(i => i.ValorMoeda * i.Quantity), porItem, unitTotal, unitItem);
         }
     }
 
@@ -1947,6 +1991,7 @@
             if (!string.IsNullOrWhiteSpace(nome)) _usuario = nome.Trim();
         }
         _units = Units.All();
+        LerCondicoes();
         _base = Base.All();
         _parts = Pecas.All();
         _equipamentos = Equipamentos.All();
@@ -2174,16 +2219,21 @@
 
     private void AdicionarItem()
     {
-        if (string.IsNullOrWhiteSpace(_desc)) return;
+        if (string.IsNullOrWhiteSpace(_desc) && string.IsNullOrWhiteSpace(_pnManual)) return;
         var q = _qtd <= 0 ? 1 : _qtd;
-        var eqManual = _o.EquipamentosDaProposta.FirstOrDefault(x => x.Id == _equipDoManual);
+        var pn = _pnManual.Trim();
+        var r = Ref(pn);
         _items.Add(new CommercialOfferItem
         {
-            Description = _desc.Trim(), Quantity = q, UnitPrice = _preco, TotalPrice = q * _preco,
-            EquipmentId = eqManual?.Id ?? "",
-            Ncm = eqManual is null ? "" : ListasDaProposta.NcmPadrao(eqManual.Tipo),
+            Description = string.IsNullOrWhiteSpace(_desc) ? pn : _desc.Trim(), Quantity = q,
+            PartNumber = pn,
+            EquipmentId = _o.EquipamentosDaProposta.Any(x => x.Id == _equipDoManual) ? _equipDoManual : "",
+            Ncm = ListasDaProposta.NcmPadrao(),
+            CustoManual = _preco > 0 ? _preco : null,
+            Nacionalizado = r.Nacionalizado, CustoReferencia = r.Custo, CustoData = r.CustoData,
+            UltimaVenda = r.UltimaVenda, UltimaVendaData = r.UltimaVendaData,
         });
-        _desc = ""; _qtd = 1; _preco = 0;
+        _desc = ""; _pnManual = ""; _qtd = 1; _preco = 0;
     }
 
     private void MudarQtd(int idx, ChangeEventArgs e)
@@ -2194,23 +2244,7 @@
         it.TotalPrice = it.Quantity * it.UnitPrice;
     }
 
-    private void MudarPreco(int idx, ChangeEventArgs e)
-    {
-        if (idx < 0 || idx >= _items.Count) return;
-        var it = _items[idx];
-        var texto = (e.Value?.ToString() ?? "").Replace(",", ".");
-        it.UnitPrice = decimal.TryParse(texto, NumberStyles.Any, CultureInfo.InvariantCulture, out var p) && p > 0 ? p : 0;
-        it.TotalPrice = it.Quantity * it.UnitPrice;
-    }
 
-    /// <summary>Só por ação do usuário: copia a última venda (R$) para o preço da proposta, na moeda do preço.</summary>
-    private void UsarPreco(int idx, decimal valorEmReais)
-    {
-        if (idx < 0 || idx >= _items.Count) return;
-        var it = _items[idx];
-        it.UnitPrice = Math.Round(Cambio.ParaVenda(_o, valorEmReais), 2);
-        it.TotalPrice = it.Quantity * it.UnitPrice;
-    }
 
     private void Remover(int idx)
     {

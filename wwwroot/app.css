@@ -1153,3 +1153,37 @@ h1 { font-size: 24px; margin: 0 0 4px; color: var(--primary); letter-spacing: -.
 .plantas-tabela td:last-child .btn-link, .equip-tabela td:last-child .btn-link { font-size: 15px; font-weight: 700; }
 .plantas-tabela td:nth-child(4) .cell { padding-left: 6px; padding-right: 6px; text-align: center; }
 .equip-tabela select.cell, .plantas-tabela select.cell { padding-left: 8px; padding-right: 4px; }
+
+/* ---- condições com "+", itens com custo e preço calculado, impostos no preço ---- */
+.form3 .campo { display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; font-weight: 500; color: var(--muted); }
+.form3 .campo .cell { width: 100%; }
+.com-mais { display: flex; gap: 6px; align-items: center; }
+.com-mais .cell { flex: 1; min-width: 0; }
+.btn-mais {
+    flex: none; width: 34px; height: 34px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+    background: #fff; color: var(--primary); font-size: 18px; font-weight: 700; cursor: pointer; line-height: 1;
+}
+.btn-mais:hover { border-color: var(--primary); background: #f4f8fd; }
+.nova-condicao { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 4px; }
+.nova-condicao .cell { flex: 1 1 220px; }
+.itens-tabela td { vertical-align: top; }
+.itens-tabela .item-desc { width: 100%; font-weight: 600; }
+.item-linha2 { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.item-linha2 .item-pn { flex: 0 1 130px; min-width: 100px; }
+.item-linha2 .equip-do-item { flex: 1 1 150px; margin-top: 0; max-width: none; }
+.item-linha2 .ncm-sel { flex: 1 1 150px; margin-top: 0; }
+.custo-cel { width: 110px; }
+.prazo-cel { width: 72px; }
+.acoes-item .btn-link { font-size: 15px; font-weight: 700; padding: 0 4px; }
+.niveis-imposto { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 900px) { .niveis-imposto { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.niveis-imposto .nivel {
+    display: flex; flex-direction: column; gap: 3px; text-align: left; padding: 10px 12px; cursor: pointer;
+    border: 1px solid var(--border); border-radius: var(--radius-sm); background: #fff; font: inherit; color: var(--text);
+}
+.niveis-imposto .nivel strong { font-size: 12.5px; }
+.niveis-imposto .nivel span { font-size: 13.5px; font-weight: 600; color: var(--muted); }
+.niveis-imposto .nivel.on { border-color: var(--primary); background: #eef5ff; box-shadow: inset 0 0 0 1px var(--primary); }
+.niveis-imposto .nivel.on span { color: var(--primary); }
+.niveis-imposto .nivel:disabled { opacity: .5; cursor: not-allowed; }
+.lista-equip { max-height: 300px; overflow-y: auto; border-radius: var(--radius); }

@@ -67,7 +67,7 @@ public partial class NovaOferta : IDisposable
     private sealed record Pendencia(string Texto, int Etapa, string Alvo = "", bool SoAviso = false);
 
     /// <summary>Os campos que moram no "Mais campos" da etapa 2: a pendência abre o grupo antes de ir.</summary>
-    private static readonly HashSet<string> AlvosDosMaisCampos = new() { "f-numero", "f-ncmred", "f-ic", "f-ano" };
+    private static readonly HashSet<string> AlvosDosMaisCampos = new() { "f-numero", "f-ncmred", "f-ic", "f-ano", "f-segmento" };
 
     private List<Pendencia> Pendencias()
     {
@@ -121,11 +121,9 @@ public partial class NovaOferta : IDisposable
         var semNcm = _items.Count(i => i != _itemDemais && V(i.Ncm));
         Avisa(semNcm > 0, $"{Plural(semNcm, "item", "itens")} sem NCM (sai \"a definir\")", 3, "f-itens");
         var semCusto = Custos.SemCusto.Count(i => i != _itemDemais);
-        Avisa(semCusto > 0, $"{Plural(semCusto, "item", "itens")} sem custo — fora do pricing", 3, "f-itens");
+        Falta(semCusto > 0, $"{Plural(semCusto, "item", "itens")} sem custo (digite o custo ou marque importado)", 3, "f-itens");
 
         // 4 — preço
-        var semPreco = _items.Count(i => i.UnitPrice <= 0);
-        Falta(semPreco > 0, $"{Plural(semPreco, "item", "itens")} sem preço", 4, "f-precos");
         Falta(Cambio.FaltaTaxa(_o), $"Taxa de câmbio do {Cambio.MoedaDoPreco(_o).Rotulo()}", 4, "f-taxa");
         Falta(comFianca && V(_o.TipoGarantia), "Tipo de garantia (fiança)", 4, "f-tipogarantia");
         var c = Custos;
@@ -208,7 +206,13 @@ public partial class NovaOferta : IDisposable
             return false;
         }
 
-        foreach (var it in _items) it.CustoImportacao = it.Importado ? CustoImportadoDo(it) : null;
+        AtualizarPrecos();
+        foreach (var it in _items)
+        {
+            it.CustoImportacao = it.Importado ? CustoImportadoDo(it) : null;
+            // o item "Serviços e demais custos" já está na tabela de custo do pricing: não leva custo próprio
+            it.CustoUnitario = it == _itemDemais ? null : CustoDoItem(it);
+        }
         if (!_items.Any(i => i.Importado)) { _o.ImportacaoModo = ""; _o.TaxaCambio = 0; }
 
         // retrato do pricing no momento de salvar (consulta na tela da oferta), em R$
@@ -379,6 +383,7 @@ public partial class NovaOferta : IDisposable
         _autoRisco = CalculoPricing.RiscoPadraoDo(_o.SegmentoMargem, _o.Product);
         _autoMargem = ListasDoPricing.MargemPadraoDo(_o.SegmentoMargem);
         _autoUf = ""; _autoMercado = ""; _autoAno = _o.Ano;
+        AtualizarPrecos();
         _baseSalva = manterId ? Foto() : "";
     }
 
@@ -741,7 +746,7 @@ public partial class NovaOferta : IDisposable
         {
             var margemPadrao = ListasDoPricing.MargemPadraoDo(_o.SegmentoMargem);
             var c = Custos;
-            var margem = MargemDosPrecos(c) ?? (PelaMargem ? _o.MargemAlvo : PricingAtual(c).Margem);
+            var margem = PelaMargem ? _o.MargemAlvo : PricingAtual(c).Margem;
             return margem < margemPadrao - 0.0005m
                 || Math.Abs(_o.RiscoAdicional - CalculoPricing.RiscoPadraoDo(_o.SegmentoMargem, _o.Product)) > 0.00001m
                 || Math.Abs(_o.MargemNegociacao - CalculoPricing.MargemNegociacaoPadrao) > 0.00001m;

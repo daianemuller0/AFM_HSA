@@ -40,6 +40,13 @@ public class CommercialOffer
     /// fica com os cadastrados, separados por ";".
     /// </summary>
     public List<EquipamentoDaProposta> EquipamentosDaProposta { get; set; } = new();
+
+    /// <summary>
+    /// Com que impostos o preço vai ao cliente (<see cref="PricingDaProposta.Niveis"/>):
+    /// "liquido", "pis_cofins", "pis_cofins_icms" ou "todos". O preço dos itens
+    /// e o total do Word saem nesse nível.
+    /// </summary>
+    public string ImpostosNoPreco { get; set; } = "liquido";
     // Condições comerciais (editáveis)
     public string IntroText { get; set; } = "";
     public string TaxText { get; set; } = "";
@@ -156,6 +163,7 @@ public class EquipamentoDaProposta
     public string Modelo { get; set; } = "";
     public string Tag { get; set; } = "";
     public string Aplicacao { get; set; } = "";
+    public string SerialNumber { get; set; } = "";
 
     [System.Text.Json.Serialization.JsonIgnore]
     public bool Cadastrado => EquipmentId.Length > 0;
@@ -188,6 +196,21 @@ public class CommercialOfferItem
 
     /// <summary>NCM do item (lista do modelo de proposta, <see cref="ListasDaProposta.Ncms"/>); vazio = a definir.</summary>
     public string Ncm { get; set; } = "";
+
+    /// <summary>
+    /// Custo unitário digitado (R$) para o item que não é importado: vale no
+    /// lugar da referência da Nacionalização (ou quando ela não existe). null = usa a referência.
+    /// </summary>
+    public decimal? CustoManual { get; set; }
+
+    /// <summary>
+    /// O custo unitário (R$) que foi para o pricing ao salvar — importação,
+    /// digitado ou referência. É dele que sai o preço do item.
+    /// </summary>
+    public decimal? CustoUnitario { get; set; }
+
+    /// <summary>Prazo de entrega do item, em dias; 0 = o prazo da proposta. Itens importados com o mesmo prazo vêm na mesma importação.</summary>
+    public int PrazoEntregaDias { get; set; }
 
     /// <summary>Item importado: o custo vem da planilha de importação.</summary>
     public bool Importado { get; set; }
