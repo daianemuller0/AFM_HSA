@@ -125,6 +125,8 @@ public partial class NovaOferta : IDisposable
 
         // 4 — preço
         Falta(Cambio.FaltaTaxa(_o), $"Taxa de câmbio do {Cambio.MoedaDoPreco(_o).Rotulo()}", 4, "f-taxa");
+        var acimaDaMeta = _items.Count(i => i.PrecoMeta > 0m && i.UnitPrice > i.PrecoMeta + 0.01m);
+        Avisa(acimaDaMeta > 0, $"{Plural(acimaDaMeta, "item", "itens")} com preço acima da meta (o TA só sobe; para baixar, reduza a margem)", 3, "f-itens");
         Falta(comFianca && V(_o.TipoGarantia), "Tipo de garantia (fiança)", 4, "f-tipogarantia");
         var c = Custos;
         if (c.Total > 0 || _o.CustosPricing.Any(x => x.Valor != 0m))
@@ -255,8 +257,10 @@ public partial class NovaOferta : IDisposable
             OffersRepo.SaveItem(it);
             agora.Add(it.Id);
         }
-        foreach (var id in _idsGravados.Where(id => !agora.Contains(id))) OffersRepo.DeleteItem(id);
+        var apagados = _idsGravados.Where(id => !agora.Contains(id)).ToList();
+        foreach (var id in apagados) OffersRepo.DeleteItem(id);
         _idsGravados = agora;
+        GravarReferenciasDeCusto(apagados);
 
         _baseSalva = Foto();
         _anteriores = OffersRepo.All();
@@ -294,7 +298,7 @@ public partial class NovaOferta : IDisposable
         _items = new();
         _idsGravados = new();
         _bomMarcados.Clear(); _refs.Clear(); _bomBusca = "";
-        _buscandoEquip = false; _buscaEquip = ""; _equipDoManual = ""; _autoCidade = "";
+        _buscandoEquip = false; _buscaEquip = ""; _novoItem = NovoItemVazio(); _autoCidade = "";
         _itemDemais = null; _taxaDoDia = false; _wordGerado = false; _erro = null; _msg = null;
         _anteriores = OffersRepo.All();
 
@@ -327,6 +331,8 @@ public partial class NovaOferta : IDisposable
             _o.ValidityText = Ou(ultima.ValidityText, _o.ValidityText);
             _o.DeliveryTime = Ou(ultima.DeliveryTime, _o.DeliveryTime);
             _o.Incoterm = Ou(ultima.Incoterm, _o.Incoterm);
+            // o local de entrega escrito à mão (incluído pelo "+") vem com o texto dele
+            if (_o.Incoterm == ListasDaProposta.Livre) _o.IncotermLocal = ultima.IncotermLocal;
             _o.IntroText = Ou(ultima.IntroText, _o.IntroText);
             _o.Observations = Ou(ultima.Observations, _o.Observations);
             _o.TermsText = Ou(ultima.TermsText, _o.TermsText);
@@ -375,7 +381,7 @@ public partial class NovaOferta : IDisposable
         PlantasDaProposta.Completar(_o, _items, _units, _equipamentos, _base);
         // a cópia e a revisão guardam as mesmas chaves de planta e equipamento: os itens continuam apontando certo
         _bomMarcados.Clear(); _refs.Clear(); _bomBusca = "";
-        _buscandoEquip = false; _buscaEquip = ""; _equipDoManual = "";
+        _buscandoEquip = false; _buscaEquip = ""; _novoItem = NovoItemVazio();
         _autoCidade = PlantasDaProposta.CidadesDaCapa(_o);
         _itemDemais = _items.FirstOrDefault(i => i.PartNumber.Length == 0 && i.EquipmentId.Length == 0
                                                  && i.Description.StartsWith("Serviços", StringComparison.Ordinal));

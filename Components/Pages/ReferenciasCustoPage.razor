@@ -1,0 +1,70 @@
+@page "/referencias-custo"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject ReferenciaDeCustoRepository Refs
+
+<PageTitle>Referências de custo · AFM HSA</PageTitle>
+
+<div class="page-head">
+    <div>
+        <h1>Referências de custo</h1>
+        <p class="subtitle">
+            O custo que cada proposta usou para um part number (digitado ou de importação), gravado ao salvar. Na Gerar Proposta,
+            quando o mesmo part number aparece, a referência mais recente aparece embaixo do custo, com "usar".
+        </p>
+    </div>
+</div>
+
+<div class="toolbar" style="gap:10px; flex-wrap:wrap">
+    <input class="cell" style="min-width:340px" placeholder="Buscar por part number, descrição, modelo, serial, proposta ou cliente"
+           value="@_busca" @oninput="e => _busca = e.Value?.ToString() ?? string.Empty" />
+    <span class="nota">@Filtradas.Count() de @_todas.Count referência(s)</span>
+</div>
+
+<div class="tabela-rolante">
+    <table class="grid">
+        <thead>
+            <tr><th>Part Number</th><th>Descrição</th><th class="right">Custo unit. (R$)</th><th class="right">TA (R$)</th><th>Data</th>
+                <th>Modelo</th><th>Serial Number</th><th>Origem</th><th>Proposta</th><th>Cliente</th><th>Quem</th></tr>
+        </thead>
+        <tbody>
+            @foreach (var r in Filtradas.Take(300))
+            {
+                <tr>
+                    <td class="nowrap"><strong>@r.PartNumber</strong></td>
+                    <td>@r.Descricao</td>
+                    <td class="right nowrap">@Fmt.Brl(r.Valor)</td>
+                    <td class="right nowrap">@(r.Ta > 0 ? Fmt.Brl(r.Ta) : "—")</td>
+                    <td class="nowrap">@Fmt.Date(r.Data)</td>
+                    <td>@(r.Modelo.Length > 0 ? r.Modelo : "—")</td>
+                    <td>@(r.SerialNumber.Length > 0 ? r.SerialNumber : "—")</td>
+                    <td>@r.Origem</td>
+                    <td class="nowrap"><a class="btn-link" href="@($"/gerar-proposta/{r.PropostaId}")">@r.Proposta</a></td>
+                    <td>@r.Cliente</td>
+                    <td>@r.Usuario</td>
+                </tr>
+            }
+            @if (!Filtradas.Any())
+            {
+                <tr><td colspan="11" class="empty">@(_todas.Count == 0 ? "Nenhuma referência ainda: elas nascem ao salvar uma proposta com custo digitado ou de importação." : "Nenhuma referência com esse texto.")</td></tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    private List<ReferenciaDeCusto> _todas = new();
+    private string _busca = "";
+
+    protected override void OnInitialized() => _todas = Refs.Todas();
+
+    private IEnumerable<ReferenciaDeCusto> Filtradas
+    {
+        get
+        {
+            var termos = Textos.Simples(_busca).Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            return _todas.Where(r => termos.All(t => Textos.Simples(
+                $"{r.PartNumber} {r.Descricao} {r.Modelo} {r.SerialNumber} {r.Proposta} {r.Cliente} {r.Usuario}").Contains(t)));
+        }
+    }
+}

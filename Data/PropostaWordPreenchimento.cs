@@ -56,6 +56,7 @@ internal sealed class PreenchimentoDaProposta
         Entrega();
         Validade();
         SoAComercial();
+        TirarAssessoria();
         Indice();
         TirarRealce();
 
@@ -417,11 +418,41 @@ internal sealed class PreenchimentoDaProposta
         EscreverNaCelula(celulas[0], new[] { revisao });
         EscreverNaCelula(celulas[1], new[] { _o.PreparedBy ?? "" });
         EscreverNaCelula(celulas[2], new[] { "RRT" });
-        Alargar(tabela, coluna: 1, texto: _o.PreparedBy ?? "");
-        EscreverNaCelula(celulas[3], new[] { revisao.TrimStart('0').Length == 0 ? "Emissão inicial" : $"Revisão {revisao} da proposta" });
 
         // as linhas de revisões futuras do modelo saem vazias
         foreach (var vazia in linhas.Skip(2)) vazia.Remove();
+
+        // a coluna "Descrição:" sai da proposta (pedido da equipe): a largura dela vai para "Exec"
+        var grade = tabela.GetFirstChild<TableGrid>();
+        var colunas = grade?.Elements<GridColumn>().ToList();
+        if (colunas is { Count: 4 })
+        {
+            int N(StringValue? v) => int.TryParse(v?.Value, out var n) ? n : 0;
+            colunas[1].Width = (N(colunas[1].Width) + N(colunas[3].Width)).ToString();
+            colunas[3].Remove();
+            foreach (var linha in tabela.Elements<TableRow>())
+                if (linha.Elements<TableCell>().ToList() is { Count: 4 } cels) cels[3].Remove();
+            LargurasPelaGrade(tabela);
+        }
+    }
+
+    /// <summary>A largura de cada célula, em porcentagem, pela grade da tabela.</summary>
+    private static void LargurasPelaGrade(Table tabela)
+    {
+        var colunas = tabela.GetFirstChild<TableGrid>()?.Elements<GridColumn>().ToList() ?? new();
+        int N(StringValue? v) => int.TryParse(v?.Value, out var n) ? n : 0;
+        var total = colunas.Sum(c => N(c.Width));
+        if (total <= 0) return;
+        foreach (var linha in tabela.Elements<TableRow>())
+        {
+            var cels = linha.Elements<TableCell>().ToList();
+            if (cels.Count != colunas.Count) continue;
+            for (var i = 0; i < cels.Count; i++)
+            {
+                var props = cels[i].TableCellProperties ??= new TableCellProperties();
+                props.TableCellWidth = new TableCellWidth { Type = TableWidthUnitValues.Pct, Width = (N(colunas[i].Width) * 5000 / total).ToString() };
+            }
+        }
     }
 
     /// <summary>Alarga uma coluna até o texto caber numa linha, tirando a diferença da última (como no axiaisvent).</summary>
@@ -554,14 +585,17 @@ internal sealed class PreenchimentoDaProposta
         Paragraph? P(string ancora) => paragrafos.FirstOrDefault(p => Texto(p).Contains(ancora, StringComparison.Ordinal));
         void Tirar(Paragraph? p) { if (p is not null) { p.Remove(); paragrafos.Remove(p); } }
 
+        // o modelo do compressor: o do item, senão o do equipamento da proposta
+        var modelo = PrimeiroCom(item.Modelo, eq?.Modelo);
+
         // título: o sistema é de compressores ("Partes e Peças para Compressor <modelo>") e, embaixo, a peça
         var titulo = paragrafos.FirstOrDefault(p => Texto(p).Contains("PREENCHER!!", StringComparison.Ordinal));
         if (titulo is not null)
-            Escrever(titulo, eq is not null && eq.Modelo.Trim().Length > 0 ? $"Partes e Peças para Compressor {eq.Modelo.Trim()}" : peca);
+            Escrever(titulo, modelo.Length > 0 ? $"Partes e Peças para Compressor {modelo}" : peca);
         var pPeca = paragrafos.FirstOrDefault(p => Texto(p).Trim() == "XXXXXX");
         if (pPeca is not null)
         {
-            if (eq is not null && eq.Modelo.Trim().Length > 0) Escrever(pPeca, peca);
+            if (modelo.Length > 0) Escrever(pPeca, peca);
             else Tirar(pPeca);
         }
         Tirar(P("(EX: Rotor, Eixo, Cone, Selo)"));
@@ -579,9 +613,8 @@ internal sealed class PreenchimentoDaProposta
                                           && (planta is not { Cadastrada: true } || b.ClientUnitId == planta.UnitId)).ToList();
         string DaBase(Func<InstalledBase, string?> campo) =>
             string.Join(", ", instalados.Select(b => (campo(b) ?? "").Trim()).Where(t => t.Length > 0).Distinct());
-        var tags = daProposta is not null ? (daProposta.Tag ?? "").Trim() : DaBase(b => b.Tag);
-        var serial = daProposta is not null ? (daProposta.SerialNumber ?? "").Trim() : DaBase(b => b.SerialNo);
-        var modelo = (eq?.Modelo ?? "").Trim();
+        var tags = PrimeiroCom(item.Tag, daProposta is not null ? daProposta.Tag : DaBase(b => b.Tag));
+        var serial = PrimeiroCom(item.SerialNumber, daProposta is not null ? daProposta.SerialNumber : DaBase(b => b.SerialNo));
         var aplicacao = PrimeiroCom(eq?.Aplicacao, instalados.Select(b => b.Process).FirstOrDefault(x => (x ?? "").Trim().Length > 0));
         var ultima = UltimoFornecimento(item, pn);
         var original = DaBase(b => b.ContractNo);
@@ -900,8 +933,26 @@ internal sealed class PreenchimentoDaProposta
         "Nível de Ruído", "Escopo de Fornecimento", "Limite de bateria", "Condições de processo", "Itens inclusos",
         "Documentação Incluída", "Descrição - Assessoria Técnica", "Itens Opcionais", "Exclusos do Fornecimento",
         "Desenho de linha de eixo", "Comentários e Desvios", "Tolerâncias De Performance", "Efeito Coanda",
-        "Padrões e Códigos", "Mancais Monobloco",
+        "Padrões e Códigos", "Mancais Monobloco", "Assessoria Técnica No Campo",
     };
+
+    /// <summary>
+    /// "Assessoria Técnica no Campo para Ventiladores" sai inteira: do título
+    /// até a NOTA do fim (diárias, notas gerais, documentação, acréscimos).
+    /// </summary>
+    private void TirarAssessoria()
+    {
+        var titulo = Paragrafos().FirstOrDefault(p => Texto(p).Trim().StartsWith("Assessoria Técnica No Campo", StringComparison.OrdinalIgnoreCase));
+        var nota = Achar("É facultado ao Cliente acionar formalmente a Howden");
+        if (titulo is null || nota is null) return;
+        // a quebra de página que abria a seção sai junto: senão sobra uma página em branco
+        if (titulo.PreviousSibling<Paragraph>() is { } quebra && Texto(quebra).Trim().Length == 0
+            && quebra.Descendants<Break>().Any(b => b.Type?.Value == BreakValues.Page))
+            quebra.Remove();
+        foreach (var elemento in Entre(titulo, nota)) elemento.Remove();
+        nota.Remove();
+        titulo.Remove();
+    }
 
     /// <summary>
     /// Tira a parte técnica: Proposta Técnica e Escopo de Fornecimento

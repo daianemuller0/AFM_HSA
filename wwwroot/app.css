@@ -1187,3 +1187,38 @@ h1 { font-size: 24px; margin: 0 0 4px; color: var(--primary); letter-spacing: -.
 .niveis-imposto .nivel.on span { color: var(--primary); }
 .niveis-imposto .nivel:disabled { opacity: .5; cursor: not-allowed; }
 .lista-equip { max-height: 300px; overflow-y: auto; border-radius: var(--radius); }
+
+/* ---- itens em cartões: campos rotulados, do tamanho de ler ---- */
+.item-card {
+    border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 10px;
+    background: #fff; box-shadow: var(--shadow-sm);
+}
+.item-card.sem-custo { border-color: #f5c27a; background: #fffcf5; }
+.item-card.item-novo { border-style: dashed; border-color: #b8c7da; background: #fbfcfe; margin-top: 16px; }
+.item-cab { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.item-num {
+    flex: none; min-width: 34px; height: 28px; padding: 0 6px; border-radius: 8px; display: inline-grid; place-items: center;
+    background: #e8eef6; color: var(--primary); font-weight: 700; font-size: 12.5px;
+}
+.item-num.novo { background: var(--primary); color: #fff; text-transform: uppercase; font-size: 11px; letter-spacing: .04em; }
+.item-cab .item-desc { flex: 1 1 260px; min-width: 200px; font-weight: 600; font-size: 14px; }
+.item-cab .item-demais { flex: 1 1 260px; }
+.item-preco { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.2; min-width: 130px; }
+.item-preco span { font-size: 12.5px; color: var(--muted); }
+.item-preco strong { font-size: 15px; color: var(--primary); }
+.item-acoes { display: flex; gap: 6px; align-items: center; }
+.btn-mini { padding: 5px 10px; font-size: 12.5px; }
+.btn-mini.perigo { color: #b91c1c; }
+.item-grade { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 12px; margin-top: 10px; }
+.item-grade.item-numeros { grid-template-columns: 1.3fr 1.3fr 1fr .8fr .8fr 1.2fr; padding-top: 10px; border-top: 1px dashed var(--border); }
+@media (max-width: 1250px) { .item-grade, .item-grade.item-numeros { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.item-grade > label, .item-grade > .campo {
+    display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: var(--muted); min-width: 0;
+}
+.item-grade .cell { width: 100%; font-size: 14px; padding-top: 7px; padding-bottom: 7px; }
+.item-grade input.num { text-align: right; }
+.item-grade small { font-weight: 500; font-size: 11.5px; line-height: 1.35; }
+.item-grade .valor-campo { font-size: 14px; color: var(--text); padding: 6px 0 0; }
+.item-origem { display: flex; align-items: center; gap: 8px; min-height: 34px; color: var(--text); font-weight: 500; }
+.item-grade .ref-custo { color: #1e40af; background: #eff6ff; border-radius: 6px; padding: 3px 6px; margin-top: 2px; }
+.item-grade .ta { color: #92400e; font-weight: 700; }

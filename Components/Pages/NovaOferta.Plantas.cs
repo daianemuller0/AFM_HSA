@@ -123,7 +123,6 @@ public partial class NovaOferta
 
     private bool _buscandoEquip;
     private string _buscaEquip = "";
-    private string _equipDoManual = "";
 
     /// <summary>Os equipamentos cadastrados instalados numa unidade.</summary>
     private List<Equipment> EquipsDaUnidade(string unitId)
@@ -173,9 +172,11 @@ public partial class NovaOferta
         _bomMarcados.RemoveWhere(x => !validos.Contains(x));
     }
 
+    /// <summary>Escolher o equipamento do item: modelo, serial e TAG passam a ser os dele (o que foi digitado no item sai).</summary>
     private void MudarEquipDoItem(CommercialOfferItem it, ChangeEventArgs e)
     {
         it.EquipmentId = e.Value?.ToString() ?? "";
+        it.Modelo = ""; it.SerialNumber = ""; it.Tag = "";
         if (string.IsNullOrWhiteSpace(it.Ncm)) it.Ncm = ListasDaProposta.NcmPadrao();
     }
 

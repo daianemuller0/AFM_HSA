@@ -209,8 +209,24 @@ public class CommercialOfferItem
     /// </summary>
     public decimal? CustoUnitario { get; set; }
 
-    /// <summary>Prazo de entrega do item, em dias; 0 = o prazo da proposta. Itens importados com o mesmo prazo vêm na mesma importação.</summary>
+    /// <summary>Prazo de entrega do item, em dias; 0 = o prazo da proposta.</summary>
     public int PrazoEntregaDias { get; set; }
+
+    // --- Do item no documento: vazio = o do equipamento da proposta ---------
+    /// <summary>Modelo do compressor deste item, quando difere do equipamento (ou não há equipamento).</summary>
+    public string Modelo { get; set; } = "";
+    public string SerialNumber { get; set; } = "";
+    public string Tag { get; set; } = "";
+
+    /// <summary>
+    /// Preço meta do item (unitário, na moeda do preço): quando o pricing dá
+    /// menos, entra no custo um TA (<see cref="CustoTa"/>) até o preço chegar nele.
+    /// 0 = sem meta.
+    /// </summary>
+    public decimal PrecoMeta { get; set; }
+
+    /// <summary>TA: o custo (R$, unitário) acrescentado para o preço chegar na meta. Calculado.</summary>
+    public decimal CustoTa { get; set; }
 
     /// <summary>Item importado: o custo vem da planilha de importação.</summary>
     public bool Importado { get; set; }
