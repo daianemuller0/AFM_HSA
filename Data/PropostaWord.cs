@@ -60,6 +60,49 @@ public static class PropostaWord
         return nome;
     }
 
+    /// <summary>
+    /// Junta o que o Word precisa, com as plantas e os equipamentos da
+    /// proposta: o vendedor vem da primeira planta cadastrada; a base
+    /// instalada, a BOM e as vendas, de todas as plantas cadastradas e de todos
+    /// os equipamentos cadastrados (inclusive os de outra planta). O
+    /// equipamento não cadastrado entra como foi digitado.
+    /// </summary>
+    public static DadosDaPropostaWord Dados(CommercialOffer o, IReadOnlyList<CommercialOfferItem> itens,
+        IReadOnlyList<ClientUnit> unidades, IReadOnlyList<Salesperson> vendedores, IReadOnlyList<Equipment> equipamentos,
+        IReadOnlyList<InstalledBase> baseInstalada, IReadOnlyList<BomItem> bom, IReadOnlyList<SalesRecord> vendas)
+    {
+        PlantasDaProposta.Completar(o, itens, unidades, equipamentos, baseInstalada);
+        var principal = unidades.FirstOrDefault(u => u.Id == PlantasDaProposta.UnidadePrincipal(o));
+        var vendedor = principal is null ? null : vendedores.FirstOrDefault(v => v.Id == principal.VendedorId);
+        var unidadesDaProposta = PlantasDaProposta.Unidades(o);
+
+        var porChave = new Dictionary<string, Equipment>();
+        foreach (var eq in o.EquipamentosDaProposta)
+        {
+            var cadastro = eq.Cadastrado ? equipamentos.FirstOrDefault(e => e.Id == eq.EquipmentId) : null;
+            porChave[eq.Id] = new Equipment
+            {
+                Id = eq.Id,
+                Tipo = PropostaWord.Ou(eq.Tipo, cadastro?.Tipo ?? ""),
+                Modelo = PropostaWord.Ou(eq.Modelo, cadastro?.Modelo ?? ""),
+                Nome = cadastro?.Nome ?? "",
+                Aplicacao = PropostaWord.Ou(eq.Aplicacao, cadastro?.Aplicacao ?? ""),
+                DocNum = cadastro?.DocNum ?? "",
+            };
+        }
+        // item ligado a um equipamento cadastrado que não está na lista (proposta antiga)
+        foreach (var id in itens.Select(i => i.EquipmentId).Where(x => x.Length > 0 && !porChave.ContainsKey(x)).Distinct())
+            if (equipamentos.FirstOrDefault(e => e.Id == id) is { } e) porChave[id] = e;
+
+        var cadastrados = o.EquipamentosDaProposta.Where(e => e.Cadastrado).Select(e => e.EquipmentId)
+            .Concat(itens.Select(i => i.EquipmentId)).Where(x => x.Length > 0).ToHashSet();
+        return new DadosDaPropostaWord(
+            o, itens, vendedor, porChave,
+            baseInstalada.Where(b => unidadesDaProposta.Contains(b.ClientUnitId) || cadastrados.Contains(b.EquipmentId)).ToList(),
+            bom.Where(b => cadastrados.Contains(b.EquipmentId)).ToList(),
+            vendas.Where(v => unidadesDaProposta.Contains((v.ClientUnitId ?? "").Trim())).ToList());
+    }
+
     public static byte[] Gerar(DadosDaPropostaWord dados, string caminhoDoModelo)
     {
         var fluxo = new MemoryStream();

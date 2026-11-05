@@ -18,6 +18,11 @@ public record ReferenciaPreco(
     /// <param name="partNumber">Partnumber do item.</param>
     /// <param name="clientUnitId">Planta da proposta: a última venda dela tem prioridade.</param>
     public static ReferenciaPreco Para(string? partNumber, string? clientUnitId,
+        IReadOnlyList<Nacionalizacao> nacionais, IReadOnlyList<SalesRecord> vendas) =>
+        Para(partNumber, string.IsNullOrWhiteSpace(clientUnitId) ? Array.Empty<string>() : new[] { clientUnitId.Trim() }, nacionais, vendas);
+
+    /// <summary>Com várias plantas na proposta: "este cliente" é qualquer uma das unidades cadastradas dela.</summary>
+    public static ReferenciaPreco Para(string? partNumber, IReadOnlyCollection<string> unidadesDoCliente,
         IReadOnlyList<Nacionalizacao> nacionais, IReadOnlyList<SalesRecord> vendas)
     {
         var pn = IntelligenceService.NormPn(partNumber);
@@ -52,9 +57,8 @@ public record ReferenciaPreco(
         var vendasPn = vendas.Where(v => IntelligenceService.NormPn(v.PartNumber) == pn && Unitario(v) > 0)
                              .OrderByDescending(v => IntelligenceService.DataDaVenda(v.DataVenda) ?? DateTime.MinValue)
                              .ToList();
-        var doCliente = string.IsNullOrWhiteSpace(clientUnitId) ? null
-            : vendasPn.FirstOrDefault(v => string.Equals((v.ClientUnitId ?? "").Trim(), clientUnitId.Trim(),
-                                                         StringComparison.OrdinalIgnoreCase));
+        var doCliente = unidadesDoCliente.Count == 0 ? null
+            : vendasPn.FirstOrDefault(v => unidadesDoCliente.Contains((v.ClientUnitId ?? "").Trim(), StringComparer.OrdinalIgnoreCase));
         var ultima = doCliente ?? vendasPn.FirstOrDefault();
 
         return new ReferenciaPreco(

@@ -78,6 +78,10 @@ else
             <div><div class="fact-label">Cliente</div><div>@_o.ClientName</div></div>
             <div><div class="fact-label">A/C</div><div>@Dash(_o.AttentionTo)</div></div>
             <div><div class="fact-label">Cidade</div><div>@Dash(_o.City)</div></div>
+            @if (_o.Plantas.Count > 0)
+            {
+                <div><div class="fact-label">@(_o.Plantas.Count > 1 ? "Plantas" : "Planta")</div><div>@string.Join(" · ", _o.Plantas.Select(PlantasDaProposta.Rotulo))</div></div>
+            }
             <div><div class="fact-label">Projeto</div><div>@Dash(_o.Project)</div></div>
             <div><div class="fact-label">Preparado por</div><div>@Dash(_o.PreparedBy)</div></div>
             <div><div class="fact-label">Status</div><div>@_o.Status</div></div>
@@ -204,16 +208,8 @@ else
             var modelo = Path.Combine(Ambiente.ContentRootPath, PropostaWord.CaminhoDoModelo);
             if (!File.Exists(modelo)) { _erroWord = $"O modelo não está em {PropostaWord.CaminhoDoModelo}."; return; }
 
-            var unidade = Units.All().FirstOrDefault(u => u.Id == _o.ClientUnitId);
-            var vendedor = unidade is null ? null : Vendedores.All().FirstOrDefault(v => v.Id == unidade.VendedorId);
-            var equipIds = _items.Select(i => i.EquipmentId).Where(x => x.Length > 0).ToHashSet();
-            var dados = new DadosDaPropostaWord(
-                _o, _items, vendedor,
-                Equipamentos.All().Where(e => equipIds.Contains(e.Id)).ToDictionary(e => e.Id),
-                Base.All().Where(b => b.ClientUnitId == _o.ClientUnitId).ToList(),
-                Bom.All().Where(b => equipIds.Contains(b.EquipmentId)).ToList(),
-                Vendas.All().Where(v => v.ClientUnitId == _o.ClientUnitId).ToList());
-
+            var dados = PropostaWord.Dados(_o, _items, Units.All(), Vendedores.All(), Equipamentos.All(),
+                Base.All(), Bom.All(), Vendas.All());
             var bytes = PropostaWord.Gerar(dados, modelo);
             await JS.InvokeVoidAsync("appDownload", PropostaWord.NomeDoArquivo(_o),
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document", Convert.ToBase64String(bytes));

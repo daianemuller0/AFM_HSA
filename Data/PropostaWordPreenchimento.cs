@@ -546,7 +546,8 @@ internal sealed class PreenchimentoDaProposta
               ?? _d.Bom.FirstOrDefault(b => IntelligenceService.NormPn(b.PartNumber) == IntelligenceService.NormPn(pn));
         var peca = PrimeiroCom(bom?.DescricaoPt, bom?.DescricaoEn, DescricaoSemPn(item.Description, pn));
         var servico = item.Description.StartsWith("Serviços", StringComparison.OrdinalIgnoreCase);
-        var tipo = Textos.Simples(eq?.Tipo).Contains("compress") ? "Compressor" : "Ventilador";
+        var tipo = Textos.Simples(eq?.Tipo).Contains("compress") ? "Compressor"
+            : Textos.Igual(eq?.Tipo, "Outro") ? "Equipamento" : "Ventilador";
 
         var paragrafos = celula.Elements<Paragraph>().ToList();
         Paragraph? P(string ancora) => paragrafos.FirstOrDefault(p => Texto(p).Contains(ancora, StringComparison.Ordinal));
@@ -556,7 +557,8 @@ internal sealed class PreenchimentoDaProposta
         var titulo = paragrafos.FirstOrDefault(p => Texto(p).Contains("PREENCHER!!", StringComparison.Ordinal));
         if (titulo is not null)
             Escrever(titulo, eq is not null && eq.Modelo.Trim().Length > 0
-                ? $"Partes e Peças de {tipo} Howden Modelo {eq.Modelo.Trim()}" : peca);
+                ? (tipo == "Equipamento" ? $"Partes e Peças – Modelo {eq.Modelo.Trim()}" : $"Partes e Peças de {tipo} Howden Modelo {eq.Modelo.Trim()}")
+                : peca);
         var pPeca = paragrafos.FirstOrDefault(p => Texto(p).Trim() == "XXXXXX");
         if (pPeca is not null)
         {
@@ -565,13 +567,32 @@ internal sealed class PreenchimentoDaProposta
         }
         Tirar(P("(EX: Rotor, Eixo, Cone, Selo)"));
 
-        // REFERÊNCIAS
-        var instalados = _d.BaseDaUnidade.Where(b => eq is not null && b.EquipmentId == eq.Id).ToList();
-        var tags = string.Join(", ", instalados.Select(b => (b.Tag ?? "").Trim()).Where(t => t.Length > 0).Distinct());
+        // REFERÊNCIAS — do equipamento da proposta (TAG, aplicação e planta
+        // digitados ou trazidos do cadastro); a base instalada completa o que faltar
+        var daProposta = PlantasDaProposta.DoItem(_o, item);
+        var planta = PlantasDaProposta.PlantaDe(_o, daProposta);
+        var cadastroId = daProposta is { Cadastrado: true } ? daProposta.EquipmentId : daProposta is null ? item.EquipmentId : "";
+        var instalados = cadastroId.Length == 0 ? new List<InstalledBase>()
+            : _d.BaseDaUnidade.Where(b => b.EquipmentId == cadastroId
+                                          && (planta is not { Cadastrada: true } || b.ClientUnitId == planta.UnitId)).ToList();
+        var tags = daProposta is not null ? (daProposta.Tag ?? "").Trim()
+            : string.Join(", ", instalados.Select(b => (b.Tag ?? "").Trim()).Where(t => t.Length > 0).Distinct());
         var modelo = (eq?.Modelo ?? "").Trim();
         var aplicacao = PrimeiroCom(eq?.Aplicacao, instalados.Select(b => b.Process).FirstOrDefault(x => (x ?? "").Trim().Length > 0));
         var ultima = UltimoFornecimento(item, pn);
         var original = string.Join(", ", instalados.Select(b => (b.ContractNo ?? "").Trim()).Where(t => t.Length > 0).Distinct());
+
+        // com mais de uma planta, cada item diz a sua (a capa só tem a cidade):
+        // a linha nasce da "Aplicação:" do modelo, com o mesmo marcador
+        var comPlanta = false;
+        if (planta is not null && _o.Plantas.Count > 1 && P("Aplicação:") is { } pAplicacao)
+        {
+            comPlanta = true;
+            var pPlanta = (Paragraph)pAplicacao.CloneNode(true);
+            pAplicacao.InsertBeforeSelf(pPlanta);
+            Escrever(pPlanta, $"Planta: {PlantasDaProposta.Rotulo(planta)}");
+            paragrafos.Insert(paragrafos.IndexOf(pAplicacao), pPlanta);
+        }
 
         var linhasRef = 0;
         void Ref(string ancora, string texto)
@@ -589,7 +610,7 @@ internal sealed class PreenchimentoDaProposta
             : $"Último Fornecimento / Original: {PropostaWord.Ou(ultima, "—")}" + (original.Length > 0 ? $" / {original}" : ""));
         Ref("Desenho de Conjunto:", "");
         Ref("Part Number:", pn.Length > 0 ? $"Part Number: {pn}" : "");
-        if (linhasRef == 0) Tirar(P("REFERÊNCIAS"));
+        if (linhasRef == 0 && !comPlanta) Tirar(P("REFERÊNCIAS"));
 
         // ESCOPO DE FORNECIMENTO
         var material = (bom?.Material ?? "").Trim();

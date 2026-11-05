@@ -72,7 +72,7 @@ public static class ListasDaProposta
 
     public static Ncm? NcmDo(string? codigo) => Ncms.FirstOrDefault(n => n.Codigo == (codigo ?? "").Trim());
 
-    /// <summary>NCM sugerida para a peça de um equipamento: ventilador → partes e peças de ventilador; compressor fica para escolher.</summary>
+    /// <summary>NCM sugerida para a peça de um equipamento: ventilador → partes e peças de ventilador; compressor e "Outro" ficam para escolher.</summary>
     public static string NcmPadrao(string? tipoDoEquipamento) =>
-        Textos.Simples(tipoDoEquipamento).Contains("compress") ? "" : "8414.90.20";
+        Textos.Simples(tipoDoEquipamento) is var t && (t.Contains("compress") || t == "outro") ? "" : "8414.90.20";
 }

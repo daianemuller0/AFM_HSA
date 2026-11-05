@@ -31,7 +31,8 @@ public class OfferRepository
         "pricing_modo, margem_alvo, preco_meta, " +
         "pricing_custo, pricing_markup, pricing_venda_liquida, pricing_margem, pricing_preco_impostos, " +
         "tipo_outras_garantias, outras_garantias, pricing_custos, moeda_venda, cambio_taxa, cambio_direcao, " +
-        "cambio_seguranca, total_reais, contato_email, contato_telefone, sua_referencia, incoterm, incoterm_local",
+        "cambio_seguranca, total_reais, contato_email, contato_telefone, sua_referencia, incoterm, incoterm_local, " +
+        "plantas, equipamentos_proposta",
         r => new CommercialOffer
         {
             Id = Fmt.S(r, 0), OfferCode = Fmt.S(r, 1), ClientUnitId = Fmt.S(r, 2), EquipmentId = Fmt.S(r, 3),
@@ -65,6 +66,9 @@ public class OfferRepository
             TotalReais = Fmt.S(r, 65) is { Length: > 0 } tr ? Fmt.Dec(tr) : Fmt.Dec(Fmt.S(r, 20)),
             ContatoEmail = Fmt.S(r, 66), ContatoTelefone = Fmt.S(r, 67), SuaReferencia = Fmt.S(r, 68),
             Incoterm = Fmt.S(r, 69), IncotermLocal = Fmt.S(r, 70),
+            // propostas de antes das plantas: as listas ficam vazias e são montadas da unidade e dos equipamentos (PlantasDaProposta.Completar)
+            Plantas = Json(Fmt.S(r, 71), new List<PlantaDaProposta>()),
+            EquipamentosDaProposta = Json(Fmt.S(r, 72), new List<EquipamentoDaProposta>()),
         }, orderBy: "created_at DESC");
 
     public CommercialOffer? Get(string id) => All().FirstOrDefault(o => o.Id == id);
@@ -96,6 +100,8 @@ public class OfferRepository
         new("total_reais", D(o.TotalReais)),
         new("contato_email", o.ContatoEmail), new("contato_telefone", o.ContatoTelefone),
         new("sua_referencia", o.SuaReferencia), new("incoterm", o.Incoterm), new("incoterm_local", o.IncotermLocal),
+        new("plantas", JsonSerializer.Serialize(o.Plantas)),
+        new("equipamentos_proposta", JsonSerializer.Serialize(o.EquipamentosDaProposta)),
         new("risco_adicional", D(o.RiscoAdicional)), new("margem_negociacao", D(o.MargemNegociacao)),
         new("pricing_modo", o.PricingModo), new("margem_alvo", D(o.MargemAlvo)), new("preco_meta", D(o.PrecoMeta)),
         new("pricing_custo", D(o.PricingCusto)), new("pricing_markup", D(o.PricingMarkup)),

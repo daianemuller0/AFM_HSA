@@ -1126,3 +1126,30 @@ h1 { font-size: 24px; margin: 0 0 4px; color: var(--primary); letter-spacing: -.
 .realce { animation: realce 1.8s ease-out; border-radius: 8px; }
 .barra-tempo { height: 8px; background: #eef2f7; border-radius: 999px; overflow: hidden; }
 .barra-tempo span { display: block; height: 100%; background: var(--secondary); border-radius: 999px; }
+
+/* ---- plantas e equipamentos da proposta (da base, de outra planta ou digitados) ---- */
+.plantas-tabela td, .equip-tabela td { vertical-align: middle; }
+.plantas-tabela .cell, .equip-tabela .cell { width: 100%; min-width: 90px; }
+.plantas-acoes, .equip-acoes { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.equip-acoes .btn-ghost.on { border-color: var(--primary); color: var(--primary); }
+.selo-base, .selo-livre {
+    display: inline-block; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+    padding: 1px 6px; border-radius: 999px; vertical-align: 1px;
+}
+.selo-base { background: #e8f1fb; color: var(--primary); }
+.selo-livre { background: #fff4e5; color: #9a3412; }
+.equip-planta { margin-bottom: 12px; }
+.equip-planta-nome { font-size: 12.5px; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
+.busca-equip {
+    margin-top: 12px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+    background: #fbfcfe; display: flex; flex-direction: column; gap: 10px;
+}
+.equip-do-item { margin-top: 6px; max-width: 320px; font-size: 12.5px; }
+.plantas-tabela, .equip-tabela { table-layout: fixed; width: 100%; }
+.equip-tabela .cell, .plantas-tabela .cell { min-width: 0; }
+.equip-tabela td:first-child strong { overflow-wrap: anywhere; }
+.equip-tabela .sub-cel { display: block; line-height: 1.45; margin-top: 3px; }
+.plantas-tabela td:last-child, .equip-tabela td:last-child { text-align: center; padding-left: 0; padding-right: 0; }
+.plantas-tabela td:last-child .btn-link, .equip-tabela td:last-child .btn-link { font-size: 15px; font-weight: 700; }
+.plantas-tabela td:nth-child(4) .cell { padding-left: 6px; padding-right: 6px; text-align: center; }
+.equip-tabela select.cell, .plantas-tabela select.cell { padding-left: 8px; padding-right: 4px; }

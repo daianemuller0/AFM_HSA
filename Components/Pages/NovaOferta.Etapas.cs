@@ -100,9 +100,19 @@ public partial class NovaOferta : IDisposable
         Avisa(V(_o.ContatoTelefone), "Telefone do contato", 2, "f-telefone");
         Avisa(V(_o.SuaReferencia), "Sua referência (do cliente)", 2, "f-suaref");
         Avisa(V(_o.Project), "Projeto", 2, "f-projeto");
+        Avisa(_o.Plantas.Count == 0, "Nenhuma planta (sai só a cidade da capa)", 2, "f-plantas");
+        for (var n = 0; n < _o.Plantas.Count; n++)
+        {
+            var pl = _o.Plantas[n];
+            Falta(!pl.Cadastrada && V(pl.Nome) && V(pl.Cidade), $"Planta {n + 1}: nome ou cidade", 2, "f-plantas");
+        }
 
         // 3 — itens
         Falta(_items.Count == 0, "Nenhum item na proposta", 3, "f-itens");
+        var semModelo = _o.EquipamentosDaProposta.Count(e => !e.Cadastrado && V(e.Modelo));
+        Falta(semModelo > 0, $"{Plural(semModelo, "equipamento não cadastrado", "equipamentos não cadastrados")} sem modelo", 3, "f-equipamentos");
+        var semPlanta = _o.Plantas.Count > 1 ? _o.EquipamentosDaProposta.Count(e => V(e.PlantaId)) : 0;
+        Avisa(semPlanta > 0, $"{Plural(semPlanta, "equipamento", "equipamentos")} sem planta", 3, "f-equipamentos");
         if (_items.Any(i => i.Importado))
         {
             Falta(string.IsNullOrEmpty(_o.ImportacaoModo), "Importação: por total ou por item", 3, "f-importacao");
@@ -165,7 +175,7 @@ public partial class NovaOferta : IDisposable
     // =====================================================================
 
     /// <summary>O retrato do que está na tela, para saber se há o que gravar.</summary>
-    private string Foto() => JsonSerializer.Serialize(new { o = _o, i = _items, e = _equipIds, u = _unitId });
+    private string Foto() => JsonSerializer.Serialize(new { o = _o, i = _items });
 
     private string _baseSalva = "";
 
@@ -220,6 +230,7 @@ public partial class NovaOferta : IDisposable
             _o.Id = Guid.NewGuid().ToString("N");
             _o.CreatedAt = now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         }
+        // a primeira planta cadastrada e os equipamentos cadastrados, como antes, para as outras telas
         _o.ClientUnitId = _unitId;
         _o.EquipmentId = string.Join(";", _equipIds);
         if (string.IsNullOrWhiteSpace(_o.OfferDate)) _o.OfferDate = now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
@@ -278,8 +289,8 @@ public partial class NovaOferta : IDisposable
         };
         _items = new();
         _idsGravados = new();
-        _unitId = "";
-        _equipIds.Clear(); _bomMarcados.Clear(); _refs.Clear(); _bomBusca = "";
+        _bomMarcados.Clear(); _refs.Clear(); _bomBusca = "";
+        _buscandoEquip = false; _buscaEquip = ""; _equipDoManual = ""; _autoCidade = "";
         _itemDemais = null; _taxaDoDia = false; _wordGerado = false; _erro = null; _msg = null;
         _anteriores = OffersRepo.All();
 
@@ -356,10 +367,12 @@ public partial class NovaOferta : IDisposable
             foreach (var it in _items) { it.Id = ""; it.OfferId = ""; }
         }
         _idsGravados = manterId ? _items.Select(i => i.Id).ToHashSet() : new();
-        _unitId = _o.ClientUnitId;
-        _equipIds.Clear();
-        _equipIds.AddRange(_o.EquipmentId.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+        // proposta de antes das plantas: as listas saem da unidade e dos equipamentos gravados
+        PlantasDaProposta.Completar(_o, _items, _units, _equipamentos, _base);
+        // a cópia e a revisão guardam as mesmas chaves de planta e equipamento: os itens continuam apontando certo
         _bomMarcados.Clear(); _refs.Clear(); _bomBusca = "";
+        _buscandoEquip = false; _buscaEquip = ""; _equipDoManual = "";
+        _autoCidade = PlantasDaProposta.CidadesDaCapa(_o);
         _itemDemais = _items.FirstOrDefault(i => i.PartNumber.Length == 0 && i.EquipmentId.Length == 0
                                                  && i.Description.StartsWith("Serviços", StringComparison.Ordinal));
         _taxaDoDia = false; _wordGerado = false; _erro = null; _msg = null;
@@ -452,8 +465,7 @@ public partial class NovaOferta : IDisposable
         PedirConfirmacao(() =>
         {
             if (_o.Id.Length > 0 || TemAlteracao) NovaComPadroes();
-            _unitId = id;
-            UnidadeMudou();
+            AdicionarPlantaDaBase(id);
             IrParaEtapa(2);
         });
     }
@@ -482,9 +494,12 @@ public partial class NovaOferta : IDisposable
 
     private CommercialOffer? UltimaDoCliente()
     {
-        if (_unitId.Length == 0 && string.IsNullOrWhiteSpace(_o.ClientName)) return null;
+        var unidades = PlantasDaProposta.Unidades(_o);
+        if (unidades.Count == 0 && string.IsNullOrWhiteSpace(_o.ClientName)) return null;
         return _anteriores
-            .Where(a => a.Id != _o.Id && (_unitId.Length > 0 ? a.ClientUnitId == _unitId : Textos.Igual(a.ClientName, _o.ClientName)))
+            .Where(a => a.Id != _o.Id && (unidades.Count > 0
+                ? unidades.Contains(a.ClientUnitId) || a.Plantas.Any(p => unidades.Contains(p.UnitId))
+                : Textos.Igual(a.ClientName, _o.ClientName)))
             .OrderByDescending(a => a.CreatedAt).ThenByDescending(a => a.OfferCode).ThenByDescending(a => NumeroDaRevisao(a.Revisao))
             .FirstOrDefault();
     }
@@ -495,6 +510,12 @@ public partial class NovaOferta : IDisposable
         _o.AttentionTo = Ou(u.AttentionTo, _o.AttentionTo);
         _o.ContatoEmail = Ou(u.ContatoEmail, _o.ContatoEmail);
         _o.ContatoTelefone = Ou(u.ContatoTelefone, _o.ContatoTelefone);
+        if (_o.Plantas.Count == 0 && u.Plantas.Count > 0)
+        {
+            _o.Plantas.AddRange(u.Plantas.Select(p => new PlantaDaProposta
+                { Id = PlantasDaProposta.NovoId("p"), UnitId = p.UnitId, Nome = p.Nome, Cidade = p.Cidade, Estado = p.Estado }));
+            PlantasMudaram();
+        }
         _o.City = Ou(u.City, _o.City);
         _o.Destino = Ou(u.Destino, _o.Destino);
         _o.Estado = ListasDoPricing.EstadosDo(_o.Destino).Contains(u.Estado) ? u.Estado : _o.Estado;
@@ -554,15 +575,7 @@ public partial class NovaOferta : IDisposable
         {
             var modelo = Path.Combine(Ambiente.ContentRootPath, PropostaWord.CaminhoDoModelo);
             if (!File.Exists(modelo)) { _erro = $"O modelo não está em {PropostaWord.CaminhoDoModelo}."; return; }
-            var unidade = _units.FirstOrDefault(u => u.Id == _o.ClientUnitId);
-            var vendedor = unidade is null ? null : Vendedores.All().FirstOrDefault(v => v.Id == unidade.VendedorId);
-            var equipIds = _items.Select(i => i.EquipmentId).Where(x => x.Length > 0).ToHashSet();
-            var dados = new DadosDaPropostaWord(
-                _o, _items, vendedor,
-                _equipamentos.Where(e => equipIds.Contains(e.Id)).ToDictionary(e => e.Id),
-                _base.Where(b => b.ClientUnitId == _o.ClientUnitId).ToList(),
-                _bom.Where(b => equipIds.Contains(b.EquipmentId)).ToList(),
-                _vendas.Where(v => v.ClientUnitId == _o.ClientUnitId).ToList());
+            var dados = PropostaWord.Dados(_o, _items, _units, Vendedores.All(), _equipamentos, _base, _bom, _vendas);
             var bytes = PropostaWord.Gerar(dados, modelo);
             await JS.InvokeVoidAsync("appDownload", PropostaWord.NomeDoArquivo(_o),
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document", Convert.ToBase64String(bytes));
@@ -716,7 +729,7 @@ public partial class NovaOferta : IDisposable
         return it.Description.StartsWith(prefixo, StringComparison.Ordinal) ? it.Description[prefixo.Length..] : it.Description;
     }
 
-    private void EscolherUnidade() => IrPara(new Pendencia("", 2, "f-unidade"));
+    private void EscolherUnidade() => IrPara(new Pendencia("", 2, "f-plantas"));
 
     /// <summary>
     /// Margem, risco ou negociação fora do padrão do segmento (o mesmo aviso do

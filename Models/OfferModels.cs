@@ -25,6 +25,21 @@ public class CommercialOffer
     /// <summary>Local de entrega: código de <see cref="ListasDaProposta.Incoterms"/> e o local, quando a linha pede.</summary>
     public string Incoterm { get; set; } = "EXW";
     public string IncotermLocal { get; set; } = "";
+
+    /// <summary>
+    /// As plantas que a proposta atende — da base (Clientes e Unidades) ou
+    /// digitadas, uma ou várias. <see cref="ClientUnitId"/> fica com a primeira
+    /// planta cadastrada (vendedor da unidade, última venda do cliente).
+    /// </summary>
+    public List<PlantaDaProposta> Plantas { get; set; } = new();
+
+    /// <summary>
+    /// Os equipamentos da proposta: instalados numa planta da proposta, de
+    /// outra planta do cadastro ou não cadastrados. Os itens apontam para cá
+    /// pelo <see cref="CommercialOfferItem.EquipmentId"/>. <see cref="EquipmentId"/>
+    /// fica com os cadastrados, separados por ";".
+    /// </summary>
+    public List<EquipamentoDaProposta> EquipamentosDaProposta { get; set; } = new();
     // Condições comerciais (editáveis)
     public string IntroText { get; set; } = "";
     public string TaxText { get; set; } = "";
@@ -107,6 +122,43 @@ public class CommercialOffer
     public decimal TotalReais { get; set; }
     public string Status { get; set; } = "Rascunho";
     public string CreatedAt { get; set; } = "";
+}
+
+/// <summary>Uma planta da proposta: da base (<see cref="UnitId"/>) ou digitada (sem UnitId).</summary>
+public class PlantaDaProposta
+{
+    /// <summary>Chave dentro da proposta ("p-1a2b3c4d"): os equipamentos apontam para ela.</summary>
+    public string Id { get; set; } = "";
+    /// <summary>A unidade cadastrada (ClientUnit.Id); vazio = planta não cadastrada.</summary>
+    public string UnitId { get; set; } = "";
+    public string Nome { get; set; } = "";
+    public string Cidade { get; set; } = "";
+    public string Estado { get; set; } = "";
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool Cadastrada => UnitId.Length > 0;
+}
+
+/// <summary>
+/// Um equipamento da proposta. O cadastrado guarda o <see cref="EquipmentId"/>
+/// (e a BOM vem dele); o não cadastrado é só o que foi digitado. TAG, aplicação
+/// e planta são da proposta: dá para corrigir sem mexer no cadastro.
+/// </summary>
+public class EquipamentoDaProposta
+{
+    /// <summary>A chave que os itens usam: o Equipment.Id do cadastrado, "x-…" do não cadastrado.</summary>
+    public string Id { get; set; } = "";
+    /// <summary>Equipment.Id; vazio = não cadastrado.</summary>
+    public string EquipmentId { get; set; } = "";
+    /// <summary>A planta da proposta (<see cref="PlantaDaProposta.Id"/>); vazio = sem planta.</summary>
+    public string PlantaId { get; set; } = "";
+    public string Tipo { get; set; } = "";
+    public string Modelo { get; set; } = "";
+    public string Tag { get; set; } = "";
+    public string Aplicacao { get; set; } = "";
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool Cadastrado => EquipmentId.Length > 0;
 }
 
 // Item de uma oferta comercial.

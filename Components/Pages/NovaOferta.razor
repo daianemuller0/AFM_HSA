@@ -159,20 +159,19 @@
 <div class="panel" style="margin-bottom:14px">
     <div class="dash-title">Cliente</div>
     <div class="form3">
-        <label id="f-unidade">Cliente / Unidade (da base)
-            <select class="cell" @bind="_unitId" @bind:after="UnidadeMudou">
-                <option value="">Selecione…</option>
-                @foreach (var u in _units) { <option value="@u.Id">@Intel.UnitLabel(u.Id)</option> }
-            </select>
+        <label id="f-cliente">Nome do cliente *
+            <input class="cell" list="dl-clientes" placeholder="da base ou digitado" @bind="_o.ClientName" />
         </label>
-        <label id="f-cliente">Nome do cliente * <input class="cell" @bind="_o.ClientName" /></label>
-        <label id="f-cidade">Cidade <input class="cell" @bind="_o.City" /></label>
+        <label id="f-cidade">Cidade (na capa)
+            <input class="cell" placeholder="vem das plantas" @bind="_o.City" />
+        </label>
         <label id="f-ac">A/C (contato) <input class="cell" @bind="_o.AttentionTo" /></label>
         <label id="f-email">E-mail do contato <input class="cell" type="email" placeholder="contato@@empresa.com" @bind="_o.ContatoEmail" /></label>
         <label id="f-telefone">Telefone do contato <input class="cell" placeholder="+55 …" @bind="_o.ContatoTelefone" /></label>
         <label id="f-suaref">Sua referência (do cliente) <input class="cell" placeholder="o número que o cliente deu" @bind="_o.SuaReferencia" /></label>
         <label id="f-projeto">Projeto <input class="cell" @bind="_o.Project" /></label>
     </div>
+    <datalist id="dl-clientes">@foreach (var c in NomesDeClientes) { <option value="@c" /> }</datalist>
     @if (UltimaDoCliente() is { } ult && ult.Id != _lembrancaUsada)
     {
         @* o que se repete de uma proposta para outra do mesmo cliente: um clique traz *@
@@ -183,6 +182,67 @@
             <button class="btn-link" @onclick="() => CopiarGravada(ult.Id)">ou copiar a proposta inteira</button>
         </div>
     }
+</div>
+
+<div class="panel" id="f-plantas" style="margin-bottom:14px">
+    <div class="dash-title">Plantas
+        <span class="dash-sub">da base ou digitadas — a proposta pode atender mais de uma; com várias, cada item diz a sua no Word</span>
+    </div>
+    @if (_o.Plantas.Count == 0)
+    {
+        <div class="empty" style="padding:4px 0 10px">Nenhuma planta. A proposta sai assim mesmo, com a cidade da capa.</div>
+    }
+    else
+    {
+        var doCliente = UnidadesDoCliente();
+        <div class="tabela-rolante">
+        <table class="grid plantas-tabela">
+            <colgroup><col style="width:30%" /><col style="width:28%" /><col style="width:19%" /><col style="width:11%" /><col style="width:8%" /><col style="width:4%" /></colgroup>
+            <thead><tr><th>Da base</th><th>Planta</th><th>Cidade</th><th>UF</th><th class="right">Equip.</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var pl in _o.Plantas)
+                {
+                    var planta = pl;
+                    <tr>
+                        <td>
+                            <select class="cell" value="@planta.UnitId" @onchange="e => TrocarUnidadeDaPlanta(planta, e)" aria-label="Planta da base">
+                                <option value="">não cadastrada (digitar)</option>
+                                @if (doCliente.Count > 0)
+                                {
+                                    <optgroup label="deste cliente">
+                                        @foreach (var u in doCliente) { <option value="@u.Id">@Intel.UnitLabel(u.Id)</option> }
+                                    </optgroup>
+                                }
+                                <optgroup label="@(doCliente.Count > 0 ? "outros clientes" : "plantas da base")">
+                                    @foreach (var u in _units.Where(u => !doCliente.Contains(u))) { <option value="@u.Id">@Intel.UnitLabel(u.Id)</option> }
+                                </optgroup>
+                            </select>
+                        </td>
+                        @if (planta.Cadastrada)
+                        {
+                            <td>@OuTraco(planta.Nome) <span class="selo-base">base</span></td>
+                            <td>@OuTraco(planta.Cidade)</td>
+                            <td>@OuTraco(planta.Estado)</td>
+                        }
+                        else
+                        {
+                            <td><input class="cell" placeholder="ex.: Usina Tubarão" value="@planta.Nome" @onchange="e => MudarPlanta(planta, e, nameof(PlantaDaProposta.Nome))" /></td>
+                            <td><input class="cell" placeholder="cidade" value="@planta.Cidade" @onchange="e => MudarPlanta(planta, e, nameof(PlantaDaProposta.Cidade))" /></td>
+                            <td><input class="cell" placeholder="UF" maxlength="3" list="dl-ufs" value="@planta.Estado" @onchange="e => MudarPlanta(planta, e, nameof(PlantaDaProposta.Estado))" /></td>
+                        }
+                        <td class="right">@_o.EquipamentosDaProposta.Count(x => x.PlantaId == planta.Id)</td>
+                        <td><button class="btn-link" style="color:#b91c1c" title="Tirar a planta da proposta (os equipamentos dela ficam, sem planta)" aria-label="Tirar a planta" @onclick="() => RemoverPlanta(planta)">✕</button></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        </div>
+    }
+    <div class="plantas-acoes">
+        <button class="btn-ghost" @onclick="AdicionarPlanta">+ Adicionar planta</button>
+        <span class="nota">escolha na base ou deixe "não cadastrada" e digite nome, cidade e UF</span>
+    </div>
+    <datalist id="dl-ufs">@foreach (var uf in ListasDoPricing.EstadosNacional) { <option value="@uf" /> }</datalist>
 </div>
 
 <div class="panel" style="margin-bottom:14px">
@@ -363,32 +423,136 @@
 }
 @if (_etapa == 3)
 {
-<div class="panel" style="margin-bottom:14px">
-    <div class="dash-title">Equipamentos da unidade <span class="dash-sub">marque um ou mais: a BOM deles aparece logo abaixo</span></div>
-    @if (string.IsNullOrEmpty(_unitId))
+<div class="panel" id="f-equipamentos" style="margin-bottom:14px">
+    <div class="dash-title">Equipamentos da proposta
+        <span class="dash-sub">da planta, de outra planta do cadastro ou não cadastrado — nenhum é obrigatório</span>
+    </div>
+
+    @* os instalados em cada planta cadastrada da proposta: um clique inclui *@
+    @foreach (var pl in _o.Plantas.Where(p => p.Cadastrada))
     {
-        <div class="empty" style="padding:8px 0">Sem cliente da base. <button class="btn-link" @onclick="EscolherUnidade">Escolher a unidade</button> para ver os equipamentos e a BOM — ou inclua itens manuais abaixo.</div>
-    }
-        @if (!string.IsNullOrEmpty(_unitId))
-        {
-            @if (EquipsDaUnidade.Count == 0)
+        var plantaBase = pl;
+        var instalados = EquipsDaUnidade(plantaBase.UnitId);
+        <div class="equip-planta">
+            <div class="equip-planta-nome">Instalados em @PlantasDaProposta.Rotulo(plantaBase)</div>
+            @if (instalados.Count == 0)
             {
-                <div class="empty" style="padding:8px 0">Nenhum equipamento instalado nesta unidade.</div>
+                <span class="nota">nenhum equipamento cadastrado nesta planta</span>
             }
             else
             {
                 <div class="equip-chips">
-                    @foreach (var e in EquipsDaUnidade)
+                    @foreach (var e in instalados)
                     {
-                        var marcado = _equipIds.Contains(e.Id);
+                        var eqId = e.Id;
+                        var marcado = _o.EquipamentosDaProposta.Any(x => x.EquipmentId == eqId);
                         <label class="equip-chip @(marcado ? "on" : "")">
-                            <input type="checkbox" checked="@marcado" @onchange="() => AlternarEquip(e.Id)" />
+                            <input type="checkbox" checked="@marcado" @onchange="() => AlternarEquipDaPlanta(eqId, plantaBase)" />
                             <span><strong>@e.Modelo</strong><small>@e.Tipo</small></span>
                         </label>
                     }
                 </div>
             }
+        </div>
+    }
+
+    @if (_o.EquipamentosDaProposta.Count > 0)
+    {
+        <div class="tabela-rolante">
+        <table class="grid equip-tabela">
+            <colgroup><col style="width:28%" /><col style="width:13%" /><col style="width:15%" /><col style="width:19%" /><col style="width:21%" /><col style="width:4%" /></colgroup>
+            <thead><tr><th>Equipamento</th><th>Tipo</th><th>TAG</th><th>Aplicação</th><th>Planta</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var eqp in _o.EquipamentosDaProposta)
+                {
+                    var eq = eqp;
+                    var cadastro = eq.Cadastrado ? _equipamentos.FirstOrDefault(x => x.Id == eq.EquipmentId) : null;
+                    <tr>
+                        <td>
+                            @if (eq.Cadastrado)
+                            {
+                                <strong>@OuTraco(eq.Modelo)</strong>
+                                <span class="sub-cel">
+                                    <span class="selo-base">cadastrado</span> @ItensDoEquip(eq)
+                                    @(OndeEstaInstalado(eq.EquipmentId) is { Length: > 0 } onde ? $"· instalado em {onde}" : "· sem base instalada")
+                                </span>
+                            }
+                            else
+                            {
+                                <input class="cell" placeholder="modelo (ex.: VX 2025.00.00)" value="@eq.Modelo" @onchange="e => eq.Modelo = e.Value?.ToString()?.Trim() ?? string.Empty" />
+                                <span class="sub-cel"><span class="selo-livre">não cadastrado</span> @ItensDoEquip(eq)</span>
+                            }
+                        </td>
+                        <td>
+                            @if (eq.Cadastrado)
+                            {
+                                @OuTraco(cadastro?.Tipo ?? eq.Tipo)
+                            }
+                            else
+                            {
+                                <select class="cell" value="@eq.Tipo" @onchange="e => eq.Tipo = e.Value?.ToString() ?? string.Empty">
+                                    @foreach (var t in PlantasDaProposta.TiposDeEquipamento) { <option value="@t">@t</option> }
+                                </select>
+                            }
+                        </td>
+                        <td><input class="cell" placeholder="TAG" value="@eq.Tag" @onchange="e => eq.Tag = e.Value?.ToString()?.Trim() ?? string.Empty" /></td>
+                        <td><input class="cell" placeholder="aplicação" value="@eq.Aplicacao" @onchange="e => eq.Aplicacao = e.Value?.ToString()?.Trim() ?? string.Empty" /></td>
+                        <td>
+                            <select class="cell" value="@eq.PlantaId" @onchange="e => eq.PlantaId = e.Value?.ToString() ?? string.Empty">
+                                <option value="">sem planta</option>
+                                @foreach (var pl in _o.Plantas) { <option value="@pl.Id">@PlantasDaProposta.Rotulo(pl)</option> }
+                            </select>
+                        </td>
+                        <td><button class="btn-link" style="color:#b91c1c" title="Tirar o equipamento da proposta (os itens dele ficam, sem equipamento)" aria-label="Tirar o equipamento" @onclick="() => RemoverEquip(eq)">✕</button></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        </div>
+    }
+
+    <div class="equip-acoes">
+        <button class="btn-ghost @(_buscandoEquip ? "on" : "")" @onclick="() => _buscandoEquip = !_buscandoEquip">+ Cadastrado de outra planta</button>
+        <button class="btn-ghost" @onclick="AdicionarEquipLivre">+ Não cadastrado</button>
+        @if (_o.Plantas.Count(p => p.Cadastrada) == 0)
+        {
+            <span class="nota">sem planta da base: inclua da busca ou digite o equipamento</span>
         }
+    </div>
+    @if (_buscandoEquip)
+    {
+        <div class="busca-equip">
+            <input class="cell" placeholder="Buscar em todo o cadastro: modelo, nome, documento, TAG, planta ou cliente"
+                   value="@_buscaEquip" @oninput="e => _buscaEquip = e.Value?.ToString() ?? string.Empty" />
+            @{ var achados = EquipamentosDaBusca(); }
+            @if (_buscaEquip.Trim().Length < 2)
+            {
+                <span class="nota">digite ao menos 2 letras</span>
+            }
+            else if (achados.Count == 0)
+            {
+                <span class="nota">nenhum equipamento cadastrado com esse texto — use "+ Não cadastrado"</span>
+            }
+            else
+            {
+                <table class="grid">
+                    <thead><tr><th>Modelo</th><th>Tipo</th><th>Onde está instalado</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var e in achados)
+                        {
+                            var eqId = e.Id;
+                            <tr>
+                                <td><strong>@OuTraco(e.Modelo)</strong>@if (e.Nome.Length > 0 && e.Nome != e.Modelo) { <span class="sub-cel">@e.Nome</span> }</td>
+                                <td>@OuTraco(e.Tipo)</td>
+                                <td>@OuTraco(OndeEstaInstalado(e.Id))</td>
+                                <td class="right"><button class="btn-link" @onclick="() => AdicionarDoCadastro(eqId)">incluir</button></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    }
 </div>
 
     @if (_equipIds.Count > 0)
@@ -483,7 +647,18 @@
                     <tr class="@(it.UnitPrice <= 0 ? "sem-preco" : "")">
                         <td>
                             @it.Description
-                            @if (it.EquipmentId.Length > 0)
+                            @if (it != _itemDemais && _o.EquipamentosDaProposta.Count > 0)
+                            {
+                                <select class="cell equip-do-item" title="Equipamento do item (referências no Word)" value="@it.EquipmentId" @onchange="e => MudarEquipDoItem(it, e)">
+                                    <option value="">sem equipamento</option>
+                                    @foreach (var eqp in _o.EquipamentosDaProposta) { <option value="@eqp.Id">@RotuloDoEquip(eqp)</option> }
+                                    @if (it.EquipmentId.Length > 0 && !_o.EquipamentosDaProposta.Any(x => x.Id == it.EquipmentId))
+                                    {
+                                        <option value="@it.EquipmentId">@ModeloDe(it.EquipmentId) (fora da lista)</option>
+                                    }
+                                </select>
+                            }
+                            else if (it.EquipmentId.Length > 0)
                             {
                                 <span class="sub-cel">@ModeloDe(it.EquipmentId)</span>
                             }
@@ -569,8 +744,14 @@
             </tbody>
         </table>
         </div>
-        <div class="item-row" style="grid-template-columns:2fr 80px 120px auto">
+        <div class="item-row" style="grid-template-columns:2fr 1.2fr 80px 120px auto">
             <label>Descrição (item manual) <input class="cell" @bind="_desc" /></label>
+            <label>Equipamento
+                <select class="cell" @bind="_equipDoManual">
+                    <option value="">sem equipamento</option>
+                    @foreach (var eqp in _o.EquipamentosDaProposta) { <option value="@eqp.Id">@RotuloDoEquip(eqp)</option> }
+                </select>
+            </label>
             <label>Qtd <input class="cell num" type="number" @bind="_qtd" /></label>
             <label>Unitário (@Cambio.MoedaDoPreco(_o).Rotulo()) <input class="cell num" type="number" step="0.01" @bind="_preco" /></label>
             <label>&nbsp;<button class="btn-primary" @onclick="AdicionarItem">Adicionar</button></label>
@@ -1351,8 +1532,6 @@
         SgiText = OfferDefaults.Sgi, TermsText = OfferDefaults.Terms,
     };
     private List<CommercialOfferItem> _items = new();
-    private string _unitId = "";
-    private readonly List<string> _equipIds = new();          // equipamentos marcados, na ordem em que foram marcados
     private readonly HashSet<string> _bomMarcados = new();    // ids de BomItem marcados para adicionar
     private string _bomBusca = "";
     private string _desc = "";
@@ -1796,30 +1975,7 @@
 
     // ---- cliente e equipamentos ------------------------------------------
 
-    private List<Equipment> EquipsDaUnidade
-    {
-        get
-        {
-            if (string.IsNullOrEmpty(_unitId)) return new();
-            var ids = _base.Where(b => b.ClientUnitId == _unitId).Select(b => b.EquipmentId).Distinct().ToHashSet();
-            return _equipamentos.Where(e => ids.Contains(e.Id)).OrderBy(e => e.Modelo).ToList();
-        }
-    }
 
-    private void UnidadeMudou()
-    {
-        _equipIds.Clear(); _bomMarcados.Clear(); _refs.Clear(); _bomBusca = "";
-        var u = _units.FirstOrDefault(x => x.Id == _unitId);
-        if (u != null)
-        {
-            _o.ClientName = Intel.CompanyName(u.CompanyId);
-            _o.City = u.Cidade;
-            _o.ClientUnitId = u.Id;
-            var uf = (u.Estado ?? "").Trim().ToUpperInvariant();
-            if (ListasDoPricing.EstadosDo(_o.Destino).Contains(uf)) _o.Estado = Auto(_o.Estado, ref _autoUf, uf);
-            _o.MarketSegments = Auto(_o.MarketSegments, ref _autoMercado, PricingDaProposta.MarketSegmentDo(u.Segmento));
-        }
-    }
 
     /// <summary>Número novo que ainda não existe em nenhuma proposta (data e hora + sufixo se preciso).</summary>
     private string NumeroSugerido()
@@ -1861,16 +2017,10 @@
               .Select(v => v.Trim())
               .Distinct(StringComparer.OrdinalIgnoreCase);
 
-    private void AlternarEquip(string id)
-    {
-        if (!_equipIds.Remove(id)) _equipIds.Add(id);
-        // itens marcados de um equipamento desmarcado deixam de valer
-        var validos = _bom.Where(b => _equipIds.Contains(b.EquipmentId)).Select(b => b.Id).ToHashSet();
-        _bomMarcados.RemoveWhere(x => !validos.Contains(x));
-    }
 
     private string ModeloDe(string equipmentId) =>
-        _equipamentos.FirstOrDefault(e => e.Id == equipmentId)?.Modelo ?? equipmentId;
+        _o.EquipamentosDaProposta.FirstOrDefault(e => e.Id == equipmentId) is { } daProposta ? RotuloDoEquip(daProposta)
+        : _equipamentos.FirstOrDefault(e => e.Id == equipmentId)?.Modelo ?? equipmentId;
 
     // ---- BOM ----------------------------------------------------------------
 
@@ -1954,7 +2104,7 @@
         var chave = IntelligenceService.NormPn(pn);
         if (chave.Length == 0) return ReferenciaPreco.Vazia;
         if (!_refs.TryGetValue(chave, out var r))
-            _refs[chave] = r = ReferenciaPreco.Para(pn, _unitId, _nacionais, _vendas);
+            _refs[chave] = r = ReferenciaPreco.Para(pn, PlantasDaProposta.Unidades(_o), _nacionais, _vendas);
         return r;
     }
 
@@ -2026,7 +2176,13 @@
     {
         if (string.IsNullOrWhiteSpace(_desc)) return;
         var q = _qtd <= 0 ? 1 : _qtd;
-        _items.Add(new CommercialOfferItem { Description = _desc.Trim(), Quantity = q, UnitPrice = _preco, TotalPrice = q * _preco });
+        var eqManual = _o.EquipamentosDaProposta.FirstOrDefault(x => x.Id == _equipDoManual);
+        _items.Add(new CommercialOfferItem
+        {
+            Description = _desc.Trim(), Quantity = q, UnitPrice = _preco, TotalPrice = q * _preco,
+            EquipmentId = eqManual?.Id ?? "",
+            Ncm = eqManual is null ? "" : ListasDaProposta.NcmPadrao(eqManual.Tipo),
+        });
         _desc = ""; _qtd = 1; _preco = 0;
     }
 
