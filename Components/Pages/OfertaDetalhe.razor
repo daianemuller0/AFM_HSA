@@ -209,6 +209,7 @@ else
     private async Task GerarWord()
     {
         if (_o is null) return;
+        if (Cambio.BloqueioDosDocumentos(_o) is { } bloqueio) { _erroWord = bloqueio; return; }
         _gerando = true; _erroWord = null;
         try
         {
@@ -232,6 +233,7 @@ else
     private async Task GerarPdf()
     {
         if (_o is null) return;
+        if (Cambio.BloqueioDosDocumentos(_o) is { } bloqueio) { _erroWord = bloqueio; return; }
         _gerando = true; _erroWord = null;
         try
         {

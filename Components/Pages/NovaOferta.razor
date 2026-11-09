@@ -1090,7 +1090,7 @@
                             <span> · a venda líquida de <strong>@Cu(pr.VendaLiquida)</strong> vira <strong>@Venda(Cambio.ParaVenda(_o, pr.VendaLiquida))</strong></span>
                         }
                     </div>
-                    @if (Cambio.TaxaPareceInvertida(_o))
+                    @if (Cambio.TaxaSuspeita(_o))
                     {
                         @* digitar a cotação do mercado no sentido contrário inverte o preço (16.000 EUR viravam 15.060 USD) *@
                         var natural = Cambio.DirecaoNatural(_o) == "VendaEmCusto";
@@ -1104,6 +1104,8 @@
                             ⚠ A taxa parece estar <strong>ao contrário</strong>: o normal é 1 @forte valer perto de @deUmForte.ToString("N4", PtBr) @fraca.
                             Do jeito que está, o preço em @moedaVenda.Rotulo() sai <strong>@(Cambio.Normalizada(_o) > esperada ? "menor" : "maior")</strong> do que deveria.
                             <button class="btn-link" @onclick="InverterTaxa">corrigir: 1 @invertidoUm = @_o.CambioTaxa.ToString("#,##0.######", PtBr) @invertidoOutro</button>
+                            <button class="btn-link" title="A taxa está certa assim (o par realmente está nesse nível): libera os documentos" @onclick="() => _o.CambioConferido = Cambio.Assinatura(_o)">a taxa está certa</button>
+                            <div class="nota">Enquanto não corrigir ou confirmar, Word, PDF, pricing e e-mails não saem.</div>
                         </div>
                     }
                     @if (Cambio.Seguranca(_o) > 0m)
@@ -1294,11 +1296,17 @@
                     <small>@Cu(pr.VendaLiquida * pr.Margem) · padrão do segmento @Pct(pr.MargemPadrao)</small>
                 </div>
                 <div>
+                    @* o preço no nível de impostos em que a proposta sai — o mesmo total dos itens
+                       (antes mostrava sempre o com todos os impostos, diferente do total da proposta) *@
                     <span>Preço ao cliente (@moedaVenda.Rotulo())</span>
-                    @if (pr.PrecoAoCliente is decimal pac)
+                    @if (PricingDaProposta.ValorNoNivel(pr, NivelDaProposta(pr).Codigo) is decimal vq && vq > 0m)
                     {
-                        <strong>@VendaDe(pac)</strong>
-                        <small>@(pr.ExportacaoComBackToBack || pr.BackToBack100 ? "Back to Back, com PIS/COFINS do B2B" : pr.SemImpostos ? "exportação: sem impostos" : pr.ServicoOuReforma ? "MP com PIS, COFINS, ICMS e IPI + MO com ISS" : "com PIS, COFINS, ICMS e IPI")</small>
+                        <strong>@VendaDe(vq)</strong>
+                        <small>
+                            @NivelDaProposta(pr).Rotulo.ToLowerInvariant()@(pr.ExportacaoComBackToBack || pr.BackToBack100 ? " · Back to Back, com PIS/COFINS do B2B" : "")
+                            @if (Total > 0m) { <span> · itens da proposta: @Venda(Total)</span> }
+                            @if (NivelDaProposta(pr).Codigo != "todos" && !pr.SemImpostos && pr.PrecoAoCliente is decimal pac) { <span> · com todos os impostos: @VendaDe(pac)</span> }
+                        </small>
                     }
                     else
                     {
@@ -1394,7 +1402,7 @@
             <div class="pricing-acoes">
                 <span>
                     Os preços dos itens já saem daqui, em @moedaVenda.Rotulo(): custo de cada item × fator
-                    @PricingDaProposta.FatorNoNivel(pr, PricingDaProposta.NivelPedido(_o)).ToString("N4", PtBr)
+                    @FatorDosItens(custos, pr).ToString("N4", PtBr)
                     (@PricingDaProposta.NivelEfetivo(pr, PricingDaProposta.NivelPedido(_o)).Rotulo.ToLowerInvariant()). Mudou o custo, a margem ou os impostos, o preço acompanha.
                 </span>
             </div>
@@ -1403,7 +1411,7 @@
                 <div class="pricing-acoes">
                     @if (_itemDemais is null || !_items.Contains(_itemDemais)) { <button class="btn-ghost" @onclick="AdicionarDemais">Incluir item "Serviços e demais custos"</button> }
                     <span>A tabela de custo tem @Cu(demais) além dos itens (@NomesDosDemais()) — no preço, @VendaDe(demais * PricingDaProposta.FatorNoNivel(pr, PricingDaProposta.NivelPedido(_o))).
-                        @(_itemDemais is not null && _items.Contains(_itemDemais) ? "Já está na proposta como item, com o preço atualizado." : "Inclua como item da proposta para cobrar à parte.")</span>
+                        @(_itemDemais is not null && _items.Contains(_itemDemais) ? "Já está na proposta como item, com o preço atualizado." : "Está distribuído no preço dos itens (na proporção do custo); para mostrar à parte, inclua como item.")</span>
                 </div>
             }
         }
@@ -1854,6 +1862,10 @@
     private CommercialOfferItem? _itemDemais;
 
     private decimal DemaisCustos(CustoDosItens c, CalculoPricing.Resultado r) => r.CustoTotal - c.Total;
+
+    /// <summary>O nível de impostos em que a proposta sai (o pedido, ou o líquido quando ele não existe aqui).</summary>
+    private PricingDaProposta.NivelDeImposto NivelDaProposta(CalculoPricing.Resultado r) =>
+        PricingDaProposta.NivelEfetivo(r, PricingDaProposta.NivelPedido(_o));
 
     private string NomesDosDemais() => string.Join(", ", _o.CustosPricing.Where(x => x.Valor != 0m)
         .Select(x => CalculoPricing.LinhasDeCusto.First(l => l.Codigo == x.Codigo).Nome));

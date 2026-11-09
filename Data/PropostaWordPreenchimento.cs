@@ -964,21 +964,17 @@ internal sealed class PreenchimentoDaProposta
         // os preços podem estar com impostos: o detalhamento parte do líquido de cada item
         var noNivel = PricingDaProposta.ValorNoNivel(r, _nivel.Codigo) ?? r.ValorDaProposta;
         var paraLiquido = noNivel > 0m && r.ValorDaProposta > 0m ? r.ValorDaProposta / noNivel : 1m;
-        decimal liquido = Total * paraLiquido, comPisCofins = 0, comIcms = 0, comIpi = 0;
+        // o mesmo gross-up do pricing (S75, S76, S77) sobre o total, com as alíquotas DO PRICING:
+        // o IPI é o ponderado dos itens (zero em NB, exportação e Zona Franca) — item a item com o
+        // IPI de cada NCM o "com IPI" saía diferente do pricing
+        decimal liquido = Total * paraLiquido, comIcms = 0, comIpi = 0;
         var fatorPisCofins = 1m - r.AliqPis - r.AliqCofins;
-        foreach (var itemDaProposta in _d.Itens)
+        var ipi = r.AliqIpi;
+        var comPisCofins = fatorPisCofins > 0 ? liquido / fatorPisCofins : liquido;
+        if (r.AliqIcms is decimal icms)
         {
-            var it = new CommercialOfferItem { Ncm = itemDaProposta.Ncm, TotalPrice = itemDaProposta.TotalPrice * paraLiquido };
-            var ipi = ListasDaProposta.NcmDo(it.Ncm)?.Ipi ?? r.AliqIpi;
-            if (Textos.Igual(_o.ClienteCom, "Zona Franca de Manaus")) ipi = 0m;
-            var s75 = fatorPisCofins > 0 ? it.TotalPrice / fatorPisCofins : it.TotalPrice;
-            comPisCofins += s75;
-            if (r.AliqIcms is decimal icms)
-            {
-                var s76 = s75 / (1m - icms - icms * (industrializacao ? 0m : ipi));
-                comIcms += s76;
-                comIpi += s76 * (1m + ipi);
-            }
+            comIcms = comPisCofins / (1m - icms - icms * (industrializacao ? 0m : ipi));
+            comIpi = comIcms * (1m + ipi);
         }
 
         void Valor(TableRow linha, decimal v) => EscreverNaCelula(linha.Elements<TableCell>().Last(), new[] { Dinheiro(Math.Round(v, 2)) });

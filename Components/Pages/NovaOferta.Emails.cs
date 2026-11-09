@@ -68,7 +68,12 @@ public partial class NovaOferta
         decimal? dolar = Cambio.MoedaDoPreco(_o) == Moeda.Usd && Cambio.MoedaDoCusto(_o) == Moeda.Brl && Cambio.Normalizada(_o) > 0m ? Cambio.Normalizada(_o)
             : Conversao.Ler().UsdEmReais is var usd && usd > 0m ? usd : null;
 
-        return new ResumoDaAprovacao(cliente.Length > 0 ? cliente : "—", escopo, itens, total, prazo, dolar, Seguros(), _notaAprovacao);
+        // custo fora do real (HCHL/HPU): a taxa da proposta entre as duas moedas, a usada no preço
+        string? cambio = null;
+        if (Cambio.MoedaDoCusto(_o) != Moeda.Brl && Cambio.Converte(_o) && !Cambio.FaltaTaxa(_o))
+            cambio = $"1 {Cambio.MoedaDoPreco(_o).Rotulo()} = {Cambio.Efetivo(_o).ToString("#,##0.####", PtBr)} {Cambio.MoedaDoCusto(_o).Rotulo()}" +
+                     (Cambio.Seguranca(_o) > 0m ? $" (com {Cambio.Seguranca(_o).ToString("0.##", PtBr)}% de segurança)" : "");
+        return new ResumoDaAprovacao(cliente.Length > 0 ? cliente : "—", escopo, itens, total, prazo, dolar, Seguros(), _notaAprovacao, cambio);
     }
 
     /// <summary>"Seguros:" do e-mail: o seguro garantia / carta fiança e as outras garantias da proposta.</summary>
@@ -105,6 +110,7 @@ public partial class NovaOferta
     private async Task EmlDeAprovacao()
     {
         if (_gerandoEmail) return;
+        if (Cambio.BloqueioDosDocumentos(_o) is { } bloqueio) { _erro = bloqueio; return; }
         _gerandoEmail = true; _erro = null;
         try
         {
@@ -123,6 +129,7 @@ public partial class NovaOferta
     private async Task EmlAoCliente()
     {
         if (_gerandoEmail) return;
+        if (Cambio.BloqueioDosDocumentos(_o) is { } bloqueio) { _erro = bloqueio; return; }
         if (_items.Count == 0) { _erro = "Inclua ao menos um item: a proposta comercial é a lista deles."; return; }
         if (!Salvar(explicito: false)) return;
         _gerandoEmail = true; _erro = null;

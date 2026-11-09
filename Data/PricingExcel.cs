@@ -121,14 +121,46 @@ public static class PricingExcel
             ws.Numero($"R{64 + i}", e.OutrasGarantias[i].DiasCobertura);
         }
 
-        // ---------- moedas: I36 = R$ por USD; I37/I39 = EUR e CLP em USD (a planilha multiplica por I36) ----------
-        var (usd, eur, clp) = RealPor(o, taxas);
-        if (usd > 0m)
+        // ---------- moedas ----------
+        if (Cambio.MoedaDoCusto(o) == Moeda.Brl)
         {
-            ws.Numero("I36", Math.Round(usd, 6));
-            if (eur > 0m) ws.Numero("I37", Math.Round(eur / usd, 8));
-            if (clp > 0m) ws.Numero("I39", Math.Round(clp / usd, 10));
+            // I36 = R$ por USD; I37/I39 = EUR e CLP em USD (a planilha multiplica por I36)
+            var (usd, eur, clp) = RealPor(o, taxas);
+            if (usd > 0m)
+            {
+                ws.Numero("I36", Math.Round(usd, 6));
+                if (eur > 0m) ws.Numero("I37", Math.Round(eur / usd, 8));
+                if (clp > 0m) ws.Numero("I39", Math.Round(clp / usd, 10));
+            }
         }
+        else if (CustoPorMoedaDaLinha36(o) is decimal i36)
+        {
+            // BU de fora: I36 = moeda do custo por 1 da moeda da linha 36 (PEN na HPU, senão USD) —
+            // a aba PRR divide por ela; as cruzadas em R$ (I37/I39) não valem aqui
+            ws.Numero("I36", Math.Round(i36, 10));
+        }
+
+        // ---------- os rótulos de moeda do custo: o modelo diz "(CLP)" sempre que a BU é HCHL ----------
+        var moedaDoCusto = $"({Cambio.MoedaDoCusto(o).Rotulo()})";
+        foreach (var celula in new[] { "E13", "G13", "P48", "T48", "P63", "T63" }) ws.Texto(celula, moedaDoCusto);
+
+        // ---------- o botão "Calcular Preço" (RECALCULAR) tem de chegar no MESMO preço ----------
+        // a partir da margem: re-resolve o markup até D55 = P26 (o modelo traz 52%);
+        // a partir do preço: até a venda líquida = P27
+        if (o.PricingModo == "preco")
+        {
+            ws.Texto("M26", "a partir do Preço de Venda");
+            ws.Numero("P27", Math.Round(r.VendaLiquida, 2));
+        }
+        else ws.Texto("M26", "a partir da Margem");
+        ws.Numero("P26", Math.Round(r.Margem, 6));
+
+        // ---------- Back to Back na moeda do custo (como o sistema calcula): P22 "BRL" = sem conversão ----------
+        ws.Texto("P22", "BRL");
+
+        // ---------- portal: busca EXATA (o modelo usa a aproximada numa lista fora de ordem) ----------
+        if (ws.FormulaDe("D50") is { } portal && portal.Contains("VLOOKUP(P4,listas!B3:C13,2)", StringComparison.Ordinal))
+            ws.Formula("D50", portal.Replace("VLOOKUP(P4,listas!B3:C13,2)", "VLOOKUP(P4,listas!B3:C13,2,FALSE)", StringComparison.Ordinal));
 
         PrecoAoCliente(pacote, ws, o, r);
 
@@ -157,19 +189,25 @@ public static class PricingExcel
         var venda = Cambio.MoedaDoPreco(o);
         var converte = Cambio.Converte(o) && !Cambio.FaltaTaxa(o);
         var efetivo = converte ? Cambio.Efetivo(o) : 1m;
-        var taxa = Math.Round(efetivo, 10).ToString(CultureInfo.InvariantCulture);
 
-        // a linha 1 dos botões de moeda: a moeda do preço e a taxa da proposta
+        // a linha 1 dos botões de moeda: a moeda do preço e a taxa da proposta; os outros
+        // botões (EUR, GBP, CLP) dividiriam pela cruzada em USD da linha 37/39 e dariam um
+        // número errado — ficam #N/D (não disponível) para ninguém usar por engano
         var bd = pacote.AbaDe("BD_pricing");
         bd.Numero("A1", 1);
         bd.Texto("B2", (converte ? venda : custo).Codigo());
         bd.Numero("C2", efetivo);
+        foreach (var celula in new[] { "C3", "C4", "C5" }) bd.Formula(celula, "NA()");
 
         // o valor da proposta na moeda do custo, no nível de impostos que vai ao cliente
         var nivel = PricingDaProposta.NivelEfetivo(r, PricingDaProposta.NivelPedido(o));
         var valor = nivel.Codigo switch
         {
-            "liquido" => r.ExportacaoComBackToBack ? "$S$82" : r.BackToBack100 ? "$S$83" : "$E$52",
+            // B2B 100% importado: S83 = Q13 ÷ (1 − PIS − COFINS), mas o Q13 do modelo dá resultados
+            // diferentes no Excel e no LibreOffice nesse destino; a conta direta é a do sistema
+            "liquido" => r.ExportacaoComBackToBack ? "$S$82"
+                : r.BackToBack100 ? $"({(r.ServicoOuReforma ? "$S$74" : "$E$52")}/(1-SUM($D$61:$D$62)))"
+                : "$E$52",
             "pis_cofins" => "$S$75",
             "pis_cofins_icms" => "$S$76",
             _ => "$S$77",
@@ -185,7 +223,19 @@ public static class PricingExcel
                 ? $"PREÇO AO CLIENTE: falta a taxa de câmbio {custo.Rotulo()} → {venda.Rotulo()} na proposta (valor abaixo em {custo.Rotulo()})"
                 : $"PREÇO AO CLIENTE EM {custo.Rotulo()} ({nivel.Rotulo.ToLowerInvariant()})";
         ws.Texto("K21", rotulo);
-        ws.Formula("Q21", $"ROUND({valor}/{taxa},2)");
+        ws.Formula("Q21", $"ROUND({valor}/BD_pricing!$C$2,2)");
+    }
+
+    /// <summary>
+    /// Nas BUs de fora: a moeda do custo por 1 da moeda da linha 36 da planilha
+    /// (PEN na HPU, senão USD) — quando dá para saber pela proposta. null = não dá.
+    /// </summary>
+    private static decimal? CustoPorMoedaDaLinha36(CommercialOffer o)
+    {
+        var linha36 = string.Equals((o.Bu ?? "").Trim(), "HPU", StringComparison.OrdinalIgnoreCase) ? Moeda.Pen : Moeda.Usd;
+        if (Cambio.MoedaDoCusto(o) == linha36) return 1m;
+        if (Cambio.MoedaDoPreco(o) == linha36 && Cambio.Converte(o) && !Cambio.FaltaTaxa(o)) return Cambio.Efetivo(o);
+        return null;
     }
 
     /// <summary>

@@ -54,6 +54,12 @@ public class CommercialOffer
     /// <summary>O segundo vendedor (opcional): o outro contato da capa, ao lado do primeiro.</summary>
     public string Vendedor2 { get; set; } = "";
 
+    /// <summary>
+    /// A taxa de câmbio que alguém confirmou como certa mesmo parecendo ao
+    /// contrário (moedas, sentido e valor): mudou qualquer um, vale de novo o aviso.
+    /// </summary>
+    public string CambioConferido { get; set; } = "";
+
     /// <summary>Em que língua a proposta sai: "pt", "en" ou "es".</summary>
     public string Idioma { get; set; } = "pt";
 

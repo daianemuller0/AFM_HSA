@@ -140,12 +140,14 @@ public partial class NovaOferta
         var c = Custos;
         var r = PricingAtual(c);
         var fator = r.CustoTotal > 0m && r.VendaLiquida > 0m ? PricingDaProposta.FatorNoNivel(r, PricingDaProposta.NivelPedido(_o)) : 0m;
+        var fatorItens = FatorDosItens(c, r);
         var custos = c.ComCusto.ToDictionary(x => x.It, x => x.Unit);
         foreach (var it in _items)
         {
             if (it == _itemDemais) continue;
             var custo = custos.TryGetValue(it, out var u) ? u : 0m;
-            it.UnitPrice = custo > 0m && fator > 0m ? Math.Round(Cambio.ParaVenda(_o, custo * fator), 2) : 0m;
+            // meio centavo arredonda para cima, como o ROUND do Excel (o pricing)
+            it.UnitPrice = custo > 0m && fatorItens > 0m ? Math.Round(Cambio.ParaVenda(_o, custo * fatorItens), 2, MidpointRounding.AwayFromZero) : 0m;
             it.TotalPrice = it.Quantity * it.UnitPrice;
         }
         if (_itemDemais is not null && _items.Contains(_itemDemais))
@@ -153,7 +155,7 @@ public partial class NovaOferta
             var demais = DemaisCustos(c, r);
             _itemDemais.Description = DescricaoDosDemais();
             _itemDemais.Quantity = 1;
-            _itemDemais.UnitPrice = demais > 0.005m && fator > 0m ? Math.Round(Cambio.ParaVenda(_o, demais * fator), 2) : 0m;
+            _itemDemais.UnitPrice = demais > 0.005m && fator > 0m ? Math.Round(Cambio.ParaVenda(_o, demais * fator), 2, MidpointRounding.AwayFromZero) : 0m;
             _itemDemais.TotalPrice = _itemDemais.UnitPrice;
         }
     }
@@ -173,7 +175,7 @@ public partial class NovaOferta
         {
             var c = Custos;
             var r = PricingAtual(c);
-            var fator = r.CustoTotal > 0m && r.VendaLiquida > 0m ? PricingDaProposta.FatorNoNivel(r, PricingDaProposta.NivelPedido(_o)) : 0m;
+            var fator = FatorDosItens(c, r);
             if (fator <= 0m) return;
             var mudou = false;
             var frete = Rateio().Unitario;
@@ -190,6 +192,23 @@ public partial class NovaOferta
             }
             if (!mudou) return;
         }
+    }
+
+    /// <summary>
+    /// O fator custo → preço de cada item. É o do pricing (valor no nível de
+    /// impostos ÷ custo total) quando o item "Serviços e demais custos" está na
+    /// proposta; sem ele, os custos da tabela além dos itens (engenharia, MO,
+    /// imprevistos…) entram no preço dos itens, na proporção do custo de cada
+    /// um — a soma dos itens fecha SEMPRE com o valor do pricing (antes esses
+    /// custos ficavam fora do preço e a proposta saía abaixo do pricing).
+    /// </summary>
+    private decimal FatorDosItens(CustoDosItens c, CalculoPricing.Resultado r)
+    {
+        if (r.CustoTotal <= 0m || r.VendaLiquida <= 0m) return 0m;
+        var fator = PricingDaProposta.FatorNoNivel(r, PricingDaProposta.NivelPedido(_o));
+        var demaisNaProposta = _itemDemais is not null && _items.Contains(_itemDemais);
+        if (demaisNaProposta || c.Total <= 0m) return fator;
+        return fator * r.CustoTotal / c.Total;
     }
 
     private void MudarMeta(CommercialOfferItem it, ChangeEventArgs e)
@@ -576,6 +595,7 @@ public partial class NovaOferta
     private async Task GerarPricingExcel()
     {
         if (_gerandoExcel) return;
+        if (Cambio.BloqueioDosDocumentos(_o) is { } bloqueio) { _erro = bloqueio; return; }
         _gerandoExcel = true; _erro = null;
         try
         {
@@ -597,6 +617,7 @@ public partial class NovaOferta
     private async Task GerarCustoPorItem()
     {
         if (_gerandoExcel) return;
+        if (Cambio.BloqueioDosDocumentos(_o) is { } bloqueio) { _erro = bloqueio; return; }
         if (_items.Count == 0) { _erro = "Nenhum item na proposta."; return; }
         _gerandoExcel = true; _erro = null;
         try

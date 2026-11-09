@@ -165,6 +165,30 @@ public static class Cambio
         return erro > Math.Log(1.08) && erroInvertida < erro;
     }
 
+    /// <summary>A taxa como foi digitada (moedas, sentido e valor): o que a confirmação guarda.</summary>
+    public static string Assinatura(CommercialOffer o) =>
+        $"{MoedaDoCusto(o).Codigo()}|{MoedaDoPreco(o).Codigo()}|{o.CambioDirecao}|{o.CambioTaxa.ToString(CultureInfo.InvariantCulture)}";
+
+    /// <summary>Alguém confirmou que esta taxa (exatamente esta) está certa.</summary>
+    public static bool TaxaConferida(CommercialOffer o) => o.CambioConferido == Assinatura(o);
+
+    /// <summary>A taxa parece ao contrário e ninguém confirmou: os documentos não saem.</summary>
+    public static bool TaxaSuspeita(CommercialOffer o) => TaxaPareceInvertida(o) && !TaxaConferida(o);
+
+    /// <summary>
+    /// Por que os documentos (Word, PDF, pricing, e-mails) não podem sair: sem
+    /// taxa o preço sairia como se o custo já estivesse na moeda do cliente;
+    /// com a taxa ao contrário, o preço sairia errado. null = pode.
+    /// </summary>
+    public static string? BloqueioDosDocumentos(CommercialOffer o)
+    {
+        if (FaltaTaxa(o))
+            return $"Informe a taxa de câmbio {MoedaDoCusto(o).Rotulo()} → {MoedaDoPreco(o).Rotulo()} (etapa Preço) antes de gerar os documentos: sem ela o preço sairia sem conversão.";
+        if (TaxaSuspeita(o))
+            return $"A taxa de câmbio {MoedaDoCusto(o).Rotulo()} → {MoedaDoPreco(o).Rotulo()} parece estar ao contrário: corrija ou confirme na etapa Preço antes de gerar os documentos.";
+        return null;
+    }
+
     /// <summary>O sentido contrário ao gravado (para o "usar 1 EUR = 1,0624 USD").</summary>
     public static string DirecaoOposta(CommercialOffer o) => o.CambioDirecao == "CustoEmVenda" ? "VendaEmCusto" : "CustoEmVenda";
 

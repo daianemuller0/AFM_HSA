@@ -20,7 +20,7 @@ public sealed record AnexoDoEmail(string Nome, string TipoMime, byte[] Conteudo)
 public sealed record ResumoDaAprovacao(
     string ClienteCompleto, IReadOnlyList<string> Escopo,
     IReadOnlyList<(string Item, string Produto, string Modelo, int Qtd, string UnitSemImpostos, string Total)> Itens,
-    string TotalSemImpostos, string PrazoDias, decimal? Dolar, string Seguros, string Nota);
+    string TotalSemImpostos, string PrazoDias, decimal? Dolar, string Seguros, string Nota, string? Cambio = null);
 
 /// <summary>
 /// Os dois e-mails da proposta, os mesmos da aba "EMAILS AUTOMÁTICOS" da
@@ -93,7 +93,9 @@ public static class EmailsDaProposta
             ("Garantia:", Num(CalculoPricing.GarantiaDoProjeto * 100m), "%"),
             ("Risco:", Num(o.RiscoAdicional * 100m), "%"),
             ("Prazo de entrega:", PropostaWord.Ou(d.PrazoDias, "—"), "Dias"),
-            ("Dólar:", d.Dolar is decimal usd && usd > 0m ? usd.ToString("N4", Br) : "—", "R$"),
+            d.Cambio is { Length: > 0 } cambio
+                ? ("Câmbio:", cambio, "")
+                : ("Dólar:", d.Dolar is decimal usd && usd > 0m ? usd.ToString("N4", Br) : "—", "R$"),
         };
 
         const string Rot = "font-weight:bold";
