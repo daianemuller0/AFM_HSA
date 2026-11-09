@@ -788,12 +788,12 @@
                 <thead>
                     <tr class="it-grupos">
                         <th rowspan="2" class="it-c-num">#</th><th rowspan="2">Peça</th><th rowspan="2" class="right it-c-qtd">Qtd</th>
-                        <th colspan="3" class="g-custo">Custo (@Rc)</th>
+                        <th colspan="4" class="g-custo">Custo (@Rc)</th>
                         <th colspan="2" class="g-venda">Venda (@moedaVenda)</th>
                         <th rowspan="2" class="it-c-acoes"></th>
                     </tr>
                     <tr>
-                        <th class="right g-custo it-c-v">Unit.</th><th class="right g-custo it-c-ta" title="@Rc por unidade, somado ao custo: o da meta aparece sozinho; dá para digitar">TA</th><th class="right g-custo it-c-v">Total</th>
+                        <th class="right g-custo it-c-v">Unit.</th><th class="right g-custo it-c-fr" title="frete do item por unidade: o frete da proposta × a participação do item no custo">Frete</th><th class="right g-custo it-c-ta" title="@Rc por unidade, somado ao custo: o da meta aparece sozinho; dá para digitar">TA</th><th class="right g-custo it-c-v">Total</th>
                         <th class="right g-venda it-c-v">Unit.</th><th class="right g-venda it-c-v">Total</th>
                     </tr>
                 </thead>
@@ -813,6 +813,7 @@
                                 <td colspan="2"><strong class="item-demais">@it.Description</strong>
                                     <div class="it-sub">custos da tabela do pricing além dos itens</div></td>
                                 <td class="right g-custo">—</td>
+                                <td class="right g-custo"></td>
                                 <td class="right g-custo"></td>
                                 <td class="right g-custo">@N2(DemaisCustos(custosLado, prLado))</td>
                                 <td class="right g-venda">—</td>
@@ -840,7 +841,15 @@
                                                @onchange="e => MudarCustoDoItem(it, e)" />
                                     }
                                     <div class="it-sub">@OrigemCurta(it)@if (it.BaseCusto.Length > 0) { <span class="it-base @(it.BaseCusto == ReferenciaDeCustoRepository.Cotacao ? "cot" : "est")">@(it.BaseCusto == ReferenciaDeCustoRepository.Cotacao ? "cot." : "est.")</span> }</div>
-                                    @if (rateio.Unitario.TryGetValue(it, out var freteUn) && freteUn > 0m) { <div class="it-sub it-frete-un" title="frete deste item por unidade (participação no custo × frete)">+ frete @N2(freteUn)</div> }
+                                </td>
+                                @* o frete do item: por unidade e, embaixo, o do item (× qtd) *@
+                                <td class="right g-custo it-frete-cel" title="frete × participação do item no custo">
+                                    @if (rateio.Unitario.TryGetValue(it, out var freteUn) && freteUn > 0m)
+                                    {
+                                        <span class="it-valor">@N2(freteUn)</span>
+                                        @if (it.Quantity > 1) { <div class="it-sub">× @it.Quantity = @N2(freteUn * it.Quantity)</div> }
+                                    }
+                                    else { <span class="it-sub">—</span> }
                                 </td>
                                 <td class="right g-custo">
                                     <input class="cell num it-in it-in-ta @(it.CustoTa > 0m ? (it.TaManual ? "manual" : "meta") : "")" type="number" min="0" step="0.01" placeholder="—"
@@ -867,7 +876,7 @@
                         </tr>
                         @if (aberto && it != _itemDemais)
                         {
-                            <tr class="it-detalhe" @key="@("d-" + idx)"><td colspan="9">@CamposDoItem(it, novo: false)</td></tr>
+                            <tr class="it-detalhe" @key="@("d-" + idx)"><td colspan="10">@CamposDoItem(it, novo: false)</td></tr>
                         }
                     }
                 </tbody>

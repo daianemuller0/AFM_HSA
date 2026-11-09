@@ -1504,3 +1504,12 @@ tr.linha-marcada td { background: #fff1f2; }
 .frete-divisao { margin: 8px 0 12px; padding: 10px 12px; border: 1px solid var(--border, #e5e7eb); border-radius: 10px; background: #f8fafc; }
 .frete-divisao .grid { font-size: 12.5px; }
 .it-frete-un { color: #0f766e; font-weight: 600; }
+/* coluna Frete no grupo Custo */
+.it-c-fr { width: 70px; } .it-c-v { width: 80px; } .it-c-ta { width: 84px; } .it-peca { min-width: 130px; }
+.it-frete-cel .it-valor { color: #0f766e; font-weight: 600; }
+.it-c-fr { width: 64px; } .it-c-v { width: 74px; } .it-c-ta { width: 72px; } .it-in-ta { max-width: 70px; }
+.it-in-custo { max-width: 74px; } .it-peca { min-width: 110px; }
+#f-itens .g-custo, #f-itens .g-venda { padding-left: 4px; padding-right: 4px; }
+.it-c-qtd { width: 40px; } .it-c-num { width: 26px; }
+.it-c-acoes { width: 52px; } .it-peca { min-width: 100px; }
+.it-in-ta { font-size: 0.76rem; padding-left: 2px; padding-right: 2px; }
