@@ -1449,6 +1449,7 @@
 <div class="panel docs-topo" style="margin-bottom:14px">
     <div class="docs-topo-linha">
         <button class="btn-accent" disabled="@_gerando" @onclick="SalvarEGerarWord">⬇ Salvar e gerar a proposta comercial (Word)</button>
+        <button class="btn-ghost" disabled="@_gerando" @onclick="SalvarEGerarPdf" title="O mesmo documento, em PDF">⬇ PDF</button>
         @if (pendLista.Count == 0)
         {
             <span class="docs-estado ok">✓ Nada pendente: o documento sai completo</span>
@@ -1590,6 +1591,7 @@
     else
     {
         <button class="btn-accent" disabled="@_gerando" @onclick="SalvarEGerarWord">⬇ Salvar e gerar Word</button>
+        <button class="btn-ghost" disabled="@_gerando" @onclick="SalvarEGerarPdf">⬇ PDF</button>
     }
 </div>
 
@@ -1623,6 +1625,7 @@
         </button>
     }
     <button class="btn-accent btn-block" disabled="@_gerando" @onclick="SalvarEGerarWord">⬇ Salvar e gerar Word</button>
+    <button class="btn-ghost btn-block" disabled="@_gerando" @onclick="SalvarEGerarPdf">⬇ Salvar e gerar PDF</button>
 
     @if (_erro is not null) { <div class="alert-error" style="margin:0">@_erro</div> }
     @if (_msg is not null) { <div class="alert-ok">@_msg</div> }

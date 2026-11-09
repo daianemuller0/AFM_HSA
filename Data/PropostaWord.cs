@@ -59,10 +59,10 @@ public static class PropostaWord
         return int.TryParse(r, out var n) ? n.ToString("D2") : r;
     }
 
-    /// <summary>O nome do arquivo, sem caractere que o Windows recuse.</summary>
-    public static string NomeDoArquivo(CommercialOffer o)
+    /// <summary>O nome do arquivo: "P_" + o código da proposta com a revisão, sem caractere que o Windows recuse.</summary>
+    public static string NomeDoArquivo(CommercialOffer o, string extensao = "docx")
     {
-        var nome = $"{Referencia(o)}.docx";
+        var nome = $"P_{Referencia(o)}.{extensao}";
         foreach (var c in Path.GetInvalidFileNameChars().Concat(new[] { '/', '\\', ':', '*', '?', '"', '<', '>', '|' }))
             nome = nome.Replace(c, '_');
         return nome;

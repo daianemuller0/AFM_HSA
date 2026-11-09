@@ -626,6 +626,29 @@ public partial class NovaOferta : IDisposable
         finally { _gerando = false; }
     }
 
+    /// <summary>Salva e baixa a proposta em PDF: o mesmo Word, convertido (Word do computador ou LibreOffice).</summary>
+    private async Task SalvarEGerarPdf()
+    {
+        if (_gerando) return;
+        if (_items.Count == 0) { _erro = "Inclua ao menos um item: a proposta comercial é a lista deles."; return; }
+        if (!Salvar(explicito: false)) return;
+        _gerando = true; _erro = null;
+        try
+        {
+            if (WordEmBytes() is not { } word) { _erro = $"O modelo não está em {PropostaWord.CaminhoDoModelo}."; return; }
+            var pdf = await Task.Run(() => PdfDaProposta.Converter(word));
+            await JS.InvokeVoidAsync("appDownload", PropostaWord.NomeDoArquivo(_o, "pdf"), "application/pdf", Convert.ToBase64String(pdf));
+            RegistrarTempo("word");
+            _wordGerado = true;
+            _msg = $"Proposta {PropostaWord.Referencia(_o)} salva e baixada em PDF.";
+        }
+        catch (Exception ex)
+        {
+            _erro = "Não deu para gerar a proposta em PDF: " + ex.Message;
+        }
+        finally { _gerando = false; }
+    }
+
     // =====================================================================
     // cronômetro (o do axiaisvent): quanto tempo a proposta leva, e em que etapa
     // =====================================================================

@@ -29,7 +29,8 @@ else
             <a class="btn-ghost" href="@($"/gerar-proposta/{_o.Id}")" title="Abre na Gerar Proposta, por etapas, para continuar ou corrigir">✎ Editar</a>
             <button class="btn-accent" @onclick="GerarWord" disabled="@_gerando"
                     title="Preenche o modelo de proposta comercial da equipe (Word)">@(_gerando ? "Gerando…" : "⬇ Proposta comercial (Word)")</button>
-            <button class="btn-primary" @onclick="Imprimir">Imprimir / PDF</button>
+            <button class="btn-accent" @onclick="GerarPdf" disabled="@_gerando" title="O mesmo documento, em PDF">⬇ PDF</button>
+            <button class="btn-primary" @onclick="Imprimir">Imprimir</button>
         </div>
     </div>
 
@@ -223,6 +224,28 @@ else
         catch (Exception ex)
         {
             _erroWord = "Não deu para gerar a proposta em Word: " + ex.Message;
+        }
+        finally { _gerando = false; }
+    }
+
+    /// <summary>A proposta em PDF: o mesmo Word, convertido (Word do computador ou LibreOffice).</summary>
+    private async Task GerarPdf()
+    {
+        if (_o is null) return;
+        _gerando = true; _erroWord = null;
+        try
+        {
+            var modelo = Path.Combine(Ambiente.ContentRootPath, PropostaWord.CaminhoDoModelo);
+            if (!File.Exists(modelo)) { _erroWord = $"O modelo não está em {PropostaWord.CaminhoDoModelo}."; return; }
+            var dados = PropostaWord.Dados(_o, _items, Units.All(), Vendedores.All(), Equipamentos.All(),
+                Base.All(), Bom.All(), Vendas.All()) with { Faturamento = Bancos.ParaProposta(_o) };
+            var word = PropostaWord.Gerar(dados, modelo);
+            var pdf = await Task.Run(() => PdfDaProposta.Converter(word));
+            await JS.InvokeVoidAsync("appDownload", PropostaWord.NomeDoArquivo(_o, "pdf"), "application/pdf", Convert.ToBase64String(pdf));
+        }
+        catch (Exception ex)
+        {
+            _erroWord = "Não deu para gerar a proposta em PDF: " + ex.Message;
         }
         finally { _gerando = false; }
     }
