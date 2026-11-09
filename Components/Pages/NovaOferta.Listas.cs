@@ -123,6 +123,11 @@ public partial class NovaOferta
 
     // ================= serial e TAG (os do modelo) =================
 
+    /// <summary>Serial / TAG já usados com o modelo do equipamento não cadastrado.</summary>
+    private IEnumerable<string> ValoresDoModeloEq(string lista, EquipamentoDaProposta eq) =>
+        _listas.Where(l => l.Lista == lista && Textos.Igual(l.Chave, eq.Modelo) && (eq.Modelo ?? "").Trim().Length > 0)
+            .Select(l => l.Valor).Distinct(StringComparer.OrdinalIgnoreCase).Take(100);
+
     private IEnumerable<string> ValoresDoModelo(string lista, CommercialOfferItem it)
     {
         var modelo = ModeloDoItem(it).Trim();

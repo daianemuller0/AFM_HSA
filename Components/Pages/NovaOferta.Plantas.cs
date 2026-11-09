@@ -92,6 +92,7 @@ public partial class NovaOferta
     private void PlantasMudaram()
     {
         _refs.Clear();
+        CompletarDaFicha();
         var principal = _units.FirstOrDefault(u => u.Id == _unitId);
         if (principal is not null && string.IsNullOrWhiteSpace(_o.ClientName))
             _o.ClientName = Intel.CompanyName(principal.CompanyId);
@@ -142,7 +143,7 @@ public partial class NovaOferta
         var existente = _o.EquipamentosDaProposta.FirstOrDefault(x => x.EquipmentId == equipmentId);
         if (existente is not null) { RemoverEquip(existente); return; }
         if (_equipamentos.FirstOrDefault(e => e.Id == equipmentId) is { } e)
-            _o.EquipamentosDaProposta.Add(PlantasDaProposta.DoCadastro(e, planta, _base));
+            _o.EquipamentosDaProposta.Add(PlantasDaProposta.DoCadastro(e, planta, _base, _o.Plantas));
     }
 
     /// <summary>Um cadastrado de outra planta: entra na planta onde está instalado, se ela estiver na proposta; senão na primeira.</summary>
@@ -152,9 +153,38 @@ public partial class NovaOferta
         if (_equipamentos.FirstOrDefault(e => e.Id == equipmentId) is not { } e) return;
         var unidades = _base.Where(b => b.EquipmentId == equipmentId).Select(b => b.ClientUnitId).ToHashSet();
         var planta = _o.Plantas.FirstOrDefault(p => p.Cadastrada && unidades.Contains(p.UnitId)) ?? _o.Plantas.FirstOrDefault();
-        _o.EquipamentosDaProposta.Add(PlantasDaProposta.DoCadastro(e, planta, _base));
+        _o.EquipamentosDaProposta.Add(PlantasDaProposta.DoCadastro(e, planta, _base, _o.Plantas));
         _msg = $"{RotuloDoEquip(_o.EquipamentosDaProposta[^1])} incluído — confira a planta, a TAG e a aplicação.";
     }
+
+    // ---- serial, TAG e aplicação pela ficha do equipamento (base instalada e cadastro) ----
+
+    /// <summary>Preenche o que estiver vazio nos equipamentos cadastrados da proposta.</summary>
+    private void CompletarDaFicha()
+    {
+        foreach (var eq in _o.EquipamentosDaProposta.Where(x => x.Cadastrado))
+            PlantasDaProposta.PreencherDaFicha(eq, _equipamentos.FirstOrDefault(x => x.Id == eq.EquipmentId), _o.Plantas, _base, sobrescrever: false);
+    }
+
+    /// <summary>"↺ puxar da ficha": troca serial, TAG e aplicação pelos da ficha (o que a ficha não tem fica como está).</summary>
+    private void PuxarDaFicha(EquipamentoDaProposta eq)
+    {
+        var mudou = PlantasDaProposta.PreencherDaFicha(eq, _equipamentos.FirstOrDefault(x => x.Id == eq.EquipmentId), _o.Plantas, _base, sobrescrever: true);
+        _msg = mudou ? $"{RotuloDoEquip(eq)}: serial, TAG e aplicação da ficha." 
+                     : $"{RotuloDoEquip(eq)}: a ficha não tem serial, TAG ou aplicação diferentes para esta planta — escolha na lista do campo ou digite.";
+    }
+
+    /// <summary>A planta do equipamento mudou: serial e TAG passam a ser os da instalação nela (quando a ficha tem).</summary>
+    private void MudarPlantaDoEquip(EquipamentoDaProposta eq, string plantaId)
+    {
+        eq.PlantaId = plantaId;
+        PlantasDaProposta.PreencherDaFicha(eq, _equipamentos.FirstOrDefault(x => x.Id == eq.EquipmentId), _o.Plantas, _base, sobrescrever: true);
+    }
+
+    /// <summary>Os valores que a ficha tem para o campo, em todas as instalações (para escolher na lista).</summary>
+    private IEnumerable<string> DaFicha(EquipamentoDaProposta eq, Func<InstalledBase, string?> campo) =>
+        _base.Where(b => b.EquipmentId == eq.EquipmentId).Select(campo)
+            .Where(v => !string.IsNullOrWhiteSpace(v)).Select(v => v!.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).Take(100);
 
     private void AdicionarEquipLivre()
     {

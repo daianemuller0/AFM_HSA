@@ -46,15 +46,69 @@ public static class PlantasDaProposta
         o.Plantas.Where(p => p.Cadastrada).Select(p => p.UnitId).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    /// O equipamento cadastrado entrando na proposta: modelo e tipo do
-    /// cadastro; TAG e aplicação da base instalada — da planta escolhida
-    /// quando ela é cadastrada, ou do único lugar onde ele está instalado.
+    /// A ficha do equipamento cadastrado para a proposta: serial number, TAG e
+    /// aplicação. Serial e TAG vêm da base instalada — da instalação na planta
+    /// do equipamento; senão de uma das plantas cadastradas da proposta; senão
+    /// da planta com o mesmo nome ou cidade; senão do único lugar onde ele
+    /// está instalado. A aplicação vem do cadastro do equipamento (ou do
+    /// processo / tipo de aplicação da instalação).
     /// </summary>
-    public static EquipamentoDaProposta DoCadastro(Equipment e, PlantaDaProposta? planta, IEnumerable<InstalledBase> baseInstalada)
+    public static (string Serial, string Tag, string Aplicacao) Ficha(Equipment? e, string equipmentId, PlantaDaProposta? planta,
+        IEnumerable<PlantaDaProposta> plantas, IEnumerable<InstalledBase> baseInstalada)
     {
-        var onde = baseInstalada.Where(b => b.EquipmentId == e.Id).ToList();
-        var daPlanta = planta is { Cadastrada: true } ? onde.Where(b => b.ClientUnitId == planta.UnitId).ToList() : new();
-        if (daPlanta.Count == 0 && onde.Select(b => b.ClientUnitId).Distinct().Count() == 1) daPlanta = onde;
+        var onde = baseInstalada.Where(b => b.EquipmentId == equipmentId).ToList();
+        var sel = planta is { Cadastrada: true } ? onde.Where(b => b.ClientUnitId == planta.UnitId).ToList() : new();
+        if (sel.Count == 0)
+        {
+            var unidades = plantas.Where(p => p.Cadastrada).Select(p => p.UnitId).ToHashSet();
+            sel = onde.Where(b => unidades.Contains(b.ClientUnitId)).ToList();
+        }
+        if (sel.Count == 0 && planta is not null)
+        {
+            var nome = Textos.Simples(planta.Nome);
+            var cidade = Textos.Simples(planta.Cidade);
+            sel = onde.Where(b => (nome.Length > 2 && Textos.Simples(b.PlantName).Contains(nome))
+                                  || (cidade.Length > 2 && Textos.Simples(b.City) == cidade)).ToList();
+        }
+        if (sel.Count == 0 && onde.Select(b => b.ClientUnitId).Distinct().Count() == 1) sel = onde;
+
+        static string Juntar(IEnumerable<string?> v) =>
+            string.Join(", ", v.Select(x => (x ?? "").Trim()).Where(x => x.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase));
+        var aplicacao = Primeiro(e?.Aplicacao,
+            sel.Select(b => b.Process).FirstOrDefault(x => (x ?? "").Trim().Length > 0),
+            sel.Select(b => b.ApplicationType).FirstOrDefault(x => (x ?? "").Trim().Length > 0),
+            onde.Select(b => b.Process).Where(x => (x ?? "").Trim().Length > 0).Distinct().Count() == 1 ? onde.First(b => (b.Process ?? "").Trim().Length > 0).Process : "");
+        return (Juntar(sel.Select(b => b.SerialNo)), Juntar(sel.Select(b => b.Tag)), aplicacao);
+    }
+
+    /// <summary>
+    /// Preenche serial, TAG e aplicação do equipamento da proposta pela ficha.
+    /// Sem <paramref name="sobrescrever"/>, só os campos vazios (o digitado fica).
+    /// </summary>
+    public static bool PreencherDaFicha(EquipamentoDaProposta eq, Equipment? e, IEnumerable<PlantaDaProposta> plantas,
+        IEnumerable<InstalledBase> baseInstalada, bool sobrescrever)
+    {
+        if (!eq.Cadastrado || eq.EquipmentId.Length == 0) return false;
+        var planta = plantas.FirstOrDefault(p => p.Id == eq.PlantaId);
+        var (serial, tag, aplicacao) = Ficha(e, eq.EquipmentId, planta, plantas, baseInstalada);
+        var mudou = false;
+        void Por(Func<string> atual, Action<string> por, string novo)
+        {
+            if (novo.Length == 0 || (!sobrescrever && atual().Trim().Length > 0) || atual() == novo) return;
+            por(novo);
+            mudou = true;
+        }
+        Por(() => eq.SerialNumber, v => eq.SerialNumber = v, serial);
+        Por(() => eq.Tag, v => eq.Tag = v, tag);
+        Por(() => eq.Aplicacao, v => eq.Aplicacao = v, aplicacao);
+        return mudou;
+    }
+
+    /// <summary>O equipamento cadastrado entrando na proposta: modelo e tipo do cadastro; serial, TAG e aplicação da ficha.</summary>
+    public static EquipamentoDaProposta DoCadastro(Equipment e, PlantaDaProposta? planta, IEnumerable<InstalledBase> baseInstalada,
+        IEnumerable<PlantaDaProposta>? plantas = null)
+    {
+        var (serial, tag, aplicacao) = Ficha(e, e.Id, planta, plantas ?? (planta is null ? Array.Empty<PlantaDaProposta>() : new[] { planta }), baseInstalada);
         return new EquipamentoDaProposta
         {
             Id = e.Id,
@@ -62,9 +116,9 @@ public static class PlantasDaProposta
             PlantaId = planta?.Id ?? "",
             Tipo = Compressor,
             Modelo = (e.Modelo ?? "").Trim() is { Length: > 0 } modelo ? modelo : (e.Nome ?? "").Trim(),
-            Tag = string.Join(", ", daPlanta.Select(b => (b.Tag ?? "").Trim()).Where(t => t.Length > 0).Distinct()),
-            SerialNumber = string.Join(", ", daPlanta.Select(b => (b.SerialNo ?? "").Trim()).Where(t => t.Length > 0).Distinct()),
-            Aplicacao = Primeiro(e.Aplicacao, daPlanta.Select(b => b.Process).FirstOrDefault(x => (x ?? "").Trim().Length > 0)),
+            Tag = tag,
+            SerialNumber = serial,
+            Aplicacao = aplicacao,
         };
     }
 
@@ -96,7 +150,7 @@ public static class PlantasDaProposta
             .Distinct();
         foreach (var id in ids)
             if (equipamentos.FirstOrDefault(e => e.Id == id) is { } e)
-                o.EquipamentosDaProposta.Add(DoCadastro(e, planta, baseInstalada));
+                o.EquipamentosDaProposta.Add(DoCadastro(e, planta, baseInstalada, o.Plantas));
     }
 
     /// <summary>O equipamento da proposta a que o item pertence (null = item sem equipamento).</summary>

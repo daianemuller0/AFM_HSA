@@ -528,7 +528,7 @@
     {
         <div class="tabela-rolante">
         <table class="grid equip-tabela">
-            <colgroup><col style="width:27%" /><col style="width:15%" /><col style="width:14%" /><col style="width:18%" /><col style="width:22%" /><col style="width:4%" /></colgroup>
+            <colgroup><col style="width:25%" /><col style="width:19%" /><col style="width:17%" /><col style="width:16%" /><col style="width:19%" /><col style="width:4%" /></colgroup>
             <thead><tr><th>Equipamento</th><th>Serial Number</th><th>TAG</th><th>Aplicação</th><th>Planta</th><th></th></tr></thead>
             <tbody>
                 @foreach (var eqp in _o.EquipamentosDaProposta)
@@ -544,6 +544,7 @@
                                     <span class="selo-base">cadastrado</span> @(cadastro is { Tipo.Length: > 0 } ? $"{cadastro.Tipo} " : "")@ItensDoEquip(eq)
                                     @(OndeEstaInstalado(eq.EquipmentId) is { Length: > 0 } onde ? $"· instalado em {onde}" : "· sem base instalada")
                                 </span>
+                                <button class="btn-link" title="Trocar serial, TAG e aplicação pelos da ficha do equipamento" @onclick="() => PuxarDaFicha(eq)">↺ puxar da ficha</button>
                             }
                             else
                             {
@@ -551,11 +552,14 @@
                                 <span class="sub-cel"><span class="selo-livre">não cadastrado</span> @ItensDoEquip(eq)</span>
                             }
                         </td>
-                        <td><input class="cell" placeholder="serial" value="@eq.SerialNumber" @onchange="e => eq.SerialNumber = e.Value?.ToString()?.Trim() ?? string.Empty" /></td>
-                        <td><input class="cell" placeholder="TAG" value="@eq.Tag" @onchange="e => eq.Tag = e.Value?.ToString()?.Trim() ?? string.Empty" /></td>
-                        <td><input class="cell" placeholder="aplicação" value="@eq.Aplicacao" @onchange="e => eq.Aplicacao = e.Value?.ToString()?.Trim() ?? string.Empty" /></td>
+                        <td><input class="cell" list="@($"dl-eqsn-{eq.Id}")" placeholder="serial" value="@eq.SerialNumber" @onchange="e => eq.SerialNumber = e.Value?.ToString()?.Trim() ?? string.Empty" />
+                            <datalist id="@($"dl-eqsn-{eq.Id}")">@foreach (var v in eq.Cadastrado ? DaFicha(eq, b => b.SerialNo) : ValoresDoModeloEq(ListasCompartilhadasRepository.Serial, eq)) { <option value="@v" /> }</datalist></td>
+                        <td><input class="cell" list="@($"dl-eqtag-{eq.Id}")" placeholder="TAG" value="@eq.Tag" @onchange="e => eq.Tag = e.Value?.ToString()?.Trim() ?? string.Empty" />
+                            <datalist id="@($"dl-eqtag-{eq.Id}")">@foreach (var v in eq.Cadastrado ? DaFicha(eq, b => b.Tag) : ValoresDoModeloEq(ListasCompartilhadasRepository.Tag, eq)) { <option value="@v" /> }</datalist></td>
+                        <td><input class="cell" list="@($"dl-eqap-{eq.Id}")" placeholder="aplicação" value="@eq.Aplicacao" @onchange="e => eq.Aplicacao = e.Value?.ToString()?.Trim() ?? string.Empty" />
+                            <datalist id="@($"dl-eqap-{eq.Id}")">@foreach (var v in DaFicha(eq, b => b.Process).Concat(DaFicha(eq, b => b.ApplicationType)).Distinct()) { <option value="@v" /> }</datalist></td>
                         <td>
-                            <select class="cell" value="@eq.PlantaId" @onchange="e => eq.PlantaId = e.Value?.ToString() ?? string.Empty">
+                            <select class="cell" value="@eq.PlantaId" @onchange="e => MudarPlantaDoEquip(eq, e.Value?.ToString() ?? string.Empty)">
                                 <option value="">sem planta</option>
                                 @foreach (var pl in _o.Plantas) { <option value="@pl.Id">@PlantasDaProposta.Rotulo(pl)</option> }
                             </select>

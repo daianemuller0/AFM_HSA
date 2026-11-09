@@ -394,6 +394,7 @@ public partial class NovaOferta : IDisposable
         _idsGravados = manterId ? _items.Select(i => i.Id).ToHashSet() : new();
         // proposta de antes das plantas: as listas saem da unidade e dos equipamentos gravados
         PlantasDaProposta.Completar(_o, _items, _units, _equipamentos, _base);
+        CompletarDaFicha();
         // a cópia e a revisão guardam as mesmas chaves de planta e equipamento: os itens continuam apontando certo
         _bomMarcados.Clear(); _refs.Clear(); _bomBusca = "";
         _buscandoEquip = false; _buscaEquip = ""; _novoItem = NovoItemVazio();
