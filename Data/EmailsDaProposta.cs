@@ -109,7 +109,7 @@ public static class EmailsDaProposta
 
         // ---- os itens ----
         const string Th = "background:#005B8F;color:#fff;padding:6px 8px;text-align:left;border:1px solid #7f9db9;font-weight:bold";
-        const string Td = "padding:6px 8px;border:1px solid #c9c9c9;background:#e7e6e6;vertical-align:top";
+        const string Td = "padding:6px 8px;border:1px solid #c9c9c9;background:#ffffff;vertical-align:top";
         sb.Append("<table cellpadding=\"0\" cellspacing=\"0\" style=\"border-collapse:collapse;margin:12px 0;font-size:13px\"><tr>");
         foreach (var c in new[] { "ITEM", "PRODUTO", "MODELO DO COMPRESSOR", "QUANT.", $"PREÇO UNIT S/IMP ({moeda})", $"PREÇO TOTAL ({moeda})" })
             sb.Append($"<th style=\"{Th}\">{H(c)}</th>");
@@ -118,11 +118,13 @@ public static class EmailsDaProposta
         {
             sb.Append("<tr>");
             sb.Append($"<td style=\"{Td}\">{H(i.Item)}</td><td style=\"{Td}\">{H(i.Produto)}</td><td style=\"{Td}\">{H(i.Modelo)}</td>");
-            sb.Append($"<td style=\"{Td};text-align:right\">{i.Qtd}</td><td style=\"{Td};text-align:right\">{H(i.UnitSemImpostos)}</td><td style=\"{Td};text-align:right\">{H(i.Total)}</td>");
+            sb.Append($"<td style=\"{Td};text-align:right\">{i.Qtd}</td><td style=\"{Td};text-align:right;white-space:nowrap\">{H(i.UnitSemImpostos)}</td><td style=\"{Td};text-align:right;white-space:nowrap\">{H(i.Total)}</td>");
             sb.Append("</tr>");
         }
-        sb.Append($"<tr><td colspan=\"4\" style=\"{Td};background:#d0cece\"></td><td style=\"{Td};background:#d0cece;font-weight:bold;text-align:right\">TOTAL</td><td style=\"{Td};background:#d0cece;font-weight:bold;text-align:right\">{H(d.TotalSemImpostos)}</td></tr>");
+        sb.Append($"<tr><td colspan=\"4\" style=\"{Td}\"></td><td style=\"{Td};font-weight:bold;text-align:right\">TOTAL</td><td style=\"{Td};font-weight:bold;text-align:right;white-space:nowrap\">{H(d.TotalSemImpostos)}</td></tr>");
         sb.Append("</table>");
+        // uma linha em branco entre as duas tabelas (o Outlook ignora a margem da tabela)
+        sb.Append("<p style=\"margin:0\">&nbsp;</p>");
 
         // ---- o quadro: GM, negociação, comissão, garantia, risco, prazo, dólar ----
         sb.Append("<table cellpadding=\"0\" cellspacing=\"0\" style=\"border-collapse:collapse;margin:8px 0 14px;font-size:13px\">");
