@@ -61,7 +61,7 @@ public static class PlantasDaProposta
             EquipmentId = e.Id,
             PlantaId = planta?.Id ?? "",
             Tipo = Compressor,
-            Modelo = (e.Modelo ?? "").Trim().Length > 0 ? e.Modelo.Trim() : (e.Nome ?? "").Trim(),
+            Modelo = (e.Modelo ?? "").Trim() is { Length: > 0 } modelo ? modelo : (e.Nome ?? "").Trim(),
             Tag = string.Join(", ", daPlanta.Select(b => (b.Tag ?? "").Trim()).Where(t => t.Length > 0).Distinct()),
             SerialNumber = string.Join(", ", daPlanta.Select(b => (b.SerialNo ?? "").Trim()).Where(t => t.Length > 0).Distinct()),
             Aplicacao = Primeiro(e.Aplicacao, daPlanta.Select(b => b.Process).FirstOrDefault(x => (x ?? "").Trim().Length > 0)),

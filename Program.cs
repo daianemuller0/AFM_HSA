@@ -11,7 +11,25 @@ var builder = WebApplication.CreateBuilder(args);
 if (string.IsNullOrEmpty(builder.Configuration["urls"]) &&
     string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ASPNETCORE_URLS")))
 {
-    builder.WebHost.UseUrls("http://localhost:5090");
+    // se a 5090 já estiver ocupada (o sistema já aberto em outra janela, ou outro programa),
+    // sobe na próxima porta livre em vez de parar com "address already in use"
+    var porta = Enumerable.Range(5090, 20).FirstOrDefault(PortaLivre);
+    if (porta == 0) porta = 5090;
+    if (porta != 5090)
+        Console.WriteLine($"A porta 5090 está em uso (o AFM HSA já pode estar aberto em outra janela). Abrindo em http://localhost:{porta}");
+    builder.WebHost.UseUrls($"http://localhost:{porta}");
+}
+
+static bool PortaLivre(int porta)
+{
+    try
+    {
+        var l = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, porta);
+        l.Start();
+        l.Stop();
+        return true;
+    }
+    catch (System.Net.Sockets.SocketException) { return false; }
 }
 
 // --- Blazor Server (componentes interativos no servidor) ---

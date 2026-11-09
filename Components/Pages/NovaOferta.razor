@@ -1835,7 +1835,7 @@
     }
 
     /// <summary>A aba Conversão não é mais usada: a taxa não vem mais de lá (ligar aqui se voltar).</summary>
-    private const bool UsaAbaConversao = false;
+    private static readonly bool UsaAbaConversao = false;
 
     /// <param name="Texto">O que a tela mostra antes do "usar esta".</param>
     private sealed record OfertaDeTaxa(string Texto, decimal Valor, string Direcao);

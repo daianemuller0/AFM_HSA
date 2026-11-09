@@ -219,7 +219,7 @@
         _edit.PropostaId = o?.Id ?? "";
         _edit.Proposta = o is null ? "" : PropostaWord.Referencia(o);
         _edit.Cliente = o?.ClientName ?? "";
-        if (o is not null && (o.Moeda ?? "").Trim().Length > 0) _edit.Moeda = o.Moeda.Trim().ToUpperInvariant();
+        if ((o?.Moeda ?? "").Trim() is { Length: > 0 } moeda) _edit.Moeda = moeda.ToUpperInvariant();
         _daProposta = o is null ? new() : ItensDaProposta(o.Id);
         _edit.Itens.RemoveAll(i => i.ItemId.Length > 0);
         if (o is not null)
