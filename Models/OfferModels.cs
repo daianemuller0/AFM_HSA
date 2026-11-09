@@ -56,7 +56,7 @@ public class CommercialOffer
 
     /// <summary>
     /// Frete da proposta (R$, total). Entra no custo dos itens, dividido pelo
-    /// peso de cada um (peso unitário × quantidade); sem peso em nenhum item, pelo valor.
+    /// valor de cada um (custo unitário × quantidade).
     /// </summary>
     public decimal FreteCusto { get; set; }
     // Condições comerciais (editáveis)
@@ -240,7 +240,7 @@ public class CommercialOfferItem
     /// <summary>TA: o custo (R$, unitário) acrescentado para o preço chegar na meta. Calculado.</summary>
     public decimal CustoTa { get; set; }
 
-    /// <summary>Peso unitário (kg): é por ele que o frete da proposta se divide entre os itens.</summary>
+    /// <summary>Peso unitário (kg). Não é mais usado (o frete se divide pelo valor); fica para as propostas já gravadas.</summary>
     public decimal PesoKg { get; set; }
 
     /// <summary>O custo é de cotação (fornecedor / intercompany) ou estimado: "cotação", "estimado" ou vazio.</summary>
