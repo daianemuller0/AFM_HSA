@@ -726,15 +726,45 @@
                 <span>custo <strong>@Cu(custoItens)</strong></span>
                 <span>proposta <strong>@Venda(_items.Sum(x => x.TotalPrice))</strong></span>
             </div>
-            <label class="it-frete" id="f-frete" title="O frete entra no custo de cada item, dividido pelo valor (custo × quantidade): o mesmo % para todos">
+            <label class="it-frete" id="f-frete" title="O frete entra no custo de cada item, na proporção da participação dele no custo (custo × quantidade): quem custa mais recebe mais">
                 Frete (@Rc)
                 <input class="cell num" type="number" min="0" step="0.01" placeholder="sem frete"
                        value="@(_o.FreteCusto > 0 ? _o.FreteCusto.ToString(CultureInfo.InvariantCulture) : "")" @onchange="MudarFrete" />
                 @if (_o.FreteCusto > 0m && rateio.ValorTotal > 0m)
                 {
-                    <small>+@rateio.Percentual(_o.FreteCusto).ToString("P1", PtBr) no custo de cada item</small>
+                    <small>
+                        dividido pela participação de cada item no custo (= @rateio.Percentual(_o.FreteCusto).ToString("P1", PtBr) do custo de cada um)
+                        <button type="button" class="btn-link" @onclick="() => _verRateio = !_verRateio">@(_verRateio ? "esconder divisão" : "ver divisão")</button>
+                    </small>
                 }
             </label>
+            @if (_verRateio && _o.FreteCusto > 0m && rateio.ValorTotal > 0m)
+            {
+                @* a divisão do frete, item a item: participação no custo × frete *@
+                <div class="frete-divisao">
+                    <table class="grid">
+                        <thead><tr><th>Item</th><th class="right">Custo (@Rc) × qtd</th><th class="right">Participação no custo</th>
+                            <th class="right">Frete do item (@Rc)</th><th class="right">Frete por unidade</th></tr></thead>
+                        <tbody>
+                            @foreach (var it in itensReais.Where(i => rateio.Unitario.ContainsKey(i)))
+                            {
+                                var custoItem = (CustoBaseDoItem(it) ?? 0m) * it.Quantity;
+                                var freteItem = rateio.Unitario[it] * it.Quantity;
+                                <tr>
+                                    <td>@((_items.IndexOf(it) + 1).ToString("D2")) · @NomeCurto(it)</td>
+                                    <td class="right nowrap">@N2(CustoBaseDoItem(it) ?? 0m) × @it.Quantity = @N2(custoItem)</td>
+                                    <td class="right">@((custoItem / rateio.ValorTotal).ToString("P1", PtBr))</td>
+                                    <td class="right nowrap"><strong>@N2(freteItem)</strong></td>
+                                    <td class="right nowrap">@N2(rateio.Unitario[it])</td>
+                                </tr>
+                            }
+                            <tr class="memoria-total"><td>Total</td><td class="right nowrap">@N2(rateio.ValorTotal)</td><td class="right">100%</td>
+                                <td class="right nowrap">@N2(_o.FreteCusto)</td><td></td></tr>
+                        </tbody>
+                    </table>
+                    <div class="nota">Frete do item = frete × participação do item no custo. Itens sem custo não recebem frete.</div>
+                </div>
+            }
             <div class="it-filtros">
                 @foreach (var (cod, nome) in DeFora ? new[] { ("", "Todos"), ("pend", "Sem custo") } : new[] { ("", "Todos"), ("pend", "Sem custo"), ("imp", "Importados"), ("nac", "Nacionais") })
                 {
@@ -810,6 +840,7 @@
                                                @onchange="e => MudarCustoDoItem(it, e)" />
                                     }
                                     <div class="it-sub">@OrigemCurta(it)@if (it.BaseCusto.Length > 0) { <span class="it-base @(it.BaseCusto == ReferenciaDeCustoRepository.Cotacao ? "cot" : "est")">@(it.BaseCusto == ReferenciaDeCustoRepository.Cotacao ? "cot." : "est.")</span> }</div>
+                                    @if (rateio.Unitario.TryGetValue(it, out var freteUn) && freteUn > 0m) { <div class="it-sub it-frete-un" title="frete deste item por unidade (participação no custo × frete)">+ frete @N2(freteUn)</div> }
                                 </td>
                                 <td class="right g-custo">
                                     <input class="cell num it-in it-in-ta @(it.CustoTa > 0m ? (it.TaManual ? "manual" : "meta") : "")" type="number" min="0" step="0.01" placeholder="—"
@@ -1860,6 +1891,9 @@
 
     // item "Serviços e demais custos": o que a tabela de custo tem além dos itens
     private CommercialOfferItem? _itemDemais;
+
+    /// <summary>Mostra a divisão do frete item a item (participação no custo).</summary>
+    private bool _verRateio;
 
     private decimal DemaisCustos(CustoDosItens c, CalculoPricing.Resultado r) => r.CustoTotal - c.Total;
 
