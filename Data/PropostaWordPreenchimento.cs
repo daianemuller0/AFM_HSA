@@ -514,6 +514,15 @@ internal sealed class PreenchimentoDaProposta
         // não há proposta técnica: a frase que apontava para ela sai
         Achar("Preços conforme descrição da Proposta Técnica")?.Remove();
         TabelaDePrecos();
+
+        // a quebra de página depois da tabela de preços (no parágrafo vazio após a nota "(*)") sai:
+        // as Notas Comerciais seguem logo abaixo do preço
+        if (Achar("A descrição do produto deverá estar presente na Ordem de Compra") is { } nota
+            && nota.NextSibling() is Paragraph seguinte && Texto(seguinte).Trim().Length == 0)
+        {
+            foreach (var quebra in seguinte.Descendants<Break>().Where(b => b.Type?.Value == BreakValues.Page).ToList()) quebra.Remove();
+            foreach (var p in seguinte.Descendants<ParagraphProperties>()) p.RemoveAllChildren<PageBreakBefore>();
+        }
     }
 
     private decimal Total => _d.Itens.Sum(i => i.TotalPrice);
@@ -867,6 +876,13 @@ internal sealed class PreenchimentoDaProposta
     {
         var tabela = Tabelas().FirstOrDefault(t => Texto(t).StartsWith("Valor Total Líquido", StringComparison.Ordinal));
         if (tabela is null) return;
+        if (FaturamentoDaBu.ImpostoLocal(_o.Bu) is not null)
+        {
+            // HCHL / HPU: sem o detalhamento (o preço é o líquido + IVA / IGV)
+            Achar("Detalhamento para adição dos Impostos")?.Remove();
+            tabela.Remove();
+            return;
+        }
         var linhas = tabela.Elements<TableRow>().ToList();
         if (linhas.Count < 4) return;
 
