@@ -4,7 +4,13 @@ using AfmHsa.Data;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 
-var builder = WebApplication.CreateBuilder(args);
+// A pasta do app (telas, modelos do Word/pricing): a atual quando ela tem o
+// wwwroot (dotnet run no projeto); senão a do executável — aberto da rede
+// (\\servidor\...\HSA_AFM), a pasta atual do Windows é outra (C:\Windows).
+var pastaDoApp = Directory.Exists(Path.Combine(Directory.GetCurrentDirectory(), "wwwroot"))
+    ? Directory.GetCurrentDirectory()
+    : AppContext.BaseDirectory;
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions { Args = args, ContentRootPath = pastaDoApp });
 
 // Porta padrão (modo por-usuário). Para "servidor central", rode com:
 //   AfmHsa.exe --urls http://0.0.0.0:5090

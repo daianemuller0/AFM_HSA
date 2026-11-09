@@ -41,13 +41,25 @@ if (-not (Test-Path $Destino)) {
     New-Item -ItemType Directory -Path $Destino -Force | Out-Null
 }
 
+# --- 2b) Ninguem pode estar com o app aberto (o exe fica travado) ------
+$ExeNaRede = Join-Path $Destino "AfmHsa.exe"
+if (Test-Path $ExeNaRede) {
+    try {
+        $f = [System.IO.File]::Open($ExeNaRede, 'Open', 'ReadWrite', 'None')
+        $f.Close()
+    } catch {
+        throw "O AfmHsa.exe na rede esta em uso: peca para todos fecharem o AFM HSA (a janela preta) e rode de novo."
+    }
+}
+
 # --- 3) Criar o atalho de abertura ------------------------------------
 $LauncherPath  = Join-Path $Publish "Abrir AFM HSA.bat"
+# O cmd nao aceita caminho de rede (\\servidor\...) como pasta atual: o exe e
+# aberto pelo caminho completo (o app acha a propria pasta sozinho).
 $LauncherLines = @(
     '@echo off',
     'title AFM HSA - Aftermarket Intelligence',
-    'cd /d "%~dp0"',
-    'start "" AfmHsa.exe'
+    'start "" "%~dp0AfmHsa.exe"'
 )
 Set-Content -Path $LauncherPath -Value $LauncherLines -Encoding ASCII
 
