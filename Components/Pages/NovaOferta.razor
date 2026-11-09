@@ -1439,20 +1439,21 @@
         <span class="dash-sub">os da aba "EMAILS AUTOMÁTICOS" do pricing: abrem direto no Outlook, já com o anexo — confira e envie</span>
     </div>
     <div class="emails-grade">
-        @{ var aprov = EmailDeAprovacao(); var cli = EmailAoCliente(); }
+        @{ var aprov = EmailDeAprovacao(Remetente); var cli = EmailAoCliente(Remetente); }
         <div class="email-card">
             <div class="email-titulo">✔ Aprovação do pricing</div>
             <label>Para<input class="cell" value="@AprovPara" @onchange="e => _aprovParaDigitado = e.Value?.ToString() ?? string.Empty" /></label>
             <label>Cc<input class="cell" value="@AprovCc" @onchange="e => _aprovCcDigitado = e.Value?.ToString() ?? string.Empty" /></label>
             <div class="email-assunto"><span>Assunto</span>@aprov.Assunto</div>
-            <div class="nota">Cliente, unidade, tipo de equipamento, margem, valor líquido, prazo de entrega, preços com cada nível de impostos, margens e itens.</div>
-            @if (string.IsNullOrWhiteSpace(_o.ContemProdutoIc) || _o.ContemProdutoIc.Trim().Equals("preencher", StringComparison.OrdinalIgnoreCase))
+            <label>Nota (opcional)<input class="cell" value="@_notaAprovacao" placeholder="aparece como &quot;Nota:&quot; no e-mail" @onchange="e => _notaAprovacao = e.Value?.ToString() ?? string.Empty" /></label>
+            <div class="nota">Cliente com a planta, projeto, escopo, itens sem impostos, GM, negociação, comissão, garantia, risco, prazo, dólar, pagamento, garantia do projeto e seguros. A assinatura é a do seu Outlook.</div>
+            @if (string.IsNullOrWhiteSpace(_o.NumeroCrm))
             {
-                <div class="custo-indisp">Informe se há itens Intercompany ("Contém produto IC?", no pricing): com "Sim" o assunto sai com "IC - ".</div>
+                <div class="custo-indisp">Sem Nº do CRM (Cliente e condições): o assunto sai com o código da proposta.</div>
             }
             <div class="email-acoes">
                 <button class="btn-accent" disabled="@_gerandoEmail" @onclick="EmlDeAprovacao">✉ Abrir e-mail no Outlook (pricing anexo)</button>
-                <button class="btn-ghost" @onclick="() => Copiar(aprov)">⧉ Copiar</button>
+                <button class="btn-ghost" @onclick='() => Copiar(EmailDeAprovacao(""))'>⧉ Copiar</button>
                 <a class="btn-link" href="@EmailsDaProposta.Mailto(aprov)">mailto</a>
                 <button class="btn-link" @onclick='() => _emailAberto = _emailAberto == "aprov" ? null : "aprov"'>@(_emailAberto == "aprov" ? "esconder" : "ver o e-mail")</button>
             </div>
@@ -1470,7 +1471,7 @@
             }
             <div class="email-acoes">
                 <button class="btn-accent" disabled="@_gerandoEmail" @onclick="EmlAoCliente">✉ Abrir e-mail no Outlook (proposta anexa)</button>
-                <button class="btn-ghost" @onclick="() => Copiar(cli)">⧉ Copiar</button>
+                <button class="btn-ghost" @onclick='() => Copiar(EmailAoCliente(""))'>⧉ Copiar</button>
                 <a class="btn-link" href="@EmailsDaProposta.Mailto(cli)">mailto</a>
                 <button class="btn-link" @onclick='() => _emailAberto = _emailAberto == "cli" ? null : "cli"'>@(_emailAberto == "cli" ? "esconder" : "ver o e-mail")</button>
             </div>

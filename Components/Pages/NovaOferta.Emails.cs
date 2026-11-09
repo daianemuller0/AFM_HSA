@@ -30,49 +30,74 @@ public partial class NovaOferta
 
     private string Remetente => PropostaWord.Ou(_usuario, PropostaWord.Ou(_o.PreparedBy, "Equipe Howden"));
 
-    /// <summary>Unidade, tipo de equipamento, prazo e itens, como a aprovação mostra.</summary>
+    /// <summary>Uma nota livre para a aprovação (aparece como "Nota:" no e-mail).</summary>
+    private string _notaAprovacao = "";
+
+    /// <summary>Cliente com a planta, escopo por equipamento, itens com preço sem impostos, prazo, dólar e seguros.</summary>
     private ResumoDaAprovacao ResumoParaAprovacao(CalculoPricing.Resultado r)
     {
-        var unidades = string.Join("; ", _o.Plantas.Select(PlantasDaProposta.Rotulo).Where(t => t.Length > 0));
-        if (unidades.Length == 0) unidades = PropostaWord.Ou(_o.City, "—");
+        var plantas = string.Join("; ", _o.Plantas.Select(PlantasDaProposta.Rotulo).Where(t => t.Length > 0));
+        if (plantas.Length == 0) plantas = (_o.City ?? "").Trim();
+        var cliente = string.Join(" – ", new[] { _o.ClientName, plantas }.Select(x => (x ?? "").Trim()).Where(x => x.Length > 0));
 
-        // "Compressor VX 2025" (sem repetir o tipo quando o modelo já começa por ele)
-        static string ComTipo(string tipo, string modelo) =>
-            modelo.StartsWith(tipo, StringComparison.OrdinalIgnoreCase) ? modelo : $"{tipo} {modelo}".Trim();
-        var tipos = _o.EquipamentosDaProposta
-            .Select(e => ComTipo(PropostaWord.Ou(e.Tipo, PlantasDaProposta.Compressor), (e.Modelo ?? "").Trim())).Where(t => t.Length > 0)
-            .Concat(_items.Where(i => i != _itemDemais).Select(ModeloDoItem).Where(m => m.Length > 0).Select(m => ComTipo(PlantasDaProposta.Compressor, m)))
-            .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var reais = _items.Where(i => i != _itemDemais).ToList();
+        // escopo: um item de lista por equipamento, com quantos itens são dele
+        var escopo = reais.GroupBy(i => EquipamentoDoItem(i).Trim())
+            .Select(g => (g.Key.Length > 0 ? g.Key : "sem equipamento informado")
+                         + (g.Select(SerialDoItem).FirstOrDefault(sn => sn.Length > 0) is { } sn ? $" · SN {sn}" : "")
+                         + $" — {Plural(g.Count(), "item", "itens")}")
+            .ToList();
 
-        var prazos = _items.Where(i => i != _itemDemais).Select(PrazoDoItem).Where(d => d > 0).Distinct().OrderBy(d => d).ToList();
-        var prazo = prazos.Count switch
-        {
-            0 => "a confirmar",
-            1 => $"{prazos[0]} dias",
-            _ => $"{prazos[0]} a {prazos[^1]} dias (por item)",
-        };
-
+        // preços sem impostos (os da tela estão no nível de impostos escolhido)
+        var noNivel = PricingDaProposta.ValorNoNivel(r, _o.ImpostosNoPreco) ?? r.ValorDaProposta;
+        var paraLiquido = noNivel > 0m && r.ValorDaProposta > 0m ? r.ValorDaProposta / noNivel : 1m;
         var itens = _items.Select((it, i) => (
-            (i + 1).ToString("D2"), it.PartNumber, it == _itemDemais ? it.Description : DescricaoSemPn(it), it.Quantity,
-            it.UnitPrice > 0 ? Venda(it.UnitPrice) : "—", Venda(it.TotalPrice),
-            it == _itemDemais ? "" : PrazoDoItem(it) is > 0 and var d ? $"{d} dias" : "a confirmar")).ToList();
+            (i + 1).ToString("D2"),
+            it == _itemDemais ? it.Description : string.Join(" – ", new[] { it.PartNumber.Trim(), DescricaoSemPn(it) }.Where(x => x.Length > 0)),
+            it == _itemDemais ? "" : EquipamentoDoItem(it),
+            it.Quantity,
+            it.UnitPrice > 0 ? Venda(Math.Round(it.UnitPrice * paraLiquido, 2)) : "—",
+            Venda(Math.Round(it.TotalPrice * paraLiquido, 2)))).ToList();
+        var total = Venda(Math.Round(_items.Sum(i => i.TotalPrice) * paraLiquido, 2));
 
-        return new ResumoDaAprovacao(unidades, tipos.Count > 0 ? string.Join("; ", tipos) : PlantasDaProposta.Compressor, prazo,
-            r.CustoTotal, Cambio.Converte(_o) ? Math.Round(Cambio.ParaVenda(_o, r.ValorDaProposta), 2) : null, itens,
-            PricingDaProposta.NivelEfetivo(r, _o.ImpostosNoPreco).Rotulo.ToLowerInvariant());
+        var prazos = reais.Select(PrazoDoItem).Where(d => d > 0).Distinct().OrderBy(d => d).ToList();
+        var prazo = prazos.Count switch { 0 => "a confirmar", 1 => prazos[0].ToString(), _ => $"{prazos[0]} a {prazos[^1]}" };
+
+        // dólar: o da proposta, se o preço é em USD; senão o da tabela de conversão
+        decimal? dolar = Cambio.MoedaDoPreco(_o) == Moeda.Usd && Cambio.Normalizada(_o) > 0m ? Cambio.Normalizada(_o)
+            : Conversao.Ler().UsdEmReais is var usd && usd > 0m ? usd : null;
+
+        return new ResumoDaAprovacao(cliente.Length > 0 ? cliente : "—", escopo, itens, total, prazo, dolar, Seguros(), _notaAprovacao);
     }
 
-    private EmailDaProposta EmailDeAprovacao()
+    /// <summary>"Seguros:" do e-mail: o seguro garantia / carta fiança e as outras garantias da proposta.</summary>
+    private string Seguros()
+    {
+        var partes = new List<string>();
+        if (Textos.Igual(_o.FiancaSeguro, "Sim"))
+        {
+            var eventos = _o.EventosFianca.Where(e => e.Percentual > 0m)
+                .Select(e => $"{(e.Percentual * 100m).ToString("0.##", PtBr)}% por {e.PrazoDias} dias").ToList();
+            partes.Add($"{PropostaWord.Ou(_o.TipoGarantia, "Seguro garantia / carta fiança")}" + (eventos.Count > 0 ? $": {string.Join("; ", eventos)}" : ""));
+        }
+        var outras = _o.OutrasGarantias.Where(g => g.Percentual > 0m)
+            .Select(g => $"{g.Tipo} {(g.Percentual * 100m).ToString("0.##", PtBr)}% por {g.DiasCobertura} dias").ToList();
+        if (outras.Count > 0) partes.Add($"{PropostaWord.Ou(_o.TipoOutrasGarantias, "Outras garantias")}: {string.Join("; ", outras)}");
+        return partes.Count > 0 ? string.Join(". ", partes) + "." : "Sem seguro garantia ou carta fiança.";
+    }
+
+    /// <param name="assinatura">"" quando o Outlook põe a assinatura de quem envia</param>
+    private EmailDaProposta EmailDeAprovacao(string assinatura)
     {
         var r = PricingAtual(Custos);
-        return EmailsDaProposta.Aprovacao(_o, r, ResumoParaAprovacao(r), AprovPara, AprovCc, Remetente);
+        return EmailsDaProposta.Aprovacao(_o, r, ResumoParaAprovacao(r), AprovPara, AprovCc, assinatura);
     }
 
-    private EmailDaProposta EmailAoCliente()
+    private EmailDaProposta EmailAoCliente(string assinatura)
     {
         var cartao = ContatosHowden.Do(_o.Vendedor) is { } c ? ContatosHowden.Cartao(c)
             : (_o.Vendedor ?? "").Trim().Length > 0 ? new List<string> { _o.Vendedor!.Trim() } : new List<string>();
-        return EmailsDaProposta.Proposta(_o, cartao, PropPara, PropCc, Remetente);
+        return EmailsDaProposta.Proposta(_o, cartao, PropPara, PropCc, assinatura);
     }
 
     /// <summary>A aprovação como rascunho do Outlook, com o pricing (P_…xlsm) anexo.</summary>
@@ -85,8 +110,7 @@ public partial class NovaOferta
             AtualizarPrecos();
             var anexos = new List<AnexoDoEmail>();
             if (PricingEmBytes() is { } pricing) anexos.Add(new(PricingExcel.NomeDoArquivo(_o), PricingExcel.TipoMime, pricing));
-            var email = EmailDeAprovacao();
-            _msg = await BaixarEml(email, anexos)
+            _msg = await BaixarEml(EmailDeAprovacao, anexos)
                 ? $"E-mail de aprovação aberto no Outlook{(anexos.Count > 0 ? ", com o pricing anexo" : "")}: confira e envie."
                 : $"E-mail de aprovação pronto: abra o arquivo baixado no Outlook, confira e envie{(anexos.Count > 0 ? " (o pricing vai anexo)" : "")}.";
         }
@@ -106,7 +130,7 @@ public partial class NovaOferta
             var anexos = new List<AnexoDoEmail>();
             if (WordEmBytes() is { } word)
                 anexos.Add(new(PropostaWord.NomeDoArquivo(_o), "application/vnd.openxmlformats-officedocument.wordprocessingml.document", word));
-            _msg = await BaixarEml(EmailAoCliente(), anexos)
+            _msg = await BaixarEml(EmailAoCliente, anexos)
                 ? "E-mail ao cliente aberto no Outlook, com a proposta em Word anexa: anexe a T&C e envie."
                 : "E-mail ao cliente pronto, com a proposta em Word anexa: abra o arquivo baixado no Outlook, anexe a T&C e envie.";
         }
@@ -115,12 +139,24 @@ public partial class NovaOferta
     }
 
     /// <summary>Abre direto no Outlook (como a macro do pricing); sem ele, baixa o .eml. true = abriu no Outlook.</summary>
-    private async Task<bool> BaixarEml(EmailDaProposta email, IReadOnlyList<AnexoDoEmail> anexos)
+    /// <param name="montar">o e-mail com a assinatura dada ("" no Outlook, que põe a de quem envia)</param>
+    private async Task<bool> BaixarEml(Func<string, EmailDaProposta> montar, IReadOnlyList<AnexoDoEmail> anexos)
     {
-        if (await Task.Run(() => Outlook.Abrir(email, anexos)) is null) return true;
-        var nome = PricingExcel.Limpo(email.Assunto.TrimEnd('.')) + ".eml";
+        if (await Task.Run(() => Outlook.Abrir(montar(""), anexos)) is null) return true;
+        var email = montar(Remetente);
+        var nome = NomeDeArquivoSimples(email.Assunto) + ".eml";
         await JS.InvokeVoidAsync("appDownload", nome, "message/rfc822", Convert.ToBase64String(EmailsDaProposta.Eml(email, anexos)));
         return false;
+    }
+
+    /// <summary>O assunto como nome de arquivo sem acentos nem travessão (o navegador recusa e baixa "download").</summary>
+    private static string NomeDeArquivoSimples(string assunto)
+    {
+        var sem = new string(assunto.Normalize(System.Text.NormalizationForm.FormD)
+            .Where(c => System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.NonSpacingMark)
+            .Select(c => c < 128 ? c : '-').ToArray());
+        sem = System.Text.RegularExpressions.Regex.Replace(PricingExcel.Limpo(sem.TrimEnd('.')), @"\s*-\s*", "-");
+        return sem.Length > 120 ? sem[..120] : sem;
     }
 
     private async Task Copiar(EmailDaProposta email)
