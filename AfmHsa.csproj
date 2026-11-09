@@ -9,6 +9,9 @@
     <!-- Icone do executavel (mostrado no Windows Explorer e nos atalhos).
          Usa o logo Howden (mesmo do favicon do navegador). -->
     <ApplicationIcon>wwwroot\favicon.ico</ApplicationIcon>
+    <!-- A janela (desktop/) e o lançador (launcher/) são projetos próprios em
+         subpastas: ficam fora deste (como no axiaisvent). -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);desktop/**;launcher/**;out/**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>

@@ -215,3 +215,7 @@ secrets.json
 PedidosVendas.Api/wwwroot
 publish/
 *.parquet
+
+# saida da publicacao (scripts/publicar-na-rede.ps1)
+out/
+scripts/publicar.log

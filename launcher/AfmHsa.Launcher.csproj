@@ -1,0 +1,20 @@
+<!-- O lançador que mora em \\BZVCPFIL003\proj_ramires$\HSA_AFM\AFM_HSA.exe
+     (como o VA.exe do axiaisvent). Pequeno de propósito: compara a versão da
+     rede com a do computador, copia a nova (com barra de %) e abre o app local. -->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <OutputType>WinExe</OutputType>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>AfmHsa.Launcher</RootNamespace>
+    <AssemblyName>AFM_HSA</AssemblyName>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <!-- a logo da Howden: no .exe, no atalho e na janela -->
+    <ApplicationIcon>..\wwwroot\favicon.ico</ApplicationIcon>
+  </PropertyGroup>
+
+</Project>
