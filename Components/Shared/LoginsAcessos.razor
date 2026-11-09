@@ -1,15 +1,63 @@
 @* Logins e acessos: só o administrador vê esta aba (Dados e Importação). *@
 @inject AppUserRepository Usuarios
+@inject PerfisDeAcessoRepository PerfisRepo
 @inject AuthenticationStateProvider Auth
+
+@* o que cada perfil vê: vale para todos os logins do perfil (os com lista própria ficam com a deles) *@
+<div class="panel" style="margin-bottom:16px" id="perfis-acesso">
+    <div class="acessos-topo">
+        <div>
+            <div class="dash-title">O que cada perfil vê</div>
+            <div class="nota">
+                Marque as guias do menu que cada perfil enxerga. Vale na hora para todos os logins do perfil
+                (quem tem lista própria continua com a dele). O administrador vê tudo.
+            </div>
+        </div>
+    </div>
+    <div class="views" style="margin:10px 0">
+        @foreach (var (cod, nome, _) in Acessos.Perfis.Where(p => p.Codigo != Acessos.Adm))
+        {
+            <button class="view @(_perfilCfg == cod ? "active" : "")" @onclick="() => AbrirPerfil(cod)">
+                @nome <span class="nota">· @Acessos.PadraoDoPerfil(cod).Count guia(s)@(Acessos.Configurado(cod) ? "" : " · padrão")</span>
+            </button>
+        }
+    </div>
+    <div class="paginas-grupos">
+        @foreach (var grupo in Acessos.Grupos)
+        {
+            var doGrupo = Acessos.Paginas.Where(p => p.Grupo == grupo).ToList();
+            var todas = doGrupo.All(p => _cfgMarcadas.Contains(p.Chave));
+            <div class="paginas-grupo">
+                <label class="chk-inline pend-etapa">
+                    <input type="checkbox" checked="@todas" @onchange="e => MarcarGrupoCfg(grupo, e)" /> @grupo
+                </label>
+                @foreach (var p in doGrupo)
+                {
+                    <label class="chk-inline">
+                        <input type="checkbox" checked="@_cfgMarcadas.Contains(p.Chave)" @onchange="e => MarcarCfg(p.Chave, e)" /> @p.Nome
+                    </label>
+                }
+                @if (grupo == "Controle")
+                {
+                    <div class="nota">Clientes e Unidades e Nacionalização também aparecem em Gestão de Vendas para quem vê esse grupo.</div>
+                }
+            </div>
+        }
+    </div>
+    <div class="toolbar" style="margin-top:12px">
+        <button class="btn-primary" @onclick="SalvarPerfil">Salvar acesso do perfil @Acessos.NomeDoPerfil(_perfilCfg)</button>
+        <button class="btn-link" @onclick="() => _cfgMarcadas = Acessos.PadraoDeFabrica(_perfilCfg).ToHashSet()">voltar ao padrão</button>
+        @if (_cfgMsg is not null) { <span class="@(_cfgOk ? "side-ok" : "alert-error")">@_cfgMsg</span> }
+    </div>
+</div>
 
 <div class="panel">
     <div class="acessos-topo">
         <div>
             <div class="dash-title">Logins e acessos</div>
             <div class="nota">
-                Cada login tem um perfil e as páginas que vê. <strong>Administrador</strong> vê tudo e cria logins;
-                <strong>Gestão</strong> vê tudo menos os logins; <strong>Aplicador</strong> monta propostas.
-                Dá para ligar ou desligar páginas de cada pessoa. A mudança vale na próxima tela que ela abrir.
+                Cada login tem um perfil e segue o que o perfil vê (quadro acima). <strong>Administrador</strong> vê tudo e cria logins.
+                Dá para dar a uma pessoa uma lista própria de guias, diferente da do perfil. A mudança vale na próxima tela que ela abrir.
             </div>
         </div>
         @if (_edit is null)
@@ -54,11 +102,11 @@
                 }
             </div>
             <div class="paginas-grupos">
-                @foreach (var grupo in Acessos.Paginas.GroupBy(p => p.Grupo))
+                @foreach (var grupo in Acessos.Grupos)
                 {
                     <div class="paginas-grupo">
-                        <div class="pend-etapa">@grupo.Key</div>
-                        @foreach (var p in grupo)
+                        <div class="pend-etapa">@grupo</div>
+                        @foreach (var p in Acessos.Paginas.Where(x => x.Grupo == grupo))
                         {
                             <label class="chk-inline">
                                 <input type="checkbox" checked="@(_perfil == Acessos.Adm || _marcadas.Contains(p.Chave))" disabled="@(_perfil == Acessos.Adm)"
@@ -118,6 +166,40 @@
     private string _meuId = "";
     private string? _msg;
     private bool _msgOk;
+
+    // ---- o que cada perfil vê ----
+    private string _perfilCfg = Acessos.Aplicador;
+    private HashSet<string> _cfgMarcadas = Acessos.PadraoDoPerfil(Acessos.Aplicador).ToHashSet();
+    private string? _cfgMsg;
+    private bool _cfgOk;
+
+    private void AbrirPerfil(string perfil)
+    {
+        _perfilCfg = perfil;
+        _cfgMarcadas = Acessos.PadraoDoPerfil(perfil).ToHashSet();
+        _cfgMsg = null;
+    }
+
+    private void MarcarCfg(string chave, ChangeEventArgs e)
+    {
+        if (e.Value is true) _cfgMarcadas.Add(chave); else _cfgMarcadas.Remove(chave);
+        _cfgMsg = null;
+    }
+
+    private void MarcarGrupoCfg(string grupo, ChangeEventArgs e)
+    {
+        foreach (var p in Acessos.Paginas.Where(p => p.Grupo == grupo))
+            if (e.Value is true) _cfgMarcadas.Add(p.Chave); else _cfgMarcadas.Remove(p.Chave);
+        _cfgMsg = null;
+    }
+
+    private void SalvarPerfil()
+    {
+        if (_cfgMarcadas.Count == 0) { _cfgMsg = "Marque ao menos uma guia."; _cfgOk = false; return; }
+        PerfisRepo.Gravar(_perfilCfg, Acessos.Paginas.Where(p => _cfgMarcadas.Contains(p.Chave)).Select(p => p.Chave));
+        _cfgMsg = $"Salvo: {Acessos.NomeDoPerfil(_perfilCfg)} vê {_cfgMarcadas.Count} guia(s). Vale na próxima tela que cada um abrir.";
+        _cfgOk = true;
+    }
 
     private bool EuMesmo => _edit is not null && _edit.Id.Length > 0 && _edit.Id == _meuId;
 

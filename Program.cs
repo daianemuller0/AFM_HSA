@@ -64,6 +64,7 @@ builder.Services.AddScoped<InstalledBaseRepository>();
 builder.Services.AddScoped<PartRepository>();
 builder.Services.AddScoped<SalesRecordRepository>();
 builder.Services.AddScoped<AppUserRepository>();
+builder.Services.AddScoped<PerfisDeAcessoRepository>();
 builder.Services.AddScoped<VisitRepository>();
 builder.Services.AddScoped<OfferRepository>();
 builder.Services.AddScoped<OppOverrideRepository>();
@@ -106,6 +107,8 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     DbInitializer.Initialize(scope.ServiceProvider.GetRequiredService<ParquetStore>());
+    // o que cada perfil vê, como o administrador configurou
+    scope.ServiceProvider.GetRequiredService<PerfisDeAcessoRepository>().Carregar();
 }
 
 if (!app.Environment.IsDevelopment())

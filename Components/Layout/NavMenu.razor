@@ -87,9 +87,20 @@
 
     private HashSet<string>? _paginas;
 
-    /// <summary>A seção só com os itens que o login pode abrir (Acessos).</summary>
-    private Section Visivel(Section s) => _paginas is null ? s with { Items = Array.Empty<Item>() }
-        : s with { Items = s.Items.Where(i => Acessos.PodeAbrir(_paginas, i.Href)).ToArray() };
+    /// <summary>
+    /// A seção só com os itens que o login pode abrir (Acessos). Itens que o
+    /// menu repete em duas seções (Clientes e Unidades, Nacionalização) só
+    /// aparecem numa seção que o login vê por um item que é só dela — o
+    /// aplicador, por exemplo, não vê a Gestão de Vendas.
+    /// </summary>
+    private Section Visivel(Section s)
+    {
+        if (_paginas is null) return s with { Items = Array.Empty<Item>() };
+        var itens = s.Items.Where(i => Acessos.PodeAbrir(_paginas, i.Href)).ToArray();
+        var temProprio = itens.Any(i => !Sections.Any(o => o != s && o.Items.Any(x => x.Href == i.Href)));
+        var dono = Acessos.PaginaDoCaminho(itens.FirstOrDefault()?.Href ?? "")?.Grupo;
+        return temProprio || s.Name == dono ? s with { Items = itens } : s with { Items = Array.Empty<Item>() };
+    }
 
     private string _logo = "";
     private string _logoBg = "transparent";
