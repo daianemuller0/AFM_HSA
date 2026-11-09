@@ -1,0 +1,155 @@
+@* Dados bancários de cada BU: a empresa que fatura e uma conta por moeda.
+   O Word da proposta usa a da BU dela, na moeda do preço. *@
+@inject DadosBancariosRepository Repo
+
+<div class="panel">
+    <div class="acessos-topo">
+        <div>
+            <div class="dash-title">Dados bancários</div>
+            <div class="nota">
+                A empresa que fatura e as contas de cada BU. No Word, em "Dados para faturamento", sai a empresa da BU da proposta
+                e a conta na moeda do preço (proposta em USD → a conta em USD). Linha sem valor não sai.
+            </div>
+        </div>
+    </div>
+
+    <div class="views" style="margin:10px 0">
+        @foreach (var (bu, nome, _) in FaturamentoDaBu.Bus)
+        {
+            var d = _todos.FirstOrDefault(x => x.Bu == bu);
+            var falta = d is null ? 0 : MoedasDa(bu).Count(m => !d.TemConta(m));
+            <button class="view @(_bu == bu ? "active" : "")" @onclick="() => Abrir(bu)">
+                @nome @if (falta > 0) { <span class="chip-falta" title="contas sem dados">@falta a preencher</span> }
+            </button>
+        }
+    </div>
+
+    @if (_edit is not null)
+    {
+        <div class="banco-grade">
+            <section class="banco-bloco">
+                <h4>Empresa</h4>
+                <label>Razão social (em negrito)
+                    <input class="cell" @bind="_edit.Nome" />
+                </label>
+                <div class="banco-linhas">
+                    <div class="banco-cab"><span>Rótulo</span><span>Valor</span><span title="valor em negrito">N</span><span></span></div>
+                    @foreach (var l in _edit.Linhas)
+                    {
+                        var linha = l;
+                        <div class="banco-linha">
+                            <input class="cell" placeholder="ex.: RUT:" @bind="linha.Rotulo" />
+                            <input class="cell" placeholder="valor" @bind="linha.Valor" />
+                            <input type="checkbox" title="valor em negrito" @bind="linha.Negrito" />
+                            <button class="btn-link perigo" title="tirar a linha" @onclick="() => _edit.Linhas.Remove(linha)">✕</button>
+                        </div>
+                    }
+                    <button class="btn-link" @onclick='() => _edit.Linhas.Add(new LinhaDeFaturamento("", "", false))'>+ linha</button>
+                </div>
+            </section>
+
+            <section class="banco-bloco">
+                <h4>Contas</h4>
+                <div class="seg" role="group" aria-label="Moeda da conta">
+                    @foreach (var m in MoedasDa(_edit.Bu))
+                    {
+                        var moeda = m;
+                        <button class="@(_moeda == moeda ? "on" : "")" @onclick="() => _moeda = moeda">
+                            @moeda.Rotulo()@(_edit.TemConta(moeda) ? " ✔" : "")
+                        </button>
+                    }
+                </div>
+                @{ var conta = Conta(_moeda); }
+                <div class="nota" style="margin:8px 0 4px">Título no Word: <strong>@FaturamentoDaBu.TituloDaConta(_moeda)</strong></div>
+                <div class="banco-linhas">
+                    <div class="banco-cab"><span>Rótulo</span><span>Valor</span><span title="valor em negrito">N</span><span></span></div>
+                    @foreach (var l in conta)
+                    {
+                        var linha = l;
+                        <div class="banco-linha">
+                            <input class="cell" placeholder="ex.: Cuenta:" @bind="linha.Rotulo" />
+                            <input class="cell" placeholder="valor" @bind="linha.Valor" />
+                            <input type="checkbox" title="valor em negrito" @bind="linha.Negrito" />
+                            <button class="btn-link perigo" title="tirar a linha" @onclick="() => conta.Remove(linha)">✕</button>
+                        </div>
+                    }
+                    <button class="btn-link" @onclick='() => conta.Add(new LinhaDeFaturamento("", "", false))'>+ linha</button>
+                    @if (conta.Count == 0)
+                    {
+                        <button class="btn-link" @onclick="() => conta.AddRange(FaturamentoDaBu.LinhasDeContaNova(_edit.Bu, _moeda))">usar as linhas padrão</button>
+                    }
+                </div>
+                @if (!_edit.TemConta(_moeda))
+                {
+                    <div class="imp-pendencia" style="margin-top:8px">Sem dados: a proposta da @_edit.Bu em @_moeda.Rotulo() sai sem a conta.</div>
+                }
+            </section>
+        </div>
+
+        <div class="toolbar" style="margin-top:12px">
+            <button class="btn-primary" @onclick="Salvar">Salvar dados bancários da @_edit.Bu</button>
+            <button class="btn-link" @onclick="() => Abrir(_bu)">descartar mudanças</button>
+            @if (!_confirmarRestaurar)
+            {
+                <button class="btn-link" @onclick="() => _confirmarRestaurar = true">voltar aos dados iniciais</button>
+            }
+            else
+            {
+                <span class="custo-indisp">Voltar a @_edit.Bu aos dados iniciais (do modelo e da equipe)?</span>
+                <button class="btn-link perigo" @onclick="Restaurar">sim, voltar</button>
+                <button class="btn-link" @onclick="() => _confirmarRestaurar = false">não</button>
+            }
+            @if (_msg is not null) { <span class="side-ok">@_msg</span> }
+        </div>
+    }
+</div>
+
+@code {
+    private List<DadosBancariosDaBu> _todos = new();
+    private string _bu = FaturamentoDaBu.Bus[0].Bu;
+    private DadosBancariosDaBu? _edit;
+    private Moeda _moeda = Moeda.Brl;
+    private string? _msg;
+    private bool _confirmarRestaurar;
+
+    protected override void OnInitialized() => Abrir(_bu);
+
+    private static Moeda[] MoedasDa(string bu) => FaturamentoDaBu.Bus.First(b => b.Bu == bu).Moedas;
+
+    /// <summary>Abre a BU para editar (uma cópia: só grava ao salvar).</summary>
+    private void Abrir(string bu)
+    {
+        _todos = Repo.Todos();
+        _bu = bu;
+        var d = _todos.First(x => x.Bu == bu);
+        _edit = System.Text.Json.JsonSerializer.Deserialize<DadosBancariosDaBu>(System.Text.Json.JsonSerializer.Serialize(d));
+        if (!MoedasDa(bu).Contains(_moeda)) _moeda = MoedasDa(bu)[0];
+        _msg = null;
+        _confirmarRestaurar = false;
+    }
+
+    private List<LinhaDeFaturamento> Conta(Moeda m)
+    {
+        if (_edit is null) return new();
+        if (!_edit.Contas.TryGetValue(m.Codigo(), out var c)) _edit.Contas[m.Codigo()] = c = new();
+        return c;
+    }
+
+    private void Salvar()
+    {
+        if (_edit is null) return;
+        Repo.Gravar(_edit);
+        var bu = _edit.Bu;
+        Abrir(bu);
+        _msg = $"Dados bancários da {bu} salvos.";
+    }
+
+    private void Restaurar()
+    {
+        if (_edit is null) return;
+        var bu = _edit.Bu;
+        Repo.Restaurar(bu);
+        Abrir(bu);
+        _msg = $"{bu} voltou aos dados iniciais.";
+    }
+}

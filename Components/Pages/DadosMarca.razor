@@ -14,13 +14,14 @@
 <PageTitle>Dados e Importação · AFM HSA</PageTitle>
 
 <h1>Dados e Importação</h1>
-<p class="subtitle">Segmentos, equipe comercial, importação de dados, logo / marca@(_ehAdm ? " e os logins de acesso" : "") em um só lugar.</p>
+<p class="subtitle">Segmentos, equipe comercial, importação de dados, logo / marca, dados bancários@(_ehAdm ? " e os logins de acesso" : "") em um só lugar.</p>
 
 <div class="views">
     <button class="view @(_tab == "segmentos" ? "active" : "")" @onclick='() => _tab = "segmentos"'>Segmentos</button>
     <button class="view @(_tab == "equipe" ? "active" : "")" @onclick='() => _tab = "equipe"'>Equipe Comercial</button>
     <button class="view @(_tab == "import" ? "active" : "")" @onclick='() => _tab = "import"'>Importação de Dados</button>
     <button class="view @(_tab == "logo" ? "active" : "")" @onclick='() => _tab = "logo"'>Logo / Marca</button>
+    <button class="view @(_tab == "bancos" ? "active" : "")" @onclick='() => _tab = "bancos"'>Dados bancários</button>
     @if (_ehAdm)
     {
         <button class="view @(_tab == "logins" ? "active" : "")" @onclick='() => _tab = "logins"'>Logins e acessos</button>
@@ -30,6 +31,10 @@
 @if (_tab == "logins" && _ehAdm)
 {
     <LoginsAcessos />
+}
+else if (_tab == "bancos")
+{
+    <DadosBancarios />
 }
 else if (_tab == "segmentos")
 {

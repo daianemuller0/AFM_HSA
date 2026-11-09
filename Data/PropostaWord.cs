@@ -13,7 +13,8 @@ public sealed record DadosDaPropostaWord(
     IReadOnlyList<BomItem> Bom,
     IReadOnlyList<SalesRecord> VendasDaUnidade,
     IReadOnlyList<string>? CartaoDoVendedor = null,
-    IReadOnlyList<string>? CartaoDoVendedor2 = null);
+    IReadOnlyList<string>? CartaoDoVendedor2 = null,
+    FaturamentoDaProposta? Faturamento = null);
 
 /// <summary>
 /// Gera a proposta comercial PREENCHENDO o modelo em Word da equipe

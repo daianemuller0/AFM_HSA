@@ -59,7 +59,7 @@ internal sealed class PreenchimentoDaProposta
         Pagamento();
         Entrega();
         Validade();
-        FaturamentoDeFora();
+        Faturamento();
         SoAComercial();
         TirarAssessoria();
         Indice();
@@ -998,16 +998,18 @@ internal sealed class PreenchimentoDaProposta
         Valor(linhas[3], comIpi);
     }
 
-    // ================= dados para faturamento das BUs de fora =================
+    // ================= dados para faturamento =================
 
     /// <summary>
-    /// HCHL / HPU: no lugar dos dados da Howden South America (razão social,
-    /// endereço, CNPJ e o Itaú), os da empresa da BU e a tabela da conta
-    /// bancária — como o modelo da equipe (<see cref="FaturamentoDaBu"/>).
+    /// "Dados para faturamento": no lugar do que o modelo traz (Howden South
+    /// America, CNPJ e o Itaú), a empresa da BU da proposta e a conta bancária
+    /// na moeda do preço — como estão em Dados e Importação → Dados bancários
+    /// (<see cref="DadosBancariosRepository"/>). Sem conta nessa moeda, sai só a empresa.
     /// </summary>
-    private void FaturamentoDeFora()
+    private void Faturamento()
     {
-        if (FaturamentoDaBu.DaBu(_o.Bu) is not { } empresa) return;
+        if (_d.Faturamento is not { } fat) return;
+        var empresa = fat.Dados;
         // a seção fica no fim: a razão social e o endereço também estão na capa (por isso o último)
         var titulo = Ultimo("Dados Para Faturamento");
         var razao = Ultimo("Howden South America Ventiladores e Compressores");
@@ -1031,33 +1033,40 @@ internal sealed class PreenchimentoDaProposta
         OpenXmlElement depois = titulo;
         void Inserir(OpenXmlElement e) { depois.InsertAfterSelf(e); depois = e; }
 
-        var nome = (Paragraph)moldeNegrito.CloneNode(true);
-        Escrever(nome, empresa.Nome);
-        Inserir(nome);
-        foreach (var l in empresa.Linhas)
+        if (empresa.Nome.Trim().Length > 0)
+        {
+            var nome = (Paragraph)moldeNegrito.CloneNode(true);
+            Escrever(nome, empresa.Nome);
+            Inserir(nome);
+        }
+        foreach (var l in empresa.Linhas.Where(l => !l.Vazia))
         {
             var p = (Paragraph)moldeNormal.CloneNode(true);
-            Escrever(p, l.Rotulo + " ");
+            Escrever(p, l.Rotulo.Length > 0 ? l.Rotulo + " " : "");
             var valor = (Run)p.Elements<Run>().Last().CloneNode(true);
             valor.RemoveAllChildren<Text>();
             valor.RunProperties ??= new RunProperties();
             if (l.Negrito && !valor.RunProperties.Elements<Bold>().Any()) { valor.RunProperties.Append(new Bold()); NaOrdem(valor.RunProperties); }
             valor.Append(new Text(l.Valor) { Space = SpaceProcessingModeValues.Preserve });
+            if (l.Rotulo.Length == 0) foreach (var r in p.Elements<Run>().ToList()) r.Remove();   // sem rótulo: só o valor
             p.Append(valor);
             Inserir(p);
         }
 
-        // "Euro - EUR" em negrito e a tabela da conta, como no modelo da equipe
-        var moedaConta = (Paragraph)moldeTitulo.CloneNode(true);
-        Escrever(moedaConta, empresa.MoedaDaConta);
-        moedaConta.ParagraphProperties?.RemoveAllChildren<Indentation>();
-        moedaConta.ParagraphProperties?.Append(new SpacingBetweenLines { Before = "240", After = "120" });
-        Inserir(moedaConta);
-        Inserir(TabelaDaConta(empresa.Conta));
+        // a conta na moeda do preço: "Dólar Americano - USD" em negrito e a tabela
+        if (fat.Conta is { } conta && conta.Any(l => !l.Vazia))
+        {
+            var moedaConta = (Paragraph)moldeTitulo.CloneNode(true);
+            Escrever(moedaConta, FaturamentoDaBu.TituloDaConta(fat.Moeda));
+            moedaConta.ParagraphProperties?.RemoveAllChildren<Indentation>();
+            moedaConta.ParagraphProperties?.Append(new SpacingBetweenLines { Before = "240", After = "120" });
+            Inserir(moedaConta);
+            Inserir(TabelaDaConta(conta.Where(l => !l.Vazia)));
+        }
     }
 
     /// <summary>A conta bancária: rótulo em negrito e valor, sem bordas, recuada como no modelo da equipe.</summary>
-    private static Table TabelaDaConta(IEnumerable<FaturamentoDaBu.Linha> linhas)
+    private static Table TabelaDaConta(IEnumerable<LinhaDeFaturamento> linhas)
     {
         Run Texto(string t, bool negrito)
         {
@@ -1079,7 +1088,7 @@ internal sealed class PreenchimentoDaProposta
             new TableLayout { Type = TableLayoutValues.Fixed }));
         tabela.Append(new TableGrid(new GridColumn { Width = "2700" }, new GridColumn { Width = "4200" }));
         foreach (var l in linhas)
-            tabela.Append(new TableRow(Celula(l.Rotulo, true, 2700), Celula(l.Valor, false, 4200)));
+            tabela.Append(new TableRow(Celula(l.Rotulo, true, 2700), Celula(l.Valor, l.Negrito, 4200)));
         return tabela;
     }
 

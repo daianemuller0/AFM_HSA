@@ -138,6 +138,8 @@ public partial class NovaOferta : IDisposable
 
         // 4 — preço
         Falta(Cambio.FaltaTaxa(_o), $"Taxa de câmbio do {Cambio.MoedaDoPreco(_o).Rotulo()}", 4, "f-taxa");
+        if (Bancos.ParaProposta(_o) is { Conta: null } semConta)
+            Avisa(true, $"Sem conta bancária em {semConta.Moeda.Rotulo()} da {semConta.Dados.Bu} (Dados e Importação → Dados bancários): o Word sai sem a conta", 5, "");
         var acimaDaMeta = _items.Count(i => i.PrecoMeta > 0m && i.UnitPrice > i.PrecoMeta + 0.01m);
         Avisa(acimaDaMeta > 0, $"{Plural(acimaDaMeta, "item", "itens")} com preço acima da meta (o TA só sobe; para baixar, reduza a margem)", 3, "f-itens");
         Falta(comFianca && V(_o.TipoGarantia), "Tipo de garantia (fiança)", 4, "f-tipogarantia");
@@ -608,7 +610,8 @@ public partial class NovaOferta : IDisposable
         {
             var modelo = Path.Combine(Ambiente.ContentRootPath, PropostaWord.CaminhoDoModelo);
             if (!File.Exists(modelo)) { _erro = $"O modelo não está em {PropostaWord.CaminhoDoModelo}."; return; }
-            var dados = PropostaWord.Dados(_o, _items, _units, Vendedores.All(), _equipamentos, _base, _bom, _vendas);
+            var dados = PropostaWord.Dados(_o, _items, _units, Vendedores.All(), _equipamentos, _base, _bom, _vendas)
+                with { Faturamento = Bancos.ParaProposta(_o) };
             var bytes = PropostaWord.Gerar(dados, modelo);
             await JS.InvokeVoidAsync("appDownload", PropostaWord.NomeDoArquivo(_o),
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document", Convert.ToBase64String(bytes));

@@ -8,6 +8,7 @@
 @inject InstalledBaseRepository Base
 @inject BomRepository Bom
 @inject SalesRecordRepository Vendas
+@inject DadosBancariosRepository Bancos
 @inject IWebHostEnvironment Ambiente
 @inject IJSRuntime JS
 
@@ -214,7 +215,7 @@ else
             if (!File.Exists(modelo)) { _erroWord = $"O modelo não está em {PropostaWord.CaminhoDoModelo}."; return; }
 
             var dados = PropostaWord.Dados(_o, _items, Units.All(), Vendedores.All(), Equipamentos.All(),
-                Base.All(), Bom.All(), Vendas.All());
+                Base.All(), Bom.All(), Vendas.All()) with { Faturamento = Bancos.ParaProposta(_o) };
             var bytes = PropostaWord.Gerar(dados, modelo);
             await JS.InvokeVoidAsync("appDownload", PropostaWord.NomeDoArquivo(_o),
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document", Convert.ToBase64String(bytes));

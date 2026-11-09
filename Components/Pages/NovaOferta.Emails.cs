@@ -14,6 +14,7 @@ public partial class NovaOferta
 {
     [Inject] private IConfiguration Config { get; set; } = default!;
     [Inject] private OutlookLocal Outlook { get; set; } = default!;
+    [Inject] private DadosBancariosRepository Bancos { get; set; } = default!;
 
     // o que foi digitado nos campos (null = o padrão)
     private string? _aprovParaDigitado, _aprovCcDigitado, _propParaDigitado, _propCcDigitado;
@@ -170,7 +171,8 @@ public partial class NovaOferta
     {
         var modelo = Path.Combine(Ambiente.ContentRootPath, PropostaWord.CaminhoDoModelo);
         if (!File.Exists(modelo)) return null;
-        var dados = PropostaWord.Dados(_o, _items, _units, Vendedores.All(), _equipamentos, _base, _bom, _vendas);
+        var dados = PropostaWord.Dados(_o, _items, _units, Vendedores.All(), _equipamentos, _base, _bom, _vendas)
+            with { Faturamento = Bancos.ParaProposta(_o) };
         return PropostaWord.Gerar(dados, modelo);
     }
 

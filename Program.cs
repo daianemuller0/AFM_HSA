@@ -65,6 +65,7 @@ builder.Services.AddScoped<PartRepository>();
 builder.Services.AddScoped<SalesRecordRepository>();
 builder.Services.AddScoped<AppUserRepository>();
 builder.Services.AddScoped<PerfisDeAcessoRepository>();
+builder.Services.AddScoped<DadosBancariosRepository>();
 builder.Services.AddScoped<VisitRepository>();
 builder.Services.AddScoped<OfferRepository>();
 builder.Services.AddScoped<OppOverrideRepository>();

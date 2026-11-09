@@ -1399,7 +1399,7 @@
     </div>
     @if (DeFora)
     {
-        <div class="pricing-dica">BU @_o.Bu: o preço sai líquido, com "+ @FaturamentoDaBu.ImpostoLocal(_o.Bu)" embaixo do total no Word, e os dados de faturamento da @(FaturamentoDaBu.DaBu(_o.Bu)?.Nome).</div>
+        <div class="pricing-dica">BU @_o.Bu: o preço sai líquido, com "+ @FaturamentoDaBu.ImpostoLocal(_o.Bu)" embaixo do total no Word, e os dados de faturamento da @(Bancos.Da(_o.Bu)?.Nome).</div>
     }
     else if (nivelEfetivo.Codigo != PricingDaProposta.NivelPedido(_o))
     {
