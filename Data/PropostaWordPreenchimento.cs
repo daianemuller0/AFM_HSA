@@ -796,6 +796,13 @@ internal sealed class PreenchimentoDaProposta
                 _ => $"Valores líquidos: {local} não incluso (somado ao preço).",
             });
             apagar.AddRange(new[] { cofins, icmsSp, ipiModelo, issItatiba, issSerra });
+            // a lei brasileira e a reforma tributária não valem para o Chile nem o Peru
+            apagar.AddRange(new[]
+            {
+                Achar("Fundamento Legal"), Achar("Nota sobre Legislação Tributária"),
+                Achar("A presente proposta comercial foi elaborada com base na legislação tributária"),
+                Achar("Dessa forma, a Howden South America se reserva o direito de revisar"),
+            });
         }
         else if (r.SemImpostos)
         {
