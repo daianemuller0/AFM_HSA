@@ -144,30 +144,34 @@ else
         ("Market Segments", _o.MarketSegments), ("Data do Pricing", Fmt.Date(_o.OfferDate)),
         ("Importação", _o.ImportacaoModo switch { "total" => "Por total", "item" => "Por item", _ => "" }),
         ("Moeda / taxa da importação", _o.TaxaCambio > 0 ? $"{_o.Moeda} · R$ {_o.TaxaCambio.ToString("0.####", new System.Globalization.CultureInfo("pt-BR"))}" : ""),
-        ("Preço ao cliente em", !Cambio.Converte(_o) ? "R$"
-            : $"{Cambio.MoedaDoPreco(_o).Rotulo()} · 1 {Cambio.MoedaDoPreco(_o).Rotulo()} = R$ {Cambio.Normalizada(_o).ToString("N4", new System.Globalization.CultureInfo("pt-BR"))}"
+        ("Custo em", Cambio.MoedaDoCusto(_o).Rotulo() + (Cambio.CompraDeFora(_o.Bu) ? $" (BU {_o.Bu}: preço de fora, sem importação)" : "")),
+        ("Preço ao cliente em", !Cambio.Converte(_o) ? Cambio.MoedaDoPreco(_o).Rotulo()
+            : $"{Cambio.MoedaDoPreco(_o).Rotulo()} · 1 {Cambio.MoedaDoPreco(_o).Rotulo()} = {Cambio.MoedaDoCusto(_o).Rotulo()} {Cambio.Normalizada(_o).ToString("N4", new System.Globalization.CultureInfo("pt-BR"))}"
               + (Cambio.Seguranca(_o) > 0 ? $" · segurança {Cambio.Seguranca(_o):0.##}%" : "")),
     };
 
     private static readonly System.Globalization.CultureInfo PtBr = new("pt-BR");
     private static string Pct(decimal f) => (f * 100).ToString("0.##", PtBr) + "%";
 
+    /// <summary>Valor na moeda do custo da proposta (R$ no Brasil; a estrangeira nas BUs de fora).</summary>
+    private string Cu(decimal v) => _o is null ? Fmt.Brl(v) : Cambio.DinheiroDoCusto(_o, v);
+
     private IEnumerable<(string, string)> Pricing => _o is null ? Array.Empty<(string, string)>() : new (string, string)[]
     {
-        ("Montar preço", _o.PricingModo == "preco" ? $"a partir do preço ({Fmt.Brl(_o.PrecoMeta)})" : $"a partir da margem ({Pct(_o.MargemAlvo)})"),
+        ("Montar preço", _o.PricingModo == "preco" ? $"a partir do preço ({Cu(_o.PrecoMeta)})" : $"a partir da margem ({Pct(_o.MargemAlvo)})"),
         ("Risco adicional", Pct(_o.RiscoAdicional)), ("Margem de negociação", Pct(_o.MargemNegociacao)),
         ("Fiança / garantias", Textos.Igual(_o.FiancaSeguro, "Sim")
             ? $"{(_o.TipoGarantia.Length > 0 ? _o.TipoGarantia : "tipo não escolhido")} · " +
               $"{_o.EventosFianca.Count(ev => ev.Percentual > 0)} evento(s) de pagamento" +
               (_o.OutrasGarantias.Any(g => g.Percentual > 0) ? " · outras garantias: " + string.Join(", ", _o.OutrasGarantias.Where(g => g.Percentual > 0).Select(g => $"{g.Tipo} {Pct(g.Percentual)}")) : "")
             : "não"),
-        ("Custo total (tabela de custo)", Fmt.Brl(_o.PricingCusto)), ("Markup", _o.PricingMarkup.ToString("N4", PtBr)),
+        ("Custo total (tabela de custo)", Cu(_o.PricingCusto)), ("Markup", _o.PricingMarkup.ToString("N4", PtBr)),
         ("Linhas de custo digitadas", string.Join(", ", _o.CustosPricing.Where(c => c.Valor != 0 || c.Variacao != 0)
-            .Select(c => $"{CalculoPricing.LinhasDeCusto.FirstOrDefault(l => l.Codigo == c.Codigo)?.Nome ?? c.Codigo} {Fmt.Brl(c.Valor)}" + (c.Variacao != 0 ? $" ({Pct(c.Variacao)})" : "")))),
-        ("Venda líquida do pricing (sem impostos)", Fmt.Brl(_o.PricingVendaLiquida)),
+            .Select(c => $"{CalculoPricing.LinhasDeCusto.FirstOrDefault(l => l.Codigo == c.Codigo)?.Nome ?? c.Codigo} {Cu(c.Valor)}" + (c.Variacao != 0 ? $" ({Pct(c.Variacao)})" : "")))),
+        ("Venda líquida do pricing (sem impostos)", Cu(_o.PricingVendaLiquida)),
         ("Project Margin do pricing", Pct(_o.PricingMargem)),
         ("Preço ao cliente do pricing (com impostos)", _o.PricingPrecoImpostos > 0
-            ? Fmt.Brl(_o.PricingPrecoImpostos) + (Cambio.Converte(_o) ? " · " + Cambio.Dinheiro(_o, Cambio.ParaVenda(_o, _o.PricingPrecoImpostos)) : "") : "—"),
+            ? Cu(_o.PricingPrecoImpostos) + (Cambio.Converte(_o) ? " · " + Cambio.Dinheiro(_o, Cambio.ParaVenda(_o, _o.PricingPrecoImpostos)) : "") : "—"),
         ("Margem com os preços da proposta", MargemDosPrecos() is decimal m ? Pct(m) : ""),
     };
 
@@ -176,13 +180,14 @@ else
     {
         if (_o is null) return null;
         var comCusto = _items
-            .Select(i => (It: i, Custo: i.Importado ? i.CustoImportacao : i.Nacionalizado ? i.CustoReferencia : null))
+            .Select(i => (It: i, Custo: Cambio.CompraDeFora(_o.Bu) ? i.CustoUnitario : i.Importado ? i.CustoImportacao : i.Nacionalizado ? i.CustoReferencia : null))
             .Where(x => x.Custo is > 0).ToList();
         if (comCusto.Count == 0 || _o.CustosPricing.Any(c => c.Valor != 0)) return null;
         if (Textos.Simples(_o.Destino).Contains("back to back")) return null;
-        var comprados = comCusto.Where(x => !x.It.Importado).Sum(x => x.Custo!.Value * x.It.Quantity);
-        var importados = comCusto.Where(x => x.It.Importado).Sum(x => x.Custo!.Value * x.It.Quantity);
-        var venda = Cambio.ParaReais(_o, comCusto.Sum(x => x.It.UnitPrice * x.It.Quantity));
+        var deFora = Cambio.CompraDeFora(_o.Bu);
+        var comprados = comCusto.Where(x => deFora || !x.It.Importado).Sum(x => x.Custo!.Value * x.It.Quantity);
+        var importados = comCusto.Where(x => !deFora && x.It.Importado).Sum(x => x.Custo!.Value * x.It.Quantity);
+        var venda = Cambio.ParaCusto(_o, comCusto.Sum(x => x.It.UnitPrice * x.It.Quantity));
         return CalculoPricing.PeloPreco(PricingDaProposta.EntradaDe(_o, comprados, importados), venda).Margem;
     }
 

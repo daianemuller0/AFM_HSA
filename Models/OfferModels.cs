@@ -131,6 +131,13 @@ public class CommercialOffer
     // Moeda do preço ao cliente (como no axiaisvent — Data/Cambio.cs): o custo e o
     // pricing ficam em R$; os preços dos itens e o total saem nesta moeda.
     public string MoedaVenda { get; set; } = "BRL";
+
+    /// <summary>
+    /// A moeda do custo nas BUs que compram de fora (HPU, HCHL): o preço de
+    /// fora, o frete, o TA e o pricing ficam nela. Vazio = o padrão da BU.
+    /// No Brasil (HSA-SP, HSA-ES) o custo é sempre em R$.
+    /// </summary>
+    public string MoedaCusto { get; set; } = "";
     /// <summary>A taxa digitada; o sentido vem de <see cref="CambioDirecao"/>.</summary>
     public decimal CambioTaxa { get; set; }
     /// <summary>"VendaEmCusto": 1 moeda do preço = X R$. "CustoEmVenda": 1 R$ = X da moeda do preço.</summary>

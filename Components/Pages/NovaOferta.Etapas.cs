@@ -126,7 +126,7 @@ public partial class NovaOferta : IDisposable
         Falta(semModelo > 0, $"{Plural(semModelo, "equipamento não cadastrado", "equipamentos não cadastrados")} sem modelo", 3, "f-equipamentos");
         var semPlanta = _o.Plantas.Count > 1 ? _o.EquipamentosDaProposta.Count(e => V(e.PlantaId)) : 0;
         Avisa(semPlanta > 0, $"{Plural(semPlanta, "equipamento", "equipamentos")} sem planta", 3, "f-equipamentos");
-        if (_items.Any(i => i.Importado))
+        if (_items.Any(Imp))
         {
             Falta(string.IsNullOrEmpty(_o.ImportacaoModo), "Importação: por total ou por item", 3, "f-importacao");
             foreach (var p in Importacoes.Pendencias) Falta(true, "Importação: " + p, 3, "f-importacao");
@@ -134,7 +134,7 @@ public partial class NovaOferta : IDisposable
         var semNcm = _items.Count(i => i != _itemDemais && V(i.Ncm));
         Avisa(semNcm > 0, $"{Plural(semNcm, "item", "itens")} sem NCM (sai \"a definir\")", 3, "f-itens");
         var semCusto = Custos.SemCusto.Count(i => i != _itemDemais);
-        Falta(semCusto > 0, $"{Plural(semCusto, "item", "itens")} sem custo (digite o custo ou marque importado)", 3, "f-itens");
+        Falta(semCusto > 0, $"{Plural(semCusto, "item", "itens")} sem custo ({(DeFora ? "digite o preço de fora" : "digite o custo ou marque importado")})", 3, "f-itens");
 
         // 4 — preço
         Falta(Cambio.FaltaTaxa(_o), $"Taxa de câmbio do {Cambio.MoedaDoPreco(_o).Rotulo()}", 4, "f-taxa");
@@ -224,13 +224,13 @@ public partial class NovaOferta : IDisposable
         AtualizarPrecos();
         foreach (var it in _items)
         {
-            it.CustoImportacao = it.Importado ? CustoImportadoDo(it) : null;
+            it.CustoImportacao = Imp(it) ? CustoImportadoDo(it) : null;
             // o item "Serviços e demais custos" já está na tabela de custo do pricing: não leva custo próprio
             it.CustoUnitario = it == _itemDemais ? null : CustoDoItem(it);
         }
         if (!_items.Any(i => i.Importado)) { _o.ImportacaoModo = ""; _o.TaxaCambio = 0; }
 
-        // retrato do pricing no momento de salvar (consulta na tela da oferta), em R$
+        // retrato do pricing no momento de salvar (consulta na tela da oferta), na moeda do custo
         var custos = Custos;
         var pr = PricingAtual(custos);
         var temPricing = pr.CustoTotal > 0 && pr.VendaLiquida > 0;
@@ -258,7 +258,10 @@ public partial class NovaOferta : IDisposable
         if (string.IsNullOrWhiteSpace(_o.Status)) _o.Status = "Rascunho";
         foreach (var it in _items) it.TotalPrice = it.Quantity * it.UnitPrice;
         _o.TotalAmount = Total;
-        _o.TotalReais = Math.Round(Cambio.ParaReais(_o, Total), 2);
+        // a carteira soma em R$: nas BUs de fora, pela aba Conversão
+        var taxasConv = Conversao.Ler();
+        _o.TotalReais = Math.Round(Cambio.EmReais(_o, Total, taxasConv)
+            ?? (taxasConv.ReaisPor(Cambio.MoedaDoPreco(_o)) is decimal rp ? Total * rp : 0m), 2);
         OffersRepo.Save(_o);
 
         var agora = new HashSet<string>();

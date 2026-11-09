@@ -64,7 +64,7 @@ public partial class NovaOferta
         var prazo = prazos.Count switch { 0 => "a confirmar", 1 => prazos[0].ToString(), _ => $"{prazos[0]} a {prazos[^1]}" };
 
         // dólar: o da proposta, se o preço é em USD; senão o da tabela de conversão
-        decimal? dolar = Cambio.MoedaDoPreco(_o) == Moeda.Usd && Cambio.Normalizada(_o) > 0m ? Cambio.Normalizada(_o)
+        decimal? dolar = Cambio.MoedaDoPreco(_o) == Moeda.Usd && Cambio.MoedaDoCusto(_o) == Moeda.Brl && Cambio.Normalizada(_o) > 0m ? Cambio.Normalizada(_o)
             : Conversao.Ler().UsdEmReais is var usd && usd > 0m ? usd : null;
 
         return new ResumoDaAprovacao(cliente.Length > 0 ? cliente : "—", escopo, itens, total, prazo, dolar, Seguros(), _notaAprovacao);

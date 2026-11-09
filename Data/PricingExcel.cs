@@ -142,7 +142,8 @@ public static class PricingExcel
         var usd = t.UsdEmReais;
         var eur = t.EurEmReais;
         var clp = t.ClpPorReal > 0m ? 1m / t.ClpPorReal : 0m;
-        var daProposta = Cambio.Normalizada(o);
+        // a taxa da proposta é em R$ só quando o custo é em R$ (nas BUs de fora ela é entre duas moedas estrangeiras)
+        var daProposta = Cambio.MoedaDoCusto(o) == Moeda.Brl ? Cambio.Normalizada(o) : 0m;
         if (daProposta > 0m)
         {
             switch (Cambio.MoedaDoPreco(o))

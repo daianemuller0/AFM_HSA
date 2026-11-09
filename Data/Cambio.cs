@@ -14,8 +14,11 @@ public enum Moeda { Brl, Usd, Eur, Clp, Pen }
 /// </summary>
 public static class Moedas
 {
-    /// <summary>A moeda do custo no AFM.</summary>
+    /// <summary>A moeda do custo no AFM (HSA-SP e HSA-ES; HPU e HCHL custam na moeda de fora, ver <see cref="Cambio.MoedaDoCusto"/>).</summary>
     public const Moeda DoCusto = Moeda.Brl;
+
+    /// <summary>As moedas em que o custo pode ser feito quando a BU compra de fora (HPU, HCHL).</summary>
+    public static readonly Moeda[] DeCustoDeFora = { Moeda.Usd, Moeda.Eur, Moeda.Clp, Moeda.Pen };
 
     /// <summary>As moedas do PREÇO ao cliente, na ordem do axiaisvent: CLP, USD, PEN, R$ e EUR.</summary>
     public static readonly Moeda[] DePreco = { Moeda.Clp, Moeda.Usd, Moeda.Pen, Moeda.Brl, Moeda.Eur };
@@ -63,7 +66,9 @@ public static class Moedas
 /// (HowdenAxiais.Poc.Data.Cambio, branch "Proposta v2"):
 ///
 /// <list type="bullet">
-/// <item>o custo e todo o pricing são calculados na moeda do custo (R$); só o
+/// <item>o custo e todo o pricing são calculados na moeda do custo — R$ nas
+/// BUs do Brasil; nas BUs de fora (HPU, HCHL) a moeda estrangeira do preço
+/// de fora, sem a tabela de importação —; só o
 /// valor final, o que o cliente recebe, vai para a moeda do preço;</item>
 /// <item>a taxa é digitada num de dois sentidos — "1 moeda do PREÇO em R$"
 /// (<c>VendaEmCusto</c>, o padrão: 1 USD = 5,40) ou o contrário
@@ -81,10 +86,35 @@ public static class Cambio
 {
     public static Moeda MoedaDoPreco(CommercialOffer o) => Moedas.Ler(o.MoedaVenda);
 
-    /// <summary>O preço sai numa moeda diferente da do custo?</summary>
-    public static bool Converte(CommercialOffer o) => MoedaDoPreco(o) != Moedas.DoCusto;
+    /// <summary>
+    /// A BU compra de fora e revende (HPU, HCHL): o preço de fora + frete +
+    /// margem, sem a tabela de importação, e o custo na moeda estrangeira.
+    /// </summary>
+    public static bool CompraDeFora(string? bu)
+    {
+        var b = (bu ?? "").Trim();
+        return b.Equals("HPU", StringComparison.OrdinalIgnoreCase) || b.StartsWith("HCHL", StringComparison.OrdinalIgnoreCase);
+    }
 
-    /// <summary>A taxa na direção interna: 1 moeda do PREÇO = X reais. Zero quando não há taxa.</summary>
+    /// <summary>A moeda do custo que a planilha de pricing usa em cada BU de fora: HCHL em CLP; HPU e HCHL_Custo_USD em USD.</summary>
+    public static Moeda CustoPadraoDaBu(string? bu) =>
+        string.Equals((bu ?? "").Trim(), "HCHL", StringComparison.OrdinalIgnoreCase) ? Moeda.Clp : Moeda.Usd;
+
+    /// <summary>A moeda em que o custo e o pricing são feitos: R$ no Brasil; nas BUs de fora, a escolhida (padrão da BU).</summary>
+    public static Moeda MoedaDoCusto(CommercialOffer o)
+    {
+        if (!CompraDeFora(o.Bu)) return Moedas.DoCusto;
+        var m = Moedas.Ler(o.MoedaCusto);
+        return m != Moeda.Brl ? m : CustoPadraoDaBu(o.Bu);
+    }
+
+    /// <summary>Valor na moeda do custo, formatado ("R$ 1.234,56", "USD 1.234,56").</summary>
+    public static string DinheiroDoCusto(CommercialOffer o, decimal valor) => Moedas.Dinheiro(MoedaDoCusto(o), valor);
+
+    /// <summary>O preço sai numa moeda diferente da do custo?</summary>
+    public static bool Converte(CommercialOffer o) => MoedaDoPreco(o) != MoedaDoCusto(o);
+
+    /// <summary>A taxa na direção interna: 1 moeda do PREÇO = X na moeda do custo. Zero quando não há taxa.</summary>
     public static decimal Normalizada(CommercialOffer o)
     {
         if (o.CambioTaxa <= 0m) return 0m;
@@ -110,15 +140,28 @@ public static class Cambio
         return normalizada * Math.Max(1m - Seguranca(o) / 100m, 0.01m);
     }
 
-    /// <summary>Leva um valor em R$ para a moeda do preço.</summary>
-    public static decimal ParaVenda(CommercialOffer o, decimal valorEmReais)
+    /// <summary>Leva um valor na moeda do custo para a moeda do preço.</summary>
+    public static decimal ParaVenda(CommercialOffer o, decimal valorNoCusto)
     {
         var fx = Efetivo(o);
-        return fx == 1m ? valorEmReais : Math.Round(valorEmReais / fx, 2);
+        return fx == 1m ? valorNoCusto : Math.Round(valorNoCusto / fx, 2);
     }
 
-    /// <summary>O caminho de volta: um valor na moeda do preço, em R$ (pela taxa efetiva).</summary>
-    public static decimal ParaReais(CommercialOffer o, decimal valorNaVenda) => valorNaVenda * Efetivo(o);
+    /// <summary>O caminho de volta: um valor na moeda do preço, na moeda do custo (pela taxa efetiva).</summary>
+    public static decimal ParaCusto(CommercialOffer o, decimal valorNaVenda) => valorNaVenda * Efetivo(o);
+
+    /// <summary>
+    /// Um valor na moeda do preço, em R$ — para somar a carteira. No Brasil é
+    /// a volta pela taxa da proposta; nas BUs de fora, a moeda do custo vai a
+    /// R$ pela aba Conversão (null quando ela não tem a taxa).
+    /// </summary>
+    public static decimal? EmReais(CommercialOffer o, decimal valorNaVenda, TaxasDeConversao taxas)
+    {
+        var noCusto = ParaCusto(o, valorNaVenda);
+        var custo = MoedaDoCusto(o);
+        if (custo == Moeda.Brl) return noCusto;
+        return taxas.ReaisPor(custo) is decimal r ? noCusto * r : null;
+    }
 
     /// <summary>Valor na moeda do preço, formatado ("USD 1.234,56").</summary>
     public static string Dinheiro(CommercialOffer o, decimal valorNaVenda) => Moedas.Dinheiro(MoedaDoPreco(o), valorNaVenda);

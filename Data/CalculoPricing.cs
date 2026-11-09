@@ -415,9 +415,6 @@ public static class CalculoPricing
                 : "Back to Back 100% importado: o valor ao cliente é a venda líquida com PIS/COFINS por dentro.");
         if (expB2B && e25 <= 0m)
             avisos.Add("Exportação com Back to Back sem custo na linha PROD. BACK TO BACK: preencha o custo do produto B2B.");
-        if (!Eq(e.Bu, "HSA-SP") && !Eq(e.Bu, "HSA-ES") && !string.IsNullOrWhiteSpace(e.Bu))
-            avisos.Add($"BU {e.Bu}: na planilha o custo fica em {(Eq(e.Bu, "HCHL") ? "CLP" : "USD")}; " +
-                       "aqui o custo está em R$ e o preço sai na moeda escolhida para o cliente.");
 
         // ---------- o que vai para a proposta ----------
         var valorDaProposta = expB2B ? s82 ?? vl : b2b100 ? s83 ?? vl : vl;

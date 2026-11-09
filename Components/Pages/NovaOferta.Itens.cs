@@ -24,9 +24,57 @@ public partial class NovaOferta
     // custo e preço dos itens
     // =====================================================================
 
-    /// <summary>O custo unitário (R$) de um item que não é importado: o digitado, ou a referência da Nacionalização.</summary>
+    // =====================================================================
+    // BU que compra de fora (HPU, HCHL): sem a tabela de importação — o
+    // preço de fora + frete + margem, e o custo na moeda estrangeira
+    // =====================================================================
+
+    /// <summary>A BU compra de fora e revende: não há importação, o custo é o preço de fora, na moeda estrangeira.</summary>
+    private bool DeFora => Cambio.CompraDeFora(_o.Bu);
+
+    /// <summary>A moeda do custo, do frete, do TA e do pricing (R$ no Brasil).</summary>
+    private Moeda MoedaCusto => Cambio.MoedaDoCusto(_o);
+
+    /// <summary>"R$", "USD"…: o rótulo da moeda do custo.</summary>
+    private string Rc => MoedaCusto.Rotulo();
+
+    /// <summary>Valor na moeda do custo ("R$ 1.234,56", "USD 1.234,56").</summary>
+    private string Cu(decimal v) => Cambio.DinheiroDoCusto(_o, v);
+
+    /// <summary>O item passa pela tabela de importação (nunca nas BUs de fora).</summary>
+    private bool Imp(CommercialOfferItem it) => it.Importado && !DeFora;
+
+    /// <summary>
+    /// O custo de um item numa BU de fora: o preço de fora digitado (na moeda
+    /// do custo). O item que já tinha o preço do fornecedor na mesma moeda usa
+    /// esse preço — sem a importação.
+    /// </summary>
+    private decimal? CustoDeFora(CommercialOfferItem it) =>
+        it.CustoManual is > 0 ? it.CustoManual
+        : it.Importado && it.ValorMoeda > 0m && Moedas.Ler(_o.Moeda) == MoedaCusto ? it.ValorMoeda : null;
+
+    private void MudarBu(ChangeEventArgs e)
+    {
+        var antes = DeFora;
+        var custoAntes = MoedaCusto;
+        _o.Bu = e.Value?.ToString() ?? "";
+        if (MoedaCusto != custoAntes) _o.CambioTaxa = 0;   // a taxa era de outro par de moedas
+        // passou a comprar de fora com o preço em R$: o preço vai para a moeda do custo (dá para trocar no pricing)
+        if (!antes && DeFora && Cambio.MoedaDoPreco(_o) == Moeda.Brl) EscolherMoedaVenda(MoedaCusto);
+    }
+
+    private void MudarMoedaDoCusto(ChangeEventArgs e)
+    {
+        var m = Moedas.Ler(e.Value?.ToString());
+        if (m == Moeda.Brl || m == MoedaCusto) return;
+        _o.MoedaCusto = m.Codigo();
+        _o.CambioTaxa = 0;   // a taxa era do par anterior
+    }
+
+    /// <summary>O custo unitário (na moeda do custo) de um item que não é importado: o digitado, ou a referência da Nacionalização.</summary>
     private decimal? CustoNacionalDe(CommercialOfferItem it)
     {
+        if (DeFora) return CustoDeFora(it);
         if (it.CustoManual is > 0) return it.CustoManual;
         var r = RefDoItem(it);
         return r.Nacionalizado && r.Custo is > 0 ? r.Custo : null;
@@ -34,7 +82,7 @@ public partial class NovaOferta
 
     /// <summary>O custo unitário (R$) do item sem o TA: importação, digitado ou Nacionalização; null = sem custo.</summary>
     private decimal? CustoBaseDoItem(CommercialOfferItem it) =>
-        it == _itemDemais ? null : it.Importado ? CustoImportadoDo(it) : CustoNacionalDe(it);
+        it == _itemDemais ? null : Imp(it) ? CustoImportadoDo(it) : CustoNacionalDe(it);
 
     /// <summary>O custo unitário (R$) do item como entra no pricing: o base, o frete dele e o TA do preço meta; null = sem custo (pendência).</summary>
     private decimal? CustoDoItem(CommercialOfferItem it) =>
@@ -126,7 +174,7 @@ public partial class NovaOferta
                 if (CustoBaseDoItem(it) is decimal b && b > 0m)
                 {
                     // o frete já está no custo: o TA só completa o que falta depois dele
-                    var custoParaMeta = Cambio.ParaReais(_o, it.PrecoMeta) / fator;
+                    var custoParaMeta = Cambio.ParaCusto(_o, it.PrecoMeta) / fator;
                     ta = Math.Max(0m, Math.Ceiling((custoParaMeta - b - frete.GetValueOrDefault(it)) * 10000m) / 10000m);
                 }
                 if (Math.Abs(ta - it.CustoTa) >= 0.0001m) { it.CustoTa = ta; mudou = true; }
@@ -158,6 +206,7 @@ public partial class NovaOferta
     private void MudarCustoDoItem(CommercialOfferItem it, ChangeEventArgs e)
     {
         var v = Numero(e);
+        if (DeFora) { it.CustoManual = v is > 0 ? v : null; return; }
         var referencia = RefDoItem(it);
         // digitar o mesmo valor da referência não "fixa" o custo: ele continua seguindo a Nacionalização
         it.CustoManual = v is > 0 && !(referencia.Nacionalizado && referencia.Custo == v) ? v : null;
@@ -346,13 +395,16 @@ public partial class NovaOferta
                 if (porId.ContainsKey(it.Id)) RefsCusto.Apagar(it.Id);
                 continue;
             }
-            var origem = it.Importado ? "importação" : it.CustoManual is > 0 ? "digitado" : RefDoItem(it).Nacionalizado ? "nacionalização" : "proposta";
+            var origem = DeFora ? "preço de fora" : it.Importado ? "importação" : it.CustoManual is > 0 ? "digitado" : RefDoItem(it).Nacionalizado ? "nacionalização" : "proposta";
+            // a referência guarda o custo em R$: o de fora vai pela aba Conversão (sem a taxa lá, fica sem custo)
+            var paraReais = MoedaCusto == Moeda.Brl ? 1m : Conversao.Ler().ReaisPor(MoedaCusto) ?? 0m;
+            if (custo is decimal cf) custo = cf * paraReais;
             var planta = PlantasDaProposta.PlantaDe(_o, PlantasDaProposta.DoItem(_o, it));
             var unit = Math.Round(it.UnitPrice * paraLiquido, 2);
             var nova = new ReferenciaDeCusto
             {
                 Id = it.Id, PartNumber = it.PartNumber.Trim(), Descricao = DescricaoSemPn(it), Valor = Math.Round(custo ?? 0m, 2),
-                Ta = Math.Round(it.CustoTa, 2), Data = data, Modelo = ModeloDoItem(it), SerialNumber = SerialDoItem(it),
+                Ta = Math.Round(it.CustoTa * paraReais, 2), Data = data, Modelo = ModeloDoItem(it), SerialNumber = SerialDoItem(it),
                 Origem = origem, PropostaId = _o.Id, Proposta = _o.OfferCode.Trim(), Revisao = PropostaWord.Ou(_o.Revisao, "0"),
                 Cliente = _o.ClientName, Usuario = _usuario,
                 Plantas = planta is not null ? PlantasDaProposta.Rotulo(planta) : todasAsPlantas,
@@ -386,7 +438,7 @@ public partial class NovaOferta
     {
         var moedaDaProposta = Cambio.MoedaDoPreco(_o);
         if (refPreco.MoedaDoPreco == moedaDaProposta) return Math.Round(refPreco.PrecoUnitLiquido, 2);
-        if (refPreco.MoedaDoPreco == Moeda.Brl) return Math.Round(Cambio.ParaVenda(_o, refPreco.PrecoUnitLiquido), 2);
+        if (refPreco.MoedaDoPreco == Moeda.Brl && MoedaCusto == Moeda.Brl) return Math.Round(Cambio.ParaVenda(_o, refPreco.PrecoUnitLiquido), 2);
         return null;
     }
 
@@ -536,6 +588,7 @@ public partial class NovaOferta
                 var demais = it == _itemDemais;
                 var rf = RefDoItem(it);
                 var origem = demais ? "tabela do pricing"
+                    : DeFora ? "preço de fora"
                     : it.Importado ? (_o.ImportacaoModo == "item" ? "importado (por item)" : "importado (por total)")
                     : it.CustoManual is > 0 ? "digitado"
                     : rf.Nacionalizado && rf.Custo is > 0 ? "Nacionalização" : "sem custo";

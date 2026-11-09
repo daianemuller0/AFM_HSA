@@ -358,12 +358,22 @@
             <small class="pricing-dica">a margem pedida no pricing · padrão @Pct(ListasDoPricing.MargemPadraoDo(_o.SegmentoMargem))</small>
         </label>
         <label id="f-bu">BU
-            <select class="cell" @bind="_o.Bu">
+            <select class="cell" value="@_o.Bu" @onchange="MudarBu">
                 <option value="">preencher</option>
                 @foreach (var (cod, rot) in ListasDoPricing.Bus) { <option value="@cod">@rot</option> }
                 @ForaDaLista(_o.Bu, ListasDoPricing.Bus.Select(b => b.Codigo))
             </select>
+            @if (DeFora) { <small class="pricing-dica">compra de fora: sem importação, custo em moeda estrangeira</small> }
         </label>
+        @if (DeFora)
+        {
+            <label id="f-moedacusto">Moeda do custo
+                <select class="cell" value="@MoedaCusto.Codigo()" @onchange="MudarMoedaDoCusto">
+                    @foreach (var m in Moedas.DeCustoDeFora) { <option value="@m.Codigo()">@m.Rotulo()</option> }
+                </select>
+                <small class="pricing-dica">@(MoedaCusto == Cambio.CustoPadraoDaBu(_o.Bu) ? "a da planilha de pricing desta BU" : $"a planilha de pricing desta BU usa {Cambio.CustoPadraoDaBu(_o.Bu).Rotulo()}")</small>
+            </label>
+        }
         <label id="f-vendapara">Venda para
             <select class="cell" @bind="_o.VendaPara">
                 <option value="">preencher</option>
@@ -685,7 +695,7 @@
 
     <div class="panel" id="f-itens" style="margin-bottom:16px">
         <div class="dash-title">Itens da proposta
-            <span class="dash-sub">o preço sai do custo × pricing, na hora; com preço meta, o TA completa o custo até chegar nele</span>
+            <span class="dash-sub">@(DeFora ? $"BU {_o.Bu}: preço de fora em {Rc} + frete + margem, sem a tabela de importação" : "o preço sai do custo × pricing, na hora; com preço meta, o TA completa o custo até chegar nele")</span>
             @if (_o.Id.Length > 0 && _items.Count > 0)
             {
                 <a class="btn-link" style="margin-left:auto" href="@($"/cotacao-intercompany?proposta={_o.Id}")"
@@ -702,11 +712,11 @@
             <div class="it-numeros">
                 <span><strong>@itensReais.Count</strong> @(itensReais.Count == 1 ? "item" : "itens")</span>
                 @if (pendentes > 0) { <span class="it-pend">@pendentes sem custo</span> }
-                <span>custo <strong>@Fmt.Brl(custoItens)</strong></span>
+                <span>custo <strong>@Cu(custoItens)</strong></span>
                 <span>proposta <strong>@Venda(_items.Sum(x => x.TotalPrice))</strong></span>
             </div>
             <label class="it-frete" id="f-frete" title="O frete entra no custo de cada item, dividido pelo valor (custo × quantidade): o mesmo % para todos">
-                Frete (R$)
+                Frete (@Rc)
                 <input class="cell num" type="number" min="0" step="0.01" placeholder="sem frete"
                        value="@(_o.FreteCusto > 0 ? _o.FreteCusto.ToString(CultureInfo.InvariantCulture) : "")" @onchange="MudarFrete" />
                 @if (_o.FreteCusto > 0m && rateio.ValorTotal > 0m)
@@ -715,7 +725,7 @@
                 }
             </label>
             <div class="it-filtros">
-                @foreach (var (cod, nome) in new[] { ("", "Todos"), ("pend", "Sem custo"), ("imp", "Importados"), ("nac", "Nacionais") })
+                @foreach (var (cod, nome) in DeFora ? new[] { ("", "Todos"), ("pend", "Sem custo") } : new[] { ("", "Todos"), ("pend", "Sem custo"), ("imp", "Importados"), ("nac", "Nacionais") })
                 {
                     <button class="chip @(_filtroItens == cod ? "active" : "")" @onclick="() => _filtroItens = cod">@nome</button>
                 }
@@ -737,12 +747,12 @@
                 <thead>
                     <tr class="it-grupos">
                         <th rowspan="2" class="it-c-num">#</th><th rowspan="2">Peça</th><th rowspan="2" class="right it-c-qtd">Qtd</th>
-                        <th colspan="3" class="g-custo">Custo (R$)</th>
+                        <th colspan="3" class="g-custo">Custo (@Rc)</th>
                         <th colspan="2" class="g-venda">Venda (@moedaVenda)</th>
                         <th rowspan="2" class="it-c-acoes"></th>
                     </tr>
                     <tr>
-                        <th class="right g-custo it-c-v">Unit.</th><th class="right g-custo it-c-ta" title="R$ por unidade, somado ao custo: o da meta aparece sozinho; dá para digitar">TA</th><th class="right g-custo it-c-v">Total</th>
+                        <th class="right g-custo it-c-v">Unit.</th><th class="right g-custo it-c-ta" title="@Rc por unidade, somado ao custo: o da meta aparece sozinho; dá para digitar">TA</th><th class="right g-custo it-c-v">Total</th>
                         <th class="right g-venda it-c-v">Unit.</th><th class="right g-venda it-c-v">Total</th>
                     </tr>
                 </thead>
@@ -777,14 +787,14 @@
                                 <td class="right"><input class="cell num it-in" type="number" min="1" step="1" @key="@($"qtd-{Versao(it)}")"
                                                          value="@it.Quantity" @onchange="e => MudarQtdDe(it, e)" /></td>
                                 <td class="right g-custo">
-                                    @if (it.Importado)
+                                    @if (Imp(it))
                                     {
                                         <span class="it-valor">@(CustoBaseDoItem(it) is decimal ci ? N2(ci) : "—")</span>
                                     }
                                     else
                                     {
                                         <input class="cell num it-in it-in-custo" type="number" min="0" step="0.01" placeholder="digite"
-                                               title="custo unitário sem frete e sem TA (a composição está no detalhe)"
+                                               title="@(DeFora ? $"preço de fora ({Rc}, unit.), sem frete e sem TA" : "custo unitário sem frete e sem TA (a composição está no detalhe)")"
                                                value="@(CustoNacionalDe(it) is decimal cn ? cn.ToString(CultureInfo.InvariantCulture) : "")"
                                                @onchange="e => MudarCustoDoItem(it, e)" />
                                     }
@@ -793,7 +803,7 @@
                                 <td class="right g-custo">
                                     <input class="cell num it-in it-in-ta @(it.CustoTa > 0m ? (it.TaManual ? "manual" : "meta") : "")" type="number" min="0" step="0.01" placeholder="—"
                                            @key="@($"ta-{Versao(it)}-{Math.Round(it.CustoTa, 2)}")"
-                                           title="@(it.TaManual ? "TA digitado" : it.PrecoMeta > 0m ? "TA calculado para o preço chegar na meta (digite para trocar)" : "Digite o TA (R$ por unidade)")"
+                                           title="@(it.TaManual ? "TA digitado" : it.PrecoMeta > 0m ? "TA calculado para o preço chegar na meta (digite para trocar)" : $"Digite o TA ({Rc} por unidade)")"
                                            value="@(it.CustoTa > 0m ? Math.Round(it.CustoTa, 2).ToString(CultureInfo.InvariantCulture) : "")"
                                            @onchange="e => MudarTaDoItem(it, e)" />
                                     @if (it.CustoTa > 0m) { <div class="it-sub">@(it.TaManual ? "digitado" : "da meta")</div> }
@@ -838,12 +848,12 @@
         }
     </div>
 
-        @if (_items.Any(i => i.Importado))
+        @if (_items.Any(Imp))
         {
             var imp = Importacoes;
             <div class="bloco-importacao panel" id="f-importacao" style="margin-bottom:14px">
                 <div class="bloco-importacao-titulo">Importação
-                    <span>@_items.Count(i => i.Importado) item(ns) importado(s) · planilha de custos de importação de @ParamImportacao.VersaoPlanilha</span>
+                    <span>@_items.Count(Imp) item(ns) importado(s) · planilha de custos de importação de @ParamImportacao.VersaoPlanilha</span>
                 </div>
                 <div class="imp-linha">
                     <div class="imp-modo">
@@ -958,7 +968,7 @@
     <div class="panel pricing" style="margin-bottom:14px">
         <div class="dash-title">Pricing
             <span style="margin-left:8px;font-size:12px;font-weight:600;color:var(--muted)">
-                a mesma conta da aba PRICING da planilha R_HSAXYZ0000-0 · usa o cabeçalho da etapa 2 · custo em R$
+                a mesma conta da aba PRICING da planilha R_HSAXYZ0000-0 · usa o cabeçalho da etapa 2 · custo em @Rc
             </span>
         </div>
         <div class="pricing-campos">
@@ -989,11 +999,11 @@
             }
             else
             {
-                <label id="f-margem">Preço de venda: venda líquida (R$)
+                <label id="f-margem">Preço de venda: venda líquida (@Rc)
                     <input class="cell num" type="number" min="0" step="0.01" placeholder="quanto o cliente aceita"
                            value="@(_o.PrecoMeta > 0 ? _o.PrecoMeta.ToString(CultureInfo.InvariantCulture) : "")"
                            @onchange="e => _o.PrecoMeta = Numero(e) is decimal v && v > 0 ? v : 0" />
-                    <small class="pricing-dica">sem impostos, em R$ (a moeda do custo)</small>
+                    <small class="pricing-dica">sem impostos, em @Rc (a moeda do custo)</small>
                 </label>
             }
         </div>
@@ -1015,15 +1025,15 @@
                         <span class="pricing-rot">Taxa</span>
                         <select class="cell" value="@_o.CambioDirecao" aria-label="Sentido da taxa"
                                 @onchange='e => _o.CambioDirecao = e.Value?.ToString() ?? "VendaEmCusto"'>
-                            <option value="VendaEmCusto">1 @moedaVenda.Rotulo() em R$</option>
-                            <option value="CustoEmVenda">1 R$ em @moedaVenda.Rotulo()</option>
+                            <option value="VendaEmCusto">1 @moedaVenda.Rotulo() em @Rc</option>
+                            <option value="CustoEmVenda">1 @Rc em @moedaVenda.Rotulo()</option>
                         </select>
                         <span>=</span>
                         <input class="cell num pricing-taxa" type="number" min="0" step="0.0001" placeholder="0,00"
                                value="@(_o.CambioTaxa > 0 ? Num(_o.CambioTaxa, "0.######") : "")" @onchange="MudarCambioTaxa" />
                     </span>
                     <span class="pricing-par">
-                        <span class="pricing-rot" title="tirada da taxa: se a moeda cair até este tanto, o valor em R$ não perde">Segurança</span>
+                        <span class="pricing-rot" title="tirada da taxa: se a moeda cair até este tanto, o valor em @Rc não perde">Segurança</span>
                         <input class="cell num pricing-seguranca" type="number" min="0" max="99" step="0.5" placeholder="0"
                                value="@(_o.CambioSeguranca > 0 ? Num(_o.CambioSeguranca) : "")"
                                @onchange="e => _o.CambioSeguranca = Numero(e) is decimal v ? Math.Clamp(v, 0m, 99m) : 0m" />
@@ -1032,7 +1042,7 @@
                 }
                 else
                 {
-                    <span class="pricing-dica">custo e preço em R$: sem conversão</span>
+                    <span class="pricing-dica">custo e preço em @Rc: sem conversão</span>
                 }
             </div>
             @if (converte)
@@ -1048,14 +1058,14 @@
                 {
                     var taxaBase = Cambio.Normalizada(_o);
                     <div class="pricing-confira">
-                        Confira: <strong>1 @moedaVenda.Rotulo() = R$ @taxaBase.ToString("N4", PtBr)</strong>
-                        · 1 R$ = @moedaVenda.Rotulo() @((1m / taxaBase).ToString("N6", PtBr))
+                        Confira: <strong>1 @moedaVenda.Rotulo() = @Rc @taxaBase.ToString("N4", PtBr)</strong>
+                        · 1 @Rc = @moedaVenda.Rotulo() @((1m / taxaBase).ToString("N6", PtBr))
                     </div>
                     @if (Cambio.Seguranca(_o) > 0m)
                     {
                         <div class="pricing-dica">
-                            convertendo por R$ @Cambio.Efetivo(_o).ToString("N4", PtBr) por @moedaVenda.Rotulo() —
-                            se a moeda cair até @Cambio.Seguranca(_o).ToString("0.##", PtBr)%, o valor em R$ não perde
+                            convertendo por @Rc @Cambio.Efetivo(_o).ToString("N4", PtBr) por @moedaVenda.Rotulo() —
+                            se a moeda cair até @Cambio.Seguranca(_o).ToString("0.##", PtBr)%, o valor em @Rc não perde
                         </div>
                     }
                 }
@@ -1077,12 +1087,12 @@
 
         @* CÁLCULO DE CUSTO (E14:I34) *@
         <details class="pricing-secao" open>
-            <summary>Cálculo de custo <span>@Fmt.Brl(pr.CustoTotal) · com variação @Fmt.Brl(pr.CustoComVariacao)</span></summary>
+            <summary>Cálculo de custo <span>@Cu(pr.CustoTotal) · com variação @Cu(pr.CustoComVariacao)</span></summary>
             <div class="tabela-rolante">
             <table class="grid custo-tabela">
                 <thead>
-                    <tr><th>Descrição</th><th class="right">Itens da proposta (R$)</th><th class="right">Valores (R$)</th>
-                        <th class="right">Risco (%)</th><th class="right">Custo com variação (R$)</th><th class="right">Partic.</th></tr>
+                    <tr><th>Descrição</th><th class="right">Itens da proposta (@Rc)</th><th class="right">Valores (@Rc)</th>
+                        <th class="right">Risco (%)</th><th class="right">Custo com variação (@Rc)</th><th class="right">Partic.</th></tr>
                 </thead>
                 <tbody>
                     @foreach (var l in CalculoPricing.LinhasDeCusto)
@@ -1098,18 +1108,18 @@
                                 @if (cod == "COMPRADOS") { <span class="sub-cel">recebe os itens nacionalizados</span> }
                                 @if (cod == "IMPORTADOS") { <span class="sub-cel">recebe os itens importados (custo da importação)</span> }
                             </td>
-                            <td class="right nowrap">@(itens is decimal iv ? Fmt.Brl(iv) : "")</td>
+                            <td class="right nowrap">@(itens is decimal iv ? Cu(iv) : "")</td>
                             <td class="right"><input class="cell num custo-cel" type="number" step="0.01" placeholder="@(itens is null ? "0" : "+ adicional")"
                                        value="@(manual is { Valor: not 0m } ? Num(manual.Valor) : "")" @onchange="e => MudarCusto(cod, e, false)" /></td>
                             <td class="right"><input class="cell num risco-cel" type="number" step="0.1" placeholder="0"
                                        value="@(manual is { Variacao: not 0m } ? Num(manual.Variacao * 100m) : "")" @onchange="e => MudarCusto(cod, e, true)" /></td>
-                            <td class="right nowrap">@(valor != 0m ? Fmt.Brl(comVar) : "")</td>
+                            <td class="right nowrap">@(valor != 0m ? Cu(comVar) : "")</td>
                             <td class="right">@(pr.CustoTotal > 0 && valor != 0m ? Pct(valor / pr.CustoTotal) : "")</td>
                         </tr>
                     }
-                    <tr class="memoria-total"><td>TOTAL</td><td></td><td class="right nowrap">@Fmt.Brl(pr.CustoTotal)</td>
+                    <tr class="memoria-total"><td>TOTAL</td><td></td><td class="right nowrap">@Cu(pr.CustoTotal)</td>
                         <td class="right">@(pr.CustoTotal > 0 ? Pct(1m - pr.CustoTotal / (pr.CustoComVariacao == 0 ? 1 : pr.CustoComVariacao)) : "")</td>
-                        <td class="right nowrap">@Fmt.Brl(pr.CustoComVariacao)</td><td class="right">@(pr.CustoTotal > 0 ? "100%" : "")</td></tr>
+                        <td class="right nowrap">@Cu(pr.CustoComVariacao)</td><td class="right">@(pr.CustoTotal > 0 ? "100%" : "")</td></tr>
                 </tbody>
             </table>
             </div>
@@ -1129,7 +1139,7 @@
             var taxaG = ListasDoPricing.TaxaDaGarantia(_o.TipoGarantia);
             var taxaO = ListasDoPricing.TaxaDaGarantia(_o.TipoOutrasGarantias);
             <details class="pricing-secao" open>
-                <summary>Seguro garantia ou carta fiança <span>@Fmt.Brl(pr.Fianca) (E43) · cobertura até o prazo de entrega: @prazo dias</span></summary>
+                <summary>Seguro garantia ou carta fiança <span>@Cu(pr.Fianca) (E43) · cobertura até o prazo de entrega: @prazo dias</span></summary>
                 <div class="pricing-campos pricing-fianca">
                     <label id="f-tipogarantia">Tipo (seguro garantia ou carta fiança)
                         <select class="cell" @bind="_o.TipoGarantia">
@@ -1148,7 +1158,7 @@
                     <div class="tabela-rolante">
                     <table class="grid garantia-tabela">
                         <thead><tr><th>Evento nº</th><th class="right">Cond. pagto (%)</th><th class="right">Prazo eventos (dias)</th>
-                            <th class="right">Aproximado (R$)</th><th class="right">Dias cobert.</th><th class="right">Porc. anual</th><th class="right">Custo (R$)</th></tr></thead>
+                            <th class="right">Aproximado (@Rc)</th><th class="right">Dias cobert.</th><th class="right">Porc. anual</th><th class="right">Custo (@Rc)</th></tr></thead>
                         <tbody>
                             @for (var i = 0; i < 10; i++)
                             {
@@ -1160,8 +1170,8 @@
                                     <td>@(k + 1)</td>
                                     <td class="right"><input class="cell num risco-cel" type="number" min="0" max="100" step="1" value="@Num(ev.Percentual * 100m)" @onchange="e => MudarEvento(k, e, false)" /></td>
                                     <td class="right"><input class="cell num risco-cel" type="number" min="0" step="1" value="@ev.PrazoDias" @onchange="e => MudarEvento(k, e, true)" /></td>
-                                    <td class="right nowrap">@Fmt.Brl(aprox)</td><td class="right">@diasCob</td><td class="right">@Pct(taxaG)</td>
-                                    <td class="right nowrap">@Fmt.Brl(aprox * diasCob * taxaG / 365m)</td>
+                                    <td class="right nowrap">@Cu(aprox)</td><td class="right">@diasCob</td><td class="right">@Pct(taxaG)</td>
+                                    <td class="right nowrap">@Cu(aprox * diasCob * taxaG / 365m)</td>
                                 </tr>
                             }
                         </tbody>
@@ -1170,7 +1180,7 @@
                     <div class="tabela-rolante">
                     <table class="grid garantia-tabela">
                         <thead><tr><th>Outras garantias</th><th class="right">Porc. da garantia (%)</th><th class="right">Dias cobert.</th>
-                            <th class="right">Aproximado (R$)</th><th class="right">Porc. anual</th><th class="right">Custo (R$)</th></tr></thead>
+                            <th class="right">Aproximado (@Rc)</th><th class="right">Porc. anual</th><th class="right">Custo (@Rc)</th></tr></thead>
                         <tbody>
                             @for (var i = 0; i < _o.OutrasGarantias.Count; i++)
                             {
@@ -1181,8 +1191,8 @@
                                     <td>@g.Tipo</td>
                                     <td class="right"><input class="cell num risco-cel" type="number" min="0" max="100" step="1" value="@Num(g.Percentual * 100m)" @onchange="e => MudarOutraGarantia(k, e, false)" /></td>
                                     <td class="right"><input class="cell num risco-cel" type="number" min="0" step="1" value="@g.DiasCobertura" @onchange="e => MudarOutraGarantia(k, e, true)" /></td>
-                                    <td class="right nowrap">@Fmt.Brl(aprox)</td><td class="right">@Pct(taxaO)</td>
-                                    <td class="right nowrap">@Fmt.Brl(aprox * g.DiasCobertura * taxaO / 365m)</td>
+                                    <td class="right nowrap">@Cu(aprox)</td><td class="right">@Pct(taxaO)</td>
+                                    <td class="right nowrap">@Cu(aprox * g.DiasCobertura * taxaO / 365m)</td>
                                 </tr>
                             }
                         </tbody>
@@ -1230,13 +1240,13 @@
             <div class="imp-resumo">
                 <div class="escolhido">
                     <span>Venda líquida (sem impostos)</span>
-                    <strong>@Fmt.Brl(pr.VendaLiquida)</strong>
+                    <strong>@Cu(pr.VendaLiquida)</strong>
                     <small>markup @pr.Markup.ToString("N4", PtBr)@(converte ? " · " + VendaDe(pr.VendaLiquida) : "")</small>
                 </div>
                 <div>
                     <span>Project Margin</span>
                     <strong>@Pct(pr.Margem)</strong>
-                    <small>@Fmt.Brl(pr.VendaLiquida * pr.Margem) · padrão do segmento @Pct(pr.MargemPadrao)</small>
+                    <small>@Cu(pr.VendaLiquida * pr.Margem) · padrão do segmento @Pct(pr.MargemPadrao)</small>
                 </div>
                 <div>
                     <span>Preço ao cliente (@moedaVenda.Rotulo())</span>
@@ -1274,62 +1284,62 @@
             </div>
 
             <button class="btn-link" style="margin-top:6px" @onclick="() => _verPricing = !_verPricing">
-                @(_verPricing ? "esconder linhas do pricing" : "ver todas as linhas do pricing (em R$)")
+                @(_verPricing ? "esconder linhas do pricing" : "ver todas as linhas do pricing (em @Rc)")
             </button>
             @if (_verPricing)
             {
                 var vl = pr.VendaLiquida;
                 <div class="tabela-rolante">
                 <table class="grid pricing-tabela">
-                    <thead><tr><th>Linha do pricing</th><th>Célula</th><th class="right">Valor (R$)</th><th class="right">%</th></tr></thead>
+                    <thead><tr><th>Linha do pricing</th><th>Célula</th><th class="right">Valor (@Rc)</th><th class="right">%</th></tr></thead>
                     <tbody>
-                        <tr><td><strong>Custo total</strong></td><td class="cel-ref">E34</td><td class="right nowrap">@Fmt.Brl(pr.CustoTotal)</td><td class="right">—</td></tr>
-                        <tr><td>Risco de variação de preços</td><td class="cel-ref">E36</td><td class="right nowrap">@Fmt.Brl(pr.RiscoDeVariacao)</td><td class="right">—</td></tr>
-                        <tr><td>Risco adicional</td><td class="cel-ref">D37 · E37</td><td class="right nowrap">@Fmt.Brl(pr.RiscoAdicional)</td><td class="right">@Pct(_o.RiscoAdicional)</td></tr>
-                        <tr><td>Total de risco</td><td class="cel-ref">E38</td><td class="right nowrap">@Fmt.Brl(pr.Risco)</td><td class="right">@(pr.CustoComVariacao > 0 ? Pct(pr.Risco / pr.CustoComVariacao) : "—")</td></tr>
-                        <tr><td><strong>Custo total com riscos</strong></td><td class="cel-ref">E39</td><td class="right nowrap">@Fmt.Brl(pr.CustoComRiscos)</td><td class="right">—</td></tr>
+                        <tr><td><strong>Custo total</strong></td><td class="cel-ref">E34</td><td class="right nowrap">@Cu(pr.CustoTotal)</td><td class="right">—</td></tr>
+                        <tr><td>Risco de variação de preços</td><td class="cel-ref">E36</td><td class="right nowrap">@Cu(pr.RiscoDeVariacao)</td><td class="right">—</td></tr>
+                        <tr><td>Risco adicional</td><td class="cel-ref">D37 · E37</td><td class="right nowrap">@Cu(pr.RiscoAdicional)</td><td class="right">@Pct(_o.RiscoAdicional)</td></tr>
+                        <tr><td>Total de risco</td><td class="cel-ref">E38</td><td class="right nowrap">@Cu(pr.Risco)</td><td class="right">@(pr.CustoComVariacao > 0 ? Pct(pr.Risco / pr.CustoComVariacao) : "—")</td></tr>
+                        <tr><td><strong>Custo total com riscos</strong></td><td class="cel-ref">E39</td><td class="right nowrap">@Cu(pr.CustoComRiscos)</td><td class="right">—</td></tr>
                         <tr><td>Markup</td><td class="cel-ref">E41</td><td class="right nowrap">@pr.Markup.ToString("N4", PtBr)</td><td class="right">—</td></tr>
-                        <tr><td>Venda pura</td><td class="cel-ref">E42</td><td class="right nowrap">@Fmt.Brl(pr.VendaPura)</td><td class="right">—</td></tr>
-                        <tr><td>Seguro garantia ou fiança</td><td class="cel-ref">E43</td><td class="right nowrap">@Fmt.Brl(pr.Fianca)</td><td class="right">@(vl > 0 ? Pct(pr.Fianca / vl) : "—")</td></tr>
+                        <tr><td>Venda pura</td><td class="cel-ref">E42</td><td class="right nowrap">@Cu(pr.VendaPura)</td><td class="right">—</td></tr>
+                        <tr><td>Seguro garantia ou fiança</td><td class="cel-ref">E43</td><td class="right nowrap">@Cu(pr.Fianca)</td><td class="right">@(vl > 0 ? Pct(pr.Fianca / vl) : "—")</td></tr>
                         <tr>
                             <td>Comissões
                                 <span class="sub-cel">PPR @Pct(CalculoPricing.Ppr) · ELG @Pct(CalculoPricing.Elg) · DSR @Pct(CalculoPricing.Dsr * CalculoPricing.Elg)
                                     · Rep 1 @Pct(PricingDaProposta.ComissaoDe(_o.Rep1, _o.SegmentoMargem)) · Rep 2 @Pct(PricingDaProposta.ComissaoDe(_o.Rep2, _o.SegmentoMargem))</span>
                             </td>
-                            <td class="cel-ref">D46</td><td class="right nowrap">@Fmt.Brl(vl * pr.Comissoes)</td><td class="right">@Pct(pr.Comissoes)</td>
+                            <td class="cel-ref">D46</td><td class="right nowrap">@Cu(vl * pr.Comissoes)</td><td class="right">@Pct(pr.Comissoes)</td>
                         </tr>
-                        <tr><td>Margem negoc.</td><td class="cel-ref">D47</td><td class="right nowrap">@Fmt.Brl(vl * _o.MargemNegociacao)</td><td class="right">@Pct(_o.MargemNegociacao)</td></tr>
-                        <tr><td>PM + SACH</td><td class="cel-ref">D48</td><td class="right nowrap">@Fmt.Brl(vl * CalculoPricing.PmSach)</td><td class="right">@Pct(CalculoPricing.PmSach)</td></tr>
-                        <tr><td>Garantia do projeto</td><td class="cel-ref">D49</td><td class="right nowrap">@Fmt.Brl(vl * CalculoPricing.GarantiaDoProjeto)</td><td class="right">@Pct(CalculoPricing.GarantiaDoProjeto)</td></tr>
-                        <tr><td>Portal <span class="sub-cel">@(_o.Portal.Length > 0 ? _o.Portal : "preencher")</span></td><td class="cel-ref">D50</td><td class="right nowrap">@Fmt.Brl(vl * pr.Portal)</td><td class="right">@Pct(pr.Portal)</td></tr>
-                        <tr class="memoria-total"><td>Venda líquida (sem impostos)</td><td class="cel-ref">E52</td><td class="right nowrap">@Fmt.Brl(vl)</td><td class="right">—</td></tr>
+                        <tr><td>Margem negoc.</td><td class="cel-ref">D47</td><td class="right nowrap">@Cu(vl * _o.MargemNegociacao)</td><td class="right">@Pct(_o.MargemNegociacao)</td></tr>
+                        <tr><td>PM + SACH</td><td class="cel-ref">D48</td><td class="right nowrap">@Cu(vl * CalculoPricing.PmSach)</td><td class="right">@Pct(CalculoPricing.PmSach)</td></tr>
+                        <tr><td>Garantia do projeto</td><td class="cel-ref">D49</td><td class="right nowrap">@Cu(vl * CalculoPricing.GarantiaDoProjeto)</td><td class="right">@Pct(CalculoPricing.GarantiaDoProjeto)</td></tr>
+                        <tr><td>Portal <span class="sub-cel">@(_o.Portal.Length > 0 ? _o.Portal : "preencher")</span></td><td class="cel-ref">D50</td><td class="right nowrap">@Cu(vl * pr.Portal)</td><td class="right">@Pct(pr.Portal)</td></tr>
+                        <tr class="memoria-total"><td>Venda líquida (sem impostos)</td><td class="cel-ref">E52</td><td class="right nowrap">@Cu(vl)</td><td class="right">—</td></tr>
                         <tr><td>Std Project Margin <span class="sub-cel">padrão do segmento</span></td><td class="cel-ref">D54</td><td class="right">—</td><td class="right">@Pct(pr.MargemPadrao)</td></tr>
-                        <tr><td><strong>Project Margin [PM]</strong></td><td class="cel-ref">D55</td><td class="right nowrap">@Fmt.Brl(vl * pr.Margem)</td><td class="right"><strong>@Pct(pr.Margem)</strong></td></tr>
-                        <tr><td>Protected PM</td><td class="cel-ref">D56</td><td class="right nowrap">@Fmt.Brl(vl * pr.MargemProtegida)</td><td class="right">@Pct(pr.MargemProtegida)</td></tr>
-                        <tr><td>Total Project Margin</td><td class="cel-ref">D57</td><td class="right nowrap">@Fmt.Brl(vl * pr.MargemTotal)</td><td class="right">@Pct(pr.MargemTotal)</td></tr>
-                        <tr><td>Contribution Margin [CM]</td><td class="cel-ref">D58</td><td class="right nowrap">@Fmt.Brl(vl * pr.MargemDeContribuicao)</td><td class="right">@Pct(pr.MargemDeContribuicao)</td></tr>
-                        <tr><td>Net Cost Basis (Salesforce)</td><td class="cel-ref">Q28</td><td class="right nowrap">@Fmt.Brl(pr.NetCostBasis)</td><td class="right">—</td></tr>
-                        <tr><td>PIS</td><td class="cel-ref">D61 · E61</td><td class="right nowrap">@Fmt.Brl(pr.ValorPis)</td><td class="right">@Pct(pr.AliqPis)</td></tr>
-                        <tr><td>COFINS</td><td class="cel-ref">D62 · E62</td><td class="right nowrap">@Fmt.Brl(pr.ValorCofins)</td><td class="right">@Pct(pr.AliqCofins)</td></tr>
+                        <tr><td><strong>Project Margin [PM]</strong></td><td class="cel-ref">D55</td><td class="right nowrap">@Cu(vl * pr.Margem)</td><td class="right"><strong>@Pct(pr.Margem)</strong></td></tr>
+                        <tr><td>Protected PM</td><td class="cel-ref">D56</td><td class="right nowrap">@Cu(vl * pr.MargemProtegida)</td><td class="right">@Pct(pr.MargemProtegida)</td></tr>
+                        <tr><td>Total Project Margin</td><td class="cel-ref">D57</td><td class="right nowrap">@Cu(vl * pr.MargemTotal)</td><td class="right">@Pct(pr.MargemTotal)</td></tr>
+                        <tr><td>Contribution Margin [CM]</td><td class="cel-ref">D58</td><td class="right nowrap">@Cu(vl * pr.MargemDeContribuicao)</td><td class="right">@Pct(pr.MargemDeContribuicao)</td></tr>
+                        <tr><td>Net Cost Basis (Salesforce)</td><td class="cel-ref">Q28</td><td class="right nowrap">@Cu(pr.NetCostBasis)</td><td class="right">—</td></tr>
+                        <tr><td>PIS</td><td class="cel-ref">D61 · E61</td><td class="right nowrap">@Cu(pr.ValorPis)</td><td class="right">@Pct(pr.AliqPis)</td></tr>
+                        <tr><td>COFINS</td><td class="cel-ref">D62 · E62</td><td class="right nowrap">@Cu(pr.ValorCofins)</td><td class="right">@Pct(pr.AliqCofins)</td></tr>
                         <tr><td>ICMS <span class="sub-cel">@(_o.Estado.Length > 0 ? _o.Estado : "estado?"), coluna @(Textos.Igual(_o.Bu, "HSA-SP") ? "HSA-SP" : "HSA-ES")@(Textos.Igual(_o.NcmReducaoIcms, "Sim") ? ", base reduzida" : "")</span></td>
-                            <td class="cel-ref">D63 · E63</td><td class="right nowrap">@(pr.ValorIcms is decimal vi ? Fmt.Brl(vi) : "—")</td><td class="right">@(pr.AliqIcms is decimal ai ? Pct(ai) : "—")</td></tr>
-                        <tr><td>IPI</td><td class="cel-ref">D64 · E64</td><td class="right nowrap">@(pr.ValorIpi is decimal vp ? Fmt.Brl(vp) : "—")</td><td class="right">@Pct(pr.AliqIpi)</td></tr>
+                            <td class="cel-ref">D63 · E63</td><td class="right nowrap">@(pr.ValorIcms is decimal vi ? Cu(vi) : "—")</td><td class="right">@(pr.AliqIcms is decimal ai ? Pct(ai) : "—")</td></tr>
+                        <tr><td>IPI</td><td class="cel-ref">D64 · E64</td><td class="right nowrap">@(pr.ValorIpi is decimal vp ? Cu(vp) : "—")</td><td class="right">@Pct(pr.AliqIpi)</td></tr>
                         @if (pr.ValorBackToBack is decimal vb)
                         {
-                            <tr><td>Back to Back</td><td class="cel-ref">D65 · E65</td><td class="right nowrap">@Fmt.Brl(vb)</td><td class="right">@Pct(CalculoPricing.ImpostoBackToBack)</td></tr>
+                            <tr><td>Back to Back</td><td class="cel-ref">D65 · E65</td><td class="right nowrap">@Cu(vb)</td><td class="right">@Pct(CalculoPricing.ImpostoBackToBack)</td></tr>
                         }
                         @if (pr.ServicoOuReforma)
                         {
-                            <tr><td>@(Textos.Igual(_o.Bu, "HSA-SP") ? "ISS - Itatiba" : "ISS - Serra")</td><td class="cel-ref">D66 · E66</td><td class="right nowrap">@(pr.ValorIss is decimal vis ? Fmt.Brl(vis) : "—")</td><td class="right">@Pct(pr.AliqIss)</td></tr>
-                            <tr><td>ISS - Outro Munic.</td><td class="cel-ref">D67 · E67</td><td class="right nowrap">@(pr.ValorIssOutro is decimal vio ? Fmt.Brl(vio) : "—")</td><td class="right">@Pct(pr.AliqIssOutro)</td></tr>
+                            <tr><td>@(Textos.Igual(_o.Bu, "HSA-SP") ? "ISS - Itatiba" : "ISS - Serra")</td><td class="cel-ref">D66 · E66</td><td class="right nowrap">@(pr.ValorIss is decimal vis ? Cu(vis) : "—")</td><td class="right">@Pct(pr.AliqIss)</td></tr>
+                            <tr><td>ISS - Outro Munic.</td><td class="cel-ref">D67 · E67</td><td class="right nowrap">@(pr.ValorIssOutro is decimal vio ? Cu(vio) : "—")</td><td class="right">@Pct(pr.AliqIssOutro)</td></tr>
                         }
                         @if (pr.Retencao is decimal ret)
                         {
-                            <tr><td>Retenção</td><td class="cel-ref">D68 · E68</td><td class="right nowrap">@(pr.ValorRetencao is decimal vr ? Fmt.Brl(vr) : "consultar Financeiro")</td><td class="right">@Pct(ret)</td></tr>
+                            <tr><td>Retenção</td><td class="cel-ref">D68 · E68</td><td class="right nowrap">@(pr.ValorRetencao is decimal vr ? Cu(vr) : "consultar Financeiro")</td><td class="right">@Pct(ret)</td></tr>
                         }
                         @if (pr.ProdutoBackToBackFinanceiro is decimal s84)
                         {
-                            <tr><td>Prod. B2B (s/ impostos) <span class="sub-cel">só vale para o Financeiro: o B2B precisa incluir PIS e COFINS</span></td><td class="cel-ref">S84</td><td class="right nowrap">@Fmt.Brl(s84)</td><td class="right">—</td></tr>
+                            <tr><td>Prod. B2B (s/ impostos) <span class="sub-cel">só vale para o Financeiro: o B2B precisa incluir PIS e COFINS</span></td><td class="cel-ref">S84</td><td class="right nowrap">@Cu(s84)</td><td class="right">—</td></tr>
                         }
                     </tbody>
                 </table>
@@ -1347,7 +1357,7 @@
             {
                 <div class="pricing-acoes">
                     @if (_itemDemais is null || !_items.Contains(_itemDemais)) { <button class="btn-ghost" @onclick="AdicionarDemais">Incluir item "Serviços e demais custos"</button> }
-                    <span>A tabela de custo tem @Fmt.Brl(demais) além dos itens (@NomesDosDemais()) — no preço, @VendaDe(demais * PricingDaProposta.FatorNoNivel(pr, _o.ImpostosNoPreco)).
+                    <span>A tabela de custo tem @Cu(demais) além dos itens (@NomesDosDemais()) — no preço, @VendaDe(demais * PricingDaProposta.FatorNoNivel(pr, _o.ImpostosNoPreco)).
                         @(_itemDemais is not null && _items.Contains(_itemDemais) ? "Já está na proposta como item, com o preço atualizado." : "Inclua como item da proposta para cobrar à parte.")</span>
                 </div>
             }
@@ -1378,7 +1388,7 @@
     <div class="tabela-rolante" style="margin-top:12px">
     <table class="grid tabela-precos">
         <thead>
-            <tr><th>Item</th><th class="right">Qtd</th><th class="right">Custo unitário (R$)</th><th class="right">Preço unitário (@Cambio.MoedaDoPreco(_o).Rotulo())</th><th class="right">Total</th></tr>
+            <tr><th>Item</th><th class="right">Qtd</th><th class="right">Custo unitário (@Rc)</th><th class="right">Preço unitário (@Cambio.MoedaDoPreco(_o).Rotulo())</th><th class="right">Total</th></tr>
         </thead>
         <tbody>
             @for (int i = 0; i < _items.Count; i++)
@@ -1393,7 +1403,7 @@
                         }
                     </td>
                     <td class="right">@it.Quantity</td>
-                    <td class="right nowrap">@(it == _itemDemais ? Fmt.Brl(DemaisCustos(custosLado, prLado)) : custoIt is decimal cu ? Fmt.Brl(cu) : "sem custo")</td>
+                    <td class="right nowrap">@(it == _itemDemais ? Cu(DemaisCustos(custosLado, prLado)) : custoIt is decimal cu ? Cu(cu) : "sem custo")</td>
                     <td class="right nowrap"><strong>@(it.UnitPrice > 0 ? Venda(it.UnitPrice) : "—")</strong></td>
                     <td class="right nowrap"><strong>@Venda(it.TotalPrice)</strong></td>
                 </tr>
@@ -1602,7 +1612,7 @@
     @if (_msg is not null) { <div class="alert-ok">@_msg</div> }
 
     <div class="panel side-numeros">
-        <div class="side-item"><span>Custo total (R$)</span><strong>@(prLado.CustoTotal > 0 ? Fmt.Brl(prLado.CustoTotal) : "—")</strong></div>
+        <div class="side-item"><span>Custo total (@Rc)</span><strong>@(prLado.CustoTotal > 0 ? Cu(prLado.CustoTotal) : "—")</strong></div>
         <div class="side-item">
             <span>Margem</span>
             <strong>@(temPricingLado ? Pct(prLado.Margem) : "—")</strong>
@@ -1753,7 +1763,7 @@
         get
         {
             Dictionary<CommercialOfferItem, decimal>? imp = null;
-            if (_items.Any(i => i.Importado) && !string.IsNullOrEmpty(_o.ImportacaoModo))
+            if (_items.Any(Imp) && !string.IsNullOrEmpty(_o.ImportacaoModo))
             {
                 var calc = Importacoes;
                 imp = _o.ImportacaoModo == "item" ? calc.UnitarioPorItem : calc.UnitarioPorTotal;
@@ -1765,7 +1775,7 @@
             foreach (var it in _items)
             {
                 decimal? unit = null;
-                if (it.Importado)
+                if (Imp(it))
                 {
                     if (imp is not null && imp.TryGetValue(it, out var u)) unit = u;
                 }
@@ -1777,7 +1787,7 @@
                 {
                     c += frete.GetValueOrDefault(it) + it.CustoTa;   // o frete (pelo peso) e o TA do preço meta entram no custo do item
                     com.Add((it, c));
-                    if (it.Importado) importados += c * it.Quantity; else nacionais += c * it.Quantity;
+                    if (Imp(it)) importados += c * it.Quantity; else nacionais += c * it.Quantity;   // de fora: produto comprado
                 }
                 else sem.Add(it);
             }
@@ -1963,7 +1973,7 @@
     /// <summary>Valor na moeda do preço ("USD 1.234,56").</summary>
     private string Venda(decimal valorNaVenda) => Cambio.Dinheiro(_o, valorNaVenda);
 
-    /// <summary>Valor em R$ levado para a moeda do preço.</summary>
+    /// <summary>Valor na moeda do custo levado para a moeda do preço.</summary>
     private string VendaDe(decimal valorEmReais) => Venda(Cambio.ParaVenda(_o, valorEmReais));
 
     private static string NomeCurto(CommercialOfferItem it) =>
@@ -2008,7 +2018,7 @@
     {
         get
         {
-            var importados = _items.Where(i => i.Importado).ToList();
+            var importados = _items.Where(Imp).ToList();
             var pend = new List<string>();
             if (_o.TaxaCambio <= 0) pend.Add("informe a taxa cambial");
             var semPreco = importados.Count(i => i.ValorMoeda <= 0);
@@ -2036,7 +2046,7 @@
     /// <summary>Custo unitário de importação do item no modo escolhido (null enquanto falta dado).</summary>
     private decimal? CustoImportadoDo(CommercialOfferItem it)
     {
-        if (!it.Importado || string.IsNullOrEmpty(_o.ImportacaoModo)) return null;
+        if (!Imp(it) || string.IsNullOrEmpty(_o.ImportacaoModo)) return null;
         var imp = Importacoes;
         var mapa = _o.ImportacaoModo == "item" ? imp.UnitarioPorItem : imp.UnitarioPorTotal;
         return mapa.TryGetValue(it, out var v) ? v : null;
@@ -2393,12 +2403,24 @@
             </section>
 
             <section class="it-bloco b-custo">
-                <h4>Custo (R$)</h4>
+                <h4>Custo (@Rc)</h4>
+                @if (DeFora)
+                {
+                    <label>Preço de fora (@Rc, unit.)
+                        <input class="cell num" type="number" min="0" step="0.01" placeholder="o preço de fora"
+                               value="@(CustoDeFora(it) is decimal cf ? cf.ToString(CultureInfo.InvariantCulture) : "")"
+                               @onchange="e => MudarCustoDoItem(it, e)" />
+                    </label>
+                    <small class="it-nota @(CustoDeFora(it) is null ? "custo-indisp" : "")">@(CustoDeFora(it) is null ? "sem custo: digite o preço de fora" : $"BU {_o.Bu}: sem importação — o preço de fora + frete + margem")</small>
+                }
+                else
+                {
                 <div class="it-linha-campo">
                     <label class="chk-inline"><input type="checkbox" checked="@it.Importado" @onchange="e => MarcarImportadoDe(it, e)" /> importado</label>
                     @if (it.PartNumber.Length > 0) { @SeloNac(r) }
                 </div>
-                @if (it.Importado)
+                }
+                @if (Imp(it))
                 {
                     <label>Preço do fornecedor (@_o.Moeda, unit.)
                         <input class="cell num" type="number" min="0" step="0.01" placeholder="preço unit."
@@ -2410,7 +2432,7 @@
                         <small class="it-nota custo-indisp">@(novo ? "o custo em R$ é calculado ao incluir" : it.ValorMoeda <= 0 ? $"informe o preço em {_o.Moeda}" : "complete a importação abaixo")</small>
                     }
                 }
-                else
+                else if (!DeFora)
                 {
                     <label>Custo unitário
                         <input class="cell num" type="number" min="0" step="0.01" placeholder="digite o custo"
@@ -2442,7 +2464,7 @@
                         }
                     </span>
                 </div>
-                <label>TA (R$ por unidade)
+                <label>TA (@Rc por unidade)
                     <input class="cell num" type="number" min="0" step="0.01" placeholder="sem TA" @key="@($"tad-{Versao(it)}-{Math.Round(it.CustoTa, 2)}")"
                            value="@(it.CustoTa > 0m ? Math.Round(it.CustoTa, 2).ToString(CultureInfo.InvariantCulture) : "")" @onchange="e => MudarTaDoItem(it, e)" />
                 </label>
@@ -2450,10 +2472,10 @@
                 @if (!novo && CustoDoItem(it) is decimal ctotal)
                 {
                     <div class="it-composicao">
-                        <span>base @Fmt.Brl(custoBase ?? 0m)</span>
-                        @if (FreteDo(it) > 0m) { <span>+ frete @Fmt.Brl(FreteDo(it))</span> }
-                        @if (it.CustoTa > 0m) { <span>+ TA @Fmt.Brl(Math.Round(it.CustoTa, 2))</span> }
-                        <strong>= @Fmt.Brl(ctotal) un.</strong>
+                        <span>base @Cu(custoBase ?? 0m)</span>
+                        @if (FreteDo(it) > 0m) { <span>+ frete @Cu(FreteDo(it))</span> }
+                        @if (it.CustoTa > 0m) { <span>+ TA @Cu(Math.Round(it.CustoTa, 2))</span> }
+                        <strong>= @Cu(ctotal) un.</strong>
                     </div>
                 }
                 @if (refCusto is not null)
@@ -2462,7 +2484,7 @@
                         <span class="it-ref-rot">Custo de referência</span>
                         <strong>@Fmt.Brl(refCusto.Valor)</strong>
                         <span class="it-ref-de">@Fmt.Date(refCusto.Data) · @refCusto.Proposta @SeloBase(refCusto.BaseDoCusto)</span>
-                        @if (!it.Importado && refCusto.Valor != custoBase)
+                        @if (!it.Importado && !DeFora && refCusto.Valor != custoBase)
                         {
                             <button class="btn-link" @onclick="() => { it.CustoManual = refCusto.Valor; if (it.BaseCusto.Length == 0) it.BaseCusto = refCusto.BaseDoCusto; }">usar este custo</button>
                         }
@@ -2492,7 +2514,7 @@
                     <div class="it-composicao">
                         <span>preço @(it.UnitPrice > 0 ? Venda(it.UnitPrice) : "—") un.</span>
                         <strong>total @Venda(it.TotalPrice)</strong>
-                        @if (it.PrecoMeta > 0 && it.CustoTa > 0) { <span class="ta">TA @Fmt.Brl(Math.Round(it.CustoTa, 2)) para chegar na meta</span> }
+                        @if (it.PrecoMeta > 0 && it.CustoTa > 0) { <span class="ta">TA @Cu(Math.Round(it.CustoTa, 2)) para chegar na meta</span> }
                         else if (it.PrecoMeta > 0 && it.UnitPrice > it.PrecoMeta + 0.01m) { <span class="custo-indisp">acima da meta</span> }
                     </div>
                 }
@@ -2545,8 +2567,8 @@
     private bool PassaNoFiltro(CommercialOfferItem it) => _filtroItens switch
     {
         "pend" => it != _itemDemais && CustoDoItem(it) is null,
-        "imp" => it.Importado,
-        "nac" => it != _itemDemais && !it.Importado,
+        "imp" => Imp(it),
+        "nac" => it != _itemDemais && !Imp(it),
         _ => true,
     };
 
@@ -2560,6 +2582,7 @@
     /// <summary>De onde vem o custo, numa palavra: importado, digitado, Nacionalização ou "sem custo".</summary>
     private string OrigemCurta(CommercialOfferItem it)
     {
+        if (DeFora) return CustoDeFora(it) is > 0 ? "preço de fora " : "sem custo ";
         if (it.Importado) return "importado ";
         if (it.CustoManual is > 0) return "digitado ";
         var r = RefDoItem(it);

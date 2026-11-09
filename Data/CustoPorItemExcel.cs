@@ -27,7 +27,9 @@ public static class CustoPorItemExcel
         string nivelDeImposto)
     {
         var moeda = Cambio.MoedaDoPreco(o);
-        var fmtReal = "\"R$\" #,##0.00";
+        var custoM = Cambio.MoedaDoCusto(o);
+        var rc = custoM.Rotulo();
+        var fmtReal = custoM == Moeda.Clp ? "\"CLP\" #,##0" : $"\"{rc}\" #,##0.00";
         var fmtVenda = moeda == Moeda.Clp ? "\"CLP\" #,##0" : $"\"{moeda.Rotulo()}\" #,##0.00";
         var amarelo = XLColor.FromHtml("#FFF2B3");
         var azul = XLColor.FromHtml("#004785");
@@ -43,10 +45,10 @@ public static class CustoPorItemExcel
             ("Proposta", PropostaWord.Referencia(o)),
             ("Cliente", o.ClientName),
             ("Data", DateTime.TryParse(o.OfferDate, out var d) ? d.ToString("dd/MM/yyyy") : o.OfferDate),
-            ("Moeda do preço", moeda.Rotulo() + (Cambio.Converte(o) && Cambio.Efetivo(o) is var fx && fx != 1m ? $" (1 {moeda.Rotulo()} = R$ {fx:N4} com a segurança)" : "")),
+            ("Moeda do preço", moeda.Rotulo() + (Cambio.Converte(o) && Cambio.Efetivo(o) is var fx && fx != 1m ? $" (1 {moeda.Rotulo()} = {rc} {fx:N4} com a segurança)" : "")),
             ("Preço ao cliente", nivelDeImposto),
             ("Margem do pricing", r.VendaLiquida > 0 ? r.Margem.ToString("P2", new System.Globalization.CultureInfo("pt-BR")) : "—"),
-            ("Frete da proposta", o.FreteCusto > 0 ? o.FreteCusto.ToString("\"R$\" #,##0.00", new System.Globalization.CultureInfo("pt-BR")) : "—"),
+            ("Frete da proposta", o.FreteCusto > 0 ? Moedas.Dinheiro(custoM, o.FreteCusto) : "—"),
         };
         for (var i = 0; i < cab.Length; i++)
         {
@@ -59,8 +61,8 @@ public static class CustoPorItemExcel
         var titulos = new[]
         {
             "Item", "Part Number", "Descrição", "Modelo", "Serial Number", "TAG", "Origem", "Prazo (dias)", "Qtd",
-            "Custo unit. (R$)", "Frete unit. (R$)", "TA unit. (R$)", "Custo unit. c/ frete e TA (R$)",
-            "Custo total (R$)", "Frete total (R$)", "TA total (R$)",
+            $"Custo unit. ({rc})", $"Frete unit. ({rc})", $"TA unit. ({rc})", $"Custo unit. c/ frete e TA ({rc})",
+            $"Custo total ({rc})", $"Frete total ({rc})", $"TA total ({rc})",
             $"Preço meta ({moeda.Rotulo()})", $"Preço unit. ({moeda.Rotulo()})", $"Preço total ({moeda.Rotulo()})",
         };
         const int linhaTitulo = 11;

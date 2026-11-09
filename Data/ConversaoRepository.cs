@@ -35,6 +35,17 @@ public sealed class TaxasDeConversao
         Moeda.Clp when ClpPorReal > 0 => (ClpPorReal, "CustoEmVenda"),
         _ => null,
     };
+
+    /// <summary>Quantos R$ vale 1 unidade da moeda (null quando a aba não tem a taxa).</summary>
+    public decimal? ReaisPor(Moeda m) => m switch
+    {
+        Moeda.Brl => 1m,
+        Moeda.Usd when UsdEmReais > 0 => UsdEmReais,
+        Moeda.Eur when EurEmReais > 0 => EurEmReais,
+        Moeda.Pen when PenEmReais > 0 => PenEmReais,
+        Moeda.Clp when ClpPorReal > 0 => 1m / ClpPorReal,
+        _ => null,
+    };
 }
 
 /// <summary>
