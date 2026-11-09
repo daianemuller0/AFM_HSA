@@ -60,7 +60,10 @@ public class CommercialOffer
     /// </summary>
     public decimal FreteCusto { get; set; }
 
-    /// <summary>Nº do CRM da oportunidade: é o título da solicitação de cotação Intercompany ("RFQ – nº").</summary>
+    /// <summary>
+    /// Campo antigo do Nº do CRM. O nº do CRM é o próprio código da proposta
+    /// (<see cref="OfferCode"/>, a "nossa referência"): fica só para ler as gravadas.
+    /// </summary>
     public string NumeroCrm { get; set; } = "";
     // Condições comerciais (editáveis)
     public string IntroText { get; set; } = "";

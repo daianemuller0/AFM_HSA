@@ -161,15 +161,12 @@
 <div class="panel" style="margin-bottom:14px">
     <div class="dash-title">Cliente</div>
     <div class="form3">
-        <label id="f-numero">Nossa referência (código da proposta) *
+        <label id="f-numero">Nº do CRM (nossa referência) *
             <input class="cell" placeholder="ex.: HSA123.AFM.000045" @bind="_o.OfferCode" />
             <small class="pricing-dica">arquivos: @PropostaWord.Referencia(_o) · P_@PropostaWord.Referencia(_o) · R_@PropostaWord.Referencia(_o)</small>
         </label>
         <label id="f-revisao">Revisão
             <input class="cell" list="dl-revisao" @bind="_o.Revisao" />
-        </label>
-        <label id="f-crm">Nº do CRM
-            <input class="cell" placeholder="nº da oportunidade no CRM" @bind="_o.NumeroCrm" />
         </label>
         <label id="f-cliente">Nome do cliente *
             <input class="cell" list="dl-clientes" placeholder="da base ou digitado" @bind="_o.ClientName" />
@@ -1470,10 +1467,6 @@
             <div class="email-assunto"><span>Assunto</span>@aprov.Assunto</div>
             <label>Nota (opcional)<input class="cell" value="@_notaAprovacao" placeholder="aparece como &quot;Nota:&quot; no e-mail" @onchange="e => _notaAprovacao = e.Value?.ToString() ?? string.Empty" /></label>
             <div class="nota">Cliente com a planta, projeto, escopo, itens sem impostos, GM, negociação, comissão, garantia, risco, prazo, dólar, pagamento, garantia do projeto e seguros. A assinatura é a do seu Outlook.</div>
-            @if (string.IsNullOrWhiteSpace(_o.NumeroCrm))
-            {
-                <div class="custo-indisp">Sem Nº do CRM (Cliente e condições): o assunto sai com o código da proposta.</div>
-            }
             <div class="email-acoes">
                 <button class="btn-accent" disabled="@_gerandoEmail" @onclick="EmlDeAprovacao">✉ Abrir e-mail no Outlook (pricing anexo)</button>
                 <button class="btn-ghost" @onclick='() => Copiar(EmailDeAprovacao(""))'>⧉ Copiar</button>

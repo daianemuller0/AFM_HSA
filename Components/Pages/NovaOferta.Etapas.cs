@@ -81,7 +81,7 @@ public partial class NovaOferta : IDisposable
         Falta(V(_o.ClientName), "Nome do cliente", 2, "f-cliente");
         Falta(V(_o.AttentionTo), "Aos cuidados de (contato)", 2, "f-ac");
         Falta(V(_o.City), "Cidade do cliente", 2, "f-cidade");
-        Falta(V(_o.OfferCode), "Nossa referência (código da proposta)", 2, "f-numero");
+        Falta(V(_o.OfferCode), "Nº do CRM (nossa referência)", 2, "f-numero");
         Falta(V(_o.PaymentTerms), "Condição de pagamento", 2, "f-pagamento");
         Falta(ListasDaProposta.Incoterms.FirstOrDefault(x => x.Codigo == _o.Incoterm) is { PedeLocal: true } && V(_o.IncotermLocal),
             "Local do incoterm", 2, "f-incoterm-local");

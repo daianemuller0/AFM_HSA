@@ -51,11 +51,11 @@ public static class EmailsDaProposta
 
     /// <summary>
     /// "Nº do CRM-revisão – PRICING – Cliente (planta) – Referência do cliente – APROVAÇÃO DE PRICING DE PROPOSTA"
-    /// (sem CRM, o código da proposta).
+    /// (o nº do CRM é o código da proposta, a "nossa referência").
     /// </summary>
     public static string AssuntoDaAprovacao(CommercialOffer o, string clienteCompleto)
     {
-        var numero = $"{PropostaWord.Ou(o.NumeroCrm, o.OfferCode)}-{PropostaWord.Ou(o.Revisao, "0")}";
+        var numero = $"{PropostaWord.Ou(o.OfferCode, o.NumeroCrm)}-{PropostaWord.Ou(o.Revisao, "0")}";
         var partes = new[] { numero, "PRICING", clienteCompleto, o.SuaReferencia, "APROVAÇÃO DE PRICING DE PROPOSTA" }
             .Select(p => (p ?? "").Trim()).Where(p => p.Length > 0);
         return string.Join(" – ", partes);

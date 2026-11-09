@@ -39,7 +39,7 @@
         </div>
 
         <div class="ic-campos">
-            <label>Nº do CRM (vai no assunto)
+            <label>Nº do CRM / código da proposta (vai no assunto)
                 <input class="cell" value="@s.NumeroCrm" placeholder="nº da oportunidade" @onchange="e => s.NumeroCrm = e.Value?.ToString()?.Trim() ?? string.Empty" />
             </label>
             <label>Proposta
@@ -225,7 +225,8 @@
         _edit.PropostaId = o?.Id ?? "";
         _edit.Proposta = o is null ? "" : PropostaWord.Referencia(o);
         _edit.Cliente = o?.ClientName ?? "";
-        if ((o?.NumeroCrm ?? "").Trim() is { Length: > 0 } crm) _edit.NumeroCrm = crm;
+        // o nº do CRM é o código da proposta (a nossa referência)
+        if (PropostaWord.Ou(o?.OfferCode ?? "", o?.NumeroCrm ?? "").Trim() is { Length: > 0 } crm) _edit.NumeroCrm = crm;
         if ((o?.Moeda ?? "").Trim() is { Length: > 0 } moeda) _edit.Moeda = moeda.ToUpperInvariant();
         _daProposta = o is null ? new() : ItensDaProposta(o.Id);
         _edit.Itens.RemoveAll(i => i.ItemId.Length > 0);
