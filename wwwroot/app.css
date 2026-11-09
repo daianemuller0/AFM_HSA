@@ -1497,3 +1497,6 @@ tr.linha-marcada td { background: #fff1f2; }
 .banco-cab, .banco-linha { display: grid; grid-template-columns: minmax(120px, 0.8fr) 1.6fr 24px 24px; gap: 6px; align-items: center; }
 .banco-cab { font-size: 11px; color: var(--muted, #6b7280); font-weight: 600; }
 .chip-falta { margin-left: 6px; font-size: 10.5px; background: #fef3c7; color: #92400e; border-radius: 999px; padding: 1px 7px; font-weight: 600; }
+/* taxa de câmbio digitada ao contrário */
+.taxa-invertida { border-color: #fca5a5 !important; background: #fef2f2 !important; color: #991b1b !important; }
+.taxa-invertida .btn-link { font-weight: 700; }

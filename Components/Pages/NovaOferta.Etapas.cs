@@ -138,6 +138,8 @@ public partial class NovaOferta : IDisposable
 
         // 4 — preço
         Falta(Cambio.FaltaTaxa(_o), $"Taxa de câmbio do {Cambio.MoedaDoPreco(_o).Rotulo()}", 4, "f-taxa");
+        Falta(Cambio.TaxaPareceInvertida(_o),
+            $"Taxa de câmbio {Cambio.MoedaDoCusto(_o).Rotulo()} → {Cambio.MoedaDoPreco(_o).Rotulo()} parece ao contrário: confira o sentido", 4, "f-taxa");
         if (Bancos.ParaProposta(_o) is { Conta: null } semConta)
             Avisa(true, $"Sem conta bancária em {semConta.Moeda.Rotulo()} da {semConta.Dados.Bu} (Dados e Importação → Dados bancários): o Word sai sem a conta", 5, "");
         var acimaDaMeta = _items.Count(i => i.PrecoMeta > 0m && i.UnitPrice > i.PrecoMeta + 0.01m);

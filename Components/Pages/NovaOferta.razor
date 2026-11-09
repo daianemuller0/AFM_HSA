@@ -1039,10 +1039,19 @@
                 {
                     <span class="pricing-par" id="f-taxa">
                         <span class="pricing-rot">Taxa</span>
+                        @* o sentido do mercado (1 da moeda mais forte) vem primeiro *@
                         <select class="cell" value="@_o.CambioDirecao" aria-label="Sentido da taxa"
                                 @onchange='e => _o.CambioDirecao = e.Value?.ToString() ?? "VendaEmCusto"'>
-                            <option value="VendaEmCusto">1 @moedaVenda.Rotulo() em @Rc</option>
-                            <option value="CustoEmVenda">1 @Rc em @moedaVenda.Rotulo()</option>
+                            @if (Cambio.DirecaoNatural(_o) == "CustoEmVenda")
+                            {
+                                <option value="CustoEmVenda">1 @Rc vale (em @moedaVenda.Rotulo())</option>
+                                <option value="VendaEmCusto">1 @moedaVenda.Rotulo() vale (em @Rc)</option>
+                            }
+                            else
+                            {
+                                <option value="VendaEmCusto">1 @moedaVenda.Rotulo() vale (em @Rc)</option>
+                                <option value="CustoEmVenda">1 @Rc vale (em @moedaVenda.Rotulo())</option>
+                            }
                         </select>
                         <span>=</span>
                         <input class="cell num pricing-taxa" type="number" min="0" step="0.0001" placeholder="0,00"
@@ -1075,8 +1084,28 @@
                     var taxaBase = Cambio.Normalizada(_o);
                     <div class="pricing-confira">
                         Confira: <strong>1 @moedaVenda.Rotulo() = @Rc @taxaBase.ToString("N4", PtBr)</strong>
-                        · 1 @Rc = @moedaVenda.Rotulo() @((1m / taxaBase).ToString("N6", PtBr))
+                        · <strong>1 @Rc = @moedaVenda.Rotulo() @((1m / taxaBase).ToString("N4", PtBr))</strong>
+                        @if (pr.VendaLiquida > 0m)
+                        {
+                            <span> · a venda líquida de <strong>@Cu(pr.VendaLiquida)</strong> vira <strong>@Venda(Cambio.ParaVenda(_o, pr.VendaLiquida))</strong></span>
+                        }
                     </div>
+                    @if (Cambio.TaxaPareceInvertida(_o))
+                    {
+                        @* digitar a cotação do mercado no sentido contrário inverte o preço (16.000 EUR viravam 15.060 USD) *@
+                        var natural = Cambio.DirecaoNatural(_o) == "VendaEmCusto";
+                        var forte = natural ? moedaVenda.Rotulo() : Rc;
+                        var fraca = natural ? Rc : moedaVenda.Rotulo();
+                        var esperada = Cambio.TaxaAproximada(moedaVenda, MoedaCusto);
+                        var deUmForte = natural ? esperada : 1m / esperada;
+                        var invertidoUm = _o.CambioDirecao == "VendaEmCusto" ? Rc : moedaVenda.Rotulo();
+                        var invertidoOutro = _o.CambioDirecao == "VendaEmCusto" ? moedaVenda.Rotulo() : Rc;
+                        <div class="imp-pendencia taxa-invertida" style="margin-top:6px">
+                            ⚠ A taxa parece estar <strong>ao contrário</strong>: o normal é 1 @forte valer perto de @deUmForte.ToString("N4", PtBr) @fraca.
+                            Do jeito que está, o preço em @moedaVenda.Rotulo() sai <strong>@(Cambio.Normalizada(_o) > esperada ? "menor" : "maior")</strong> do que deveria.
+                            <button class="btn-link" @onclick="InverterTaxa">corrigir: 1 @invertidoUm = @_o.CambioTaxa.ToString("#,##0.######", PtBr) @invertidoOutro</button>
+                        </div>
+                    }
                     @if (Cambio.Seguranca(_o) > 0m)
                     {
                         <div class="pricing-dica">
@@ -1912,8 +1941,10 @@
         // a taxa digitada é do par anterior: trocar de moeda começa de novo
         if (Cambio.MoedaDoPreco(_o) != m) { _o.CambioTaxa = 0; _taxaDoDia = false; }
         _o.MoedaVenda = m.Codigo();
-        // o sentido em que a equipe fala: "1 USD = 5,40 R$", mas "1 R$ = 175 CLP"
-        _o.CambioDirecao = m == Moeda.Clp ? "CustoEmVenda" : "VendaEmCusto";
+        // o sentido em que a cotação é falada: 1 da moeda mais forte = X da outra
+        // ("1 USD = 5,40 R$", "1 EUR = 1,08 USD", "1 R$ = 175 CLP") — digitar a
+        // cotação do mercado no sentido contrário inverte o preço
+        _o.CambioDirecao = Cambio.DirecaoNatural(m, Cambio.MoedaDoCusto(_o));
         PreencherTaxaDoDia();
     }
 
@@ -1974,6 +2005,9 @@
         _taxaDoDia = true;
         _taxaAtualizadaEm = TaxasDaConversao().AtualizadaEm;
     }
+
+    /// <summary>A mesma taxa no sentido contrário: era a cotação do mercado digitada ao contrário.</summary>
+    private void InverterTaxa() => _o.CambioDirecao = Cambio.DirecaoOposta(_o);
 
     private void MudarCambioTaxa(ChangeEventArgs e)
     {

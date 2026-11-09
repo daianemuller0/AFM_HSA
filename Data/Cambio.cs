@@ -121,6 +121,53 @@ public static class Cambio
         return o.CambioDirecao == "CustoEmVenda" ? 1m / o.CambioTaxa : o.CambioTaxa;
     }
 
+    /// <summary>
+    /// O valor aproximado de cada moeda em dólar — SÓ a ordem de grandeza
+    /// (2025/2026), para pegar a taxa digitada ao contrário. Não entra em conta
+    /// nenhuma: o preço usa sempre a taxa digitada na proposta.
+    /// </summary>
+    private static decimal UsdAproximado(Moeda m) => m switch
+    {
+        Moeda.Usd => 1m,
+        Moeda.Eur => 1.10m,
+        Moeda.Pen => 0.27m,
+        Moeda.Brl => 0.18m,
+        Moeda.Clp => 0.00105m,
+        _ => 1m,
+    };
+
+    /// <summary>
+    /// O sentido em que a taxa é falada no mercado: 1 da moeda mais forte = X
+    /// da outra ("1 EUR = 1,08 USD", "1 USD = 5,40 R$", "1 USD = 950 CLP").
+    /// "VendaEmCusto" = 1 moeda do preço em moeda do custo; "CustoEmVenda" = o contrário.
+    /// </summary>
+    public static string DirecaoNatural(Moeda venda, Moeda custo) =>
+        UsdAproximado(venda) >= UsdAproximado(custo) ? "VendaEmCusto" : "CustoEmVenda";
+
+    public static string DirecaoNatural(CommercialOffer o) => DirecaoNatural(MoedaDoPreco(o), MoedaDoCusto(o));
+
+    /// <summary>A ordem de grandeza de "1 moeda do preço = X moeda do custo" (só para avisos).</summary>
+    public static decimal TaxaAproximada(Moeda venda, Moeda custo) => UsdAproximado(venda) / UsdAproximado(custo);
+
+    /// <summary>
+    /// A taxa digitada parece estar ao contrário: a inversa dela fica bem mais
+    /// perto da ordem de grandeza do par (ex.: "1 USD = 1,0624 EUR", quando
+    /// o certo seria 1 EUR = 1,0624 USD — o preço em dólar sairia ~13% menor).
+    /// </summary>
+    public static bool TaxaPareceInvertida(CommercialOffer o)
+    {
+        if (!Converte(o)) return false;
+        var n = Normalizada(o);                       // 1 moeda do preço = n na moeda do custo
+        if (n <= 0m) return false;
+        var esperada = TaxaAproximada(MoedaDoPreco(o), MoedaDoCusto(o));
+        var erro = Math.Abs(Math.Log((double)(n / esperada)));
+        var erroInvertida = Math.Abs(Math.Log((double)(1m / n / esperada)));
+        return erro > Math.Log(1.08) && erroInvertida < erro;
+    }
+
+    /// <summary>O sentido contrário ao gravado (para o "usar 1 EUR = 1,0624 USD").</summary>
+    public static string DirecaoOposta(CommercialOffer o) => o.CambioDirecao == "CustoEmVenda" ? "VendaEmCusto" : "CustoEmVenda";
+
     /// <summary>A segurança da moeda, em percentual (0 a 99).</summary>
     public static decimal Seguranca(CommercialOffer o) => Math.Clamp(o.CambioSeguranca, 0m, 99m);
 

@@ -130,7 +130,62 @@ public static class PricingExcel
             if (clp > 0m) ws.Numero("I39", Math.Round(clp / usd, 10));
         }
 
+        PrecoAoCliente(pacote, ws, o, r);
+
         return pacote.Concluir();
+    }
+
+    /// <summary>
+    /// O preço ao cliente na moeda e na taxa DA PROPOSTA — o mesmo da tela.
+    ///
+    /// O quadro PREÇO DE VENDA da planilha fica na moeda do custo (R$ no
+    /// Brasil; a estrangeira nas BUs de fora). Em exportação / Chile / Peru a
+    /// linha 14 converte: Q14 = Q13 ÷ BD_pricing!C2, com o rótulo
+    /// "Valores em " &amp; BD_pricing!B2 (os botões de moeda da planilha, o
+    /// primeiro marcado). O modelo traz ali o USD e a taxa I36 (R$ por USD, da
+    /// aba Conversão): com custo em EUR o preço saía errado. Aqui a linha 1 dos
+    /// botões passa a ser a moeda do preço com a taxa efetiva da proposta
+    /// (moeda do custo por 1 da moeda do preço, já com a segurança).
+    ///
+    /// E a linha 21 do quadro (vazia no modelo) mostra sempre o preço ao
+    /// cliente na moeda dele, no nível de impostos da proposta — também na
+    /// venda nacional, que o quadro do modelo não converte.
+    /// </summary>
+    private static void PrecoAoCliente(PacoteXlsm pacote, PacoteXlsm.Aba ws, CommercialOffer o, CalculoPricing.Resultado r)
+    {
+        var custo = Cambio.MoedaDoCusto(o);
+        var venda = Cambio.MoedaDoPreco(o);
+        var converte = Cambio.Converte(o) && !Cambio.FaltaTaxa(o);
+        var efetivo = converte ? Cambio.Efetivo(o) : 1m;
+        var taxa = Math.Round(efetivo, 10).ToString(CultureInfo.InvariantCulture);
+
+        // a linha 1 dos botões de moeda: a moeda do preço e a taxa da proposta
+        var bd = pacote.AbaDe("BD_pricing");
+        bd.Numero("A1", 1);
+        bd.Texto("B2", (converte ? venda : custo).Codigo());
+        bd.Numero("C2", efetivo);
+
+        // o valor da proposta na moeda do custo, no nível de impostos que vai ao cliente
+        var nivel = PricingDaProposta.NivelEfetivo(r, PricingDaProposta.NivelPedido(o));
+        var valor = nivel.Codigo switch
+        {
+            "liquido" => r.ExportacaoComBackToBack ? "$S$82" : r.BackToBack100 ? "$S$83" : "$E$52",
+            "pis_cofins" => "$S$75",
+            "pis_cofins_icms" => "$S$76",
+            _ => "$S$77",
+        };
+        if (nivel.Codigo != "liquido" && r.ServicoOuReforma) valor = $"({valor}+N($S$81))";
+
+        var br = new CultureInfo("pt-BR");
+        var rotulo = converte
+            ? $"PREÇO AO CLIENTE EM {venda.Rotulo()} ({nivel.Rotulo.ToLowerInvariant()}) · 1 {venda.Rotulo()} = {efetivo.ToString("#,##0.######", br)} {custo.Rotulo()}" +
+              (Cambio.Seguranca(o) > 0m ? $" (taxa {Cambio.Normalizada(o).ToString("#,##0.######", br)} − segurança {Cambio.Seguranca(o).ToString("0.##", br)}%)" : "") +
+              $" · o quadro acima está em {custo.Rotulo()}"
+            : Cambio.Converte(o)
+                ? $"PREÇO AO CLIENTE: falta a taxa de câmbio {custo.Rotulo()} → {venda.Rotulo()} na proposta (valor abaixo em {custo.Rotulo()})"
+                : $"PREÇO AO CLIENTE EM {custo.Rotulo()} ({nivel.Rotulo.ToLowerInvariant()})";
+        ws.Texto("K21", rotulo);
+        ws.Formula("Q21", $"ROUND({valor}/{taxa},2)");
     }
 
     /// <summary>
@@ -142,8 +197,9 @@ public static class PricingExcel
         var usd = t.UsdEmReais;
         var eur = t.EurEmReais;
         var clp = t.ClpPorReal > 0m ? 1m / t.ClpPorReal : 0m;
-        // a taxa da proposta é em R$ só quando o custo é em R$ (nas BUs de fora ela é entre duas moedas estrangeiras)
-        var daProposta = Cambio.MoedaDoCusto(o) == Moeda.Brl ? Cambio.Normalizada(o) : 0m;
+        // a taxa da proposta é em R$ só quando o custo é em R$ (nas BUs de fora ela é entre duas moedas
+        // estrangeiras); a efetiva (com a segurança), a mesma que a tela usa
+        var daProposta = Cambio.MoedaDoCusto(o) == Moeda.Brl && Cambio.Converte(o) && !Cambio.FaltaTaxa(o) ? Cambio.Efetivo(o) : 0m;
         if (daProposta > 0m)
         {
             switch (Cambio.MoedaDoPreco(o))

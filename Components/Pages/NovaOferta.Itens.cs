@@ -58,7 +58,11 @@ public partial class NovaOferta
         var antes = DeFora;
         var custoAntes = MoedaCusto;
         _o.Bu = e.Value?.ToString() ?? "";
-        if (MoedaCusto != custoAntes) _o.CambioTaxa = 0;   // a taxa era de outro par de moedas
+        if (MoedaCusto != custoAntes)
+        {
+            _o.CambioTaxa = 0;   // a taxa era de outro par de moedas
+            _o.CambioDirecao = Cambio.DirecaoNatural(_o);
+        }
         // passou a comprar de fora com o preço em R$: o preço vai para a moeda do custo (dá para trocar no pricing)
         if (!antes && DeFora && Cambio.MoedaDoPreco(_o) == Moeda.Brl) EscolherMoedaVenda(MoedaCusto);
     }
@@ -67,8 +71,13 @@ public partial class NovaOferta
     {
         var m = Moedas.Ler(e.Value?.ToString());
         if (m == Moeda.Brl || m == MoedaCusto) return;
+        var antes = MoedaCusto;
         _o.MoedaCusto = m.Codigo();
+        // o preço estava na mesma moeda do custo (sem conversão): continua assim — nunca fica
+        // num CLP que ninguém escolheu
+        if (Cambio.MoedaDoPreco(_o) == antes) _o.MoedaVenda = m.Codigo();
         _o.CambioTaxa = 0;   // a taxa era do par anterior
+        _o.CambioDirecao = Cambio.DirecaoNatural(_o);
     }
 
     /// <summary>O custo unitário (na moeda do custo) de um item que não é importado: o digitado, ou a referência da Nacionalização.</summary>
