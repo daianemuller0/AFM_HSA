@@ -31,15 +31,13 @@ public static class Acessos
 
     /// <summary>
     /// As páginas do sistema, nos grupos do menu. Telas de detalhe vão junto
-    /// com a página-mãe. Clientes e Unidades e Nacionalização ficam em
-    /// Controle (o menu também as mostra em Gestão de Vendas para quem vê esse grupo).
+    /// com a página-mãe.
     /// </summary>
     public static readonly Pagina[] Paginas =
     {
         new("dashboard", "Central de Inteligência", "Gestão de Vendas", new[] { "/dashboard", "/oportunidades", "/previsao", "/planejamento", "/pecas" }),
         new("carteira", "Plano de Ação Comercial", "Gestão de Vendas", new[] { "/carteira" }),
         new("diretoria", "Painel Executivo", "Gestão de Vendas", new[] { "/diretoria" }),
-        new("historico", "Histórico Aftermarket", "Gestão de Vendas", new[] { "/historico" }),
         new("visitas", "Ações em Campo", "Gestão de Vendas", new[] { "/visitas" }),
         new("alertas", "Alertas Preditivos", "Gestão de Vendas", new[] { "/alertas" }),
         new("gerar-proposta", "Gerar Proposta", "Comercial", new[] { "/gerar-proposta", "/ofertas/nova" }),
@@ -47,6 +45,7 @@ public static class Acessos
         new("referencias", "Referências de preço", "Comercial", new[] { "/referencias-custo" }),
         new("intercompany", "Cotação Intercompany", "Comercial", new[] { "/cotacao-intercompany" }),
         new("tempos", "Tempo das propostas", "Comercial", new[] { "/tempos-proposta" }),
+        new("historico", "Histórico Aftermarket", "Comercial", new[] { "/historico" }),
         new("clientes", "Clientes e Unidades", "Controle", new[] { "/clientes", "/equipamentos", "/base-instalada" }),
         new("nacionalizacao", "Nacionalização", "Controle", new[] { "/nacionalizacao" }),
         new("dados", "Dados e Importação", "Controle", new[] { "/dados-marca", "/vendedores", "/marca", "/importar", "/conversao" }),

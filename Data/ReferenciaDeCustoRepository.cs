@@ -154,6 +154,16 @@ public sealed class ReferenciaDeCustoRepository
 
     public void Apagar(string id) => _store.WriteRow(Entidade, new KeyValuePair<string, object?>[] { new("id", id) }, deleted: true);
 
+    /// <summary>Apaga as referências gravadas por essas propostas (as importadas do Excel ficam). Devolve quantas.</summary>
+    public int ApagarDasPropostas(IReadOnlyCollection<string> propostas)
+    {
+        var conjunto = propostas.ToHashSet();
+        var ids = Todas().Where(r => r.PropostaId.Length > 0 && conjunto.Contains(r.PropostaId)).Select(r => r.Id).ToList();
+        if (ids.Count > 0)
+            _store.WriteBatch(Entidade, ids.Select(id => (IReadOnlyList<KeyValuePair<string, object?>>)new KeyValuePair<string, object?>[] { new("id", id) }).ToList(), deleted: true);
+        return ids.Count;
+    }
+
     // ================= planilha =================
 
     /// <summary>As colunas da planilha, na ordem da tela; os apelidos aceitos vêm depois do nome.</summary>

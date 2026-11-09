@@ -116,6 +116,17 @@ public class OfferRepository
     public void Delete(string id) => _s.WriteRow("commercialOffers",
         new KeyValuePair<string, object?>[] { new("id", id) }, deleted: true);
 
+    /// <summary>Apaga as propostas e os itens delas, num lote só (exclusão pelo administrador).</summary>
+    public void ApagarPropostas(IReadOnlyCollection<string> ids)
+    {
+        if (ids.Count == 0) return;
+        var conjunto = ids.ToHashSet();
+        var itens = AllItems().Where(i => conjunto.Contains(i.OfferId)).Select(i => i.Id).ToList();
+        IReadOnlyList<KeyValuePair<string, object?>> Linha(string id) => new KeyValuePair<string, object?>[] { new("id", id) };
+        if (itens.Count > 0) _s.WriteBatch("commercialOfferItems", itens.Select(Linha).ToList(), deleted: true);
+        _s.WriteBatch("commercialOffers", ids.Select(Linha).ToList(), deleted: true);
+    }
+
     // ---- itens -----------------------------------------------------------
     public List<CommercialOfferItem> AllItems() => _s.ReadLatest("commercialOfferItems",
         "id, offer_id, description, quantity, unit_price, total_price, " +

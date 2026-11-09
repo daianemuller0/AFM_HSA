@@ -1481,3 +1481,9 @@ tr.inativo td { color: #9aa5b1; }
 /* referência de preço de venda na linha do item */
 .it-ref-venda { color: #1d4ed8; font-weight: 600; cursor: help; }
 .it-ref-venda.vendido { color: #047857; }
+/* Propostas: exclusão pelo administrador */
+.excluir-barra { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 14px; border-color: #fecaca; background: #fff7f7; }
+.btn-link.perigo, .btn-ghost.perigo { color: #b91c1c; }
+.btn-primary.perigo { background: #b91c1c; border-color: #b91c1c; }
+.btn-primary.perigo:hover { background: #991b1b; }
+tr.linha-marcada td { background: #fff1f2; }

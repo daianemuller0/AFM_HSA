@@ -37,10 +37,6 @@
                         <input type="checkbox" checked="@_cfgMarcadas.Contains(p.Chave)" @onchange="e => MarcarCfg(p.Chave, e)" /> @p.Nome
                     </label>
                 }
-                @if (grupo == "Controle")
-                {
-                    <div class="nota">Clientes e Unidades e Nacionalização também aparecem em Gestão de Vendas para quem vê esse grupo.</div>
-                }
             </div>
         }
     </div>

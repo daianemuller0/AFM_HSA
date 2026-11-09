@@ -2,6 +2,8 @@
 @attribute [Authorize]
 @rendermode InteractiveServer
 @inject OfferRepository OffersRepo
+@inject ReferenciaDeCustoRepository RefsCusto
+@inject AuthenticationStateProvider Auth
 
 <PageTitle>Propostas · AFM HSA</PageTitle>
 
@@ -9,6 +11,11 @@
     <div><h1>Propostas</h1><p class="subtitle">@_all.Count proposta(s) · Total @Fmt.Brl0(_all.Sum(o => o.TotalReais))@(_all.Any(o => Cambio.Converte(o)) ? " (em R$, pela taxa de cada proposta)" : "")</p></div>
     <div class="page-actions"><a class="btn-primary" href="/gerar-proposta">+ Gerar Proposta</a></div>
 </div>
+
+@if (_msg is not null)
+{
+    <div class="alert-ok" style="margin-bottom:12px">@_msg</div>
+}
 
 @if (_all.Count == 0)
 {
@@ -18,19 +25,56 @@
 }
 else
 {
+    @if (_adm && _marcadas.Count > 0)
+    {
+        @* exclusão só do administrador, sempre com confirmação: apagar não tem volta *@
+        <div class="panel excluir-barra" style="margin-bottom:12px">
+            @if (!_confirmar)
+            {
+                <span><strong>@_marcadas.Count</strong> proposta(s) selecionada(s)</span>
+                <button class="btn-ghost perigo" @onclick="() => _confirmar = true">🗑 Excluir selecionadas</button>
+                <button class="btn-link" @onclick="Limpar">desmarcar</button>
+            }
+            else
+            {
+                <span class="custo-indisp">
+                    Excluir <strong>@_marcadas.Count</strong> proposta(s) (@string.Join(", ", Selecionadas.Take(5).Select(Rotulo))@(_marcadas.Count > 5 ? "…" : ""))?
+                    Os itens e as referências de preço gravadas por elas também saem. Não dá para desfazer.
+                </span>
+                <button class="btn-primary perigo" @onclick="Excluir">Sim, excluir</button>
+                <button class="btn-link" @onclick="() => _confirmar = false">cancelar</button>
+            }
+        </div>
+    }
     <div style="overflow-x:auto">
     <table class="grid">
-        <thead><tr><th>Código</th><th>Cliente</th><th>Data</th><th>Status</th><th class="right">Valor</th><th></th></tr></thead>
+        <thead><tr>
+            @if (_adm)
+            {
+                <th style="width:28px"><input type="checkbox" title="Selecionar todas" checked="@(_marcadas.Count == _all.Count)" @onchange="MarcarTodas" /></th>
+            }
+            <th>Código</th><th>Rev.</th><th>Cliente</th><th>Data</th><th>Status</th><th class="right">Valor</th><th></th></tr></thead>
         <tbody>
             @foreach (var o in _all)
             {
-                <tr>
+                <tr class="@(_marcadas.Contains(o.Id) ? "linha-marcada" : "")">
+                    @if (_adm)
+                    {
+                        <td><input type="checkbox" checked="@_marcadas.Contains(o.Id)" @onchange="e => Marcar(o.Id, e)" /></td>
+                    }
                     <td>@o.OfferCode</td>
+                    <td>@PropostaWord.Ou(o.Revisao, "0")</td>
                     <td>@o.ClientName</td>
                     <td class="nowrap">@Fmt.Date(o.OfferDate)</td>
                     <td><span class="badge score-badge">@o.Status</span></td>
                     <td class="right nowrap">@(Cambio.Converte(o) ? Cambio.Dinheiro(o, o.TotalAmount) : Fmt.Brl0(o.TotalAmount))</td>
-                    <td class="nowrap"><a class="btn-link" href="@($"/ofertas/{o.Id}")">abrir</a> · <a class="btn-link" href="@($"/gerar-proposta/{o.Id}")">editar</a></td>
+                    <td class="nowrap">
+                        <a class="btn-link" href="@($"/ofertas/{o.Id}")">abrir</a> · <a class="btn-link" href="@($"/gerar-proposta/{o.Id}")">editar</a>
+                        @if (_adm)
+                        {
+                            <span> · </span><button class="btn-link perigo" title="Excluir esta proposta" @onclick="() => ExcluirUma(o.Id)">excluir</button>
+                        }
+                    </td>
                 </tr>
             }
         </tbody>
@@ -40,5 +84,55 @@ else
 
 @code {
     private List<CommercialOffer> _all = new();
-    protected override void OnInitialized() => _all = OffersRepo.All();
+    private bool _adm;
+    private readonly HashSet<string> _marcadas = new();
+    private bool _confirmar;
+    private string? _msg;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _adm = Acessos.EhAdm((await Auth.GetAuthenticationStateAsync()).User);
+        _all = OffersRepo.All();
+    }
+
+    private IEnumerable<CommercialOffer> Selecionadas => _all.Where(o => _marcadas.Contains(o.Id));
+
+    private static string Rotulo(CommercialOffer o) => $"{o.OfferCode} rev. {PropostaWord.Ou(o.Revisao, "0")}";
+
+    private void Marcar(string id, ChangeEventArgs e)
+    {
+        if (e.Value is true) _marcadas.Add(id); else _marcadas.Remove(id);
+        _confirmar = false; _msg = null;
+    }
+
+    private void MarcarTodas(ChangeEventArgs e)
+    {
+        _marcadas.Clear();
+        if (e.Value is true) foreach (var o in _all) _marcadas.Add(o.Id);
+        _confirmar = false; _msg = null;
+    }
+
+    private void Limpar() { _marcadas.Clear(); _confirmar = false; }
+
+    /// <summary>O "excluir" da linha: seleciona só ela e pede a confirmação.</summary>
+    private void ExcluirUma(string id)
+    {
+        _marcadas.Clear();
+        _marcadas.Add(id);
+        _confirmar = true;
+        _msg = null;
+    }
+
+    private async Task Excluir()
+    {
+        // confere de novo na hora de apagar: só o administrador
+        if (!Acessos.EhAdm((await Auth.GetAuthenticationStateAsync()).User) || _marcadas.Count == 0) return;
+        var ids = _marcadas.ToList();
+        OffersRepo.ApagarPropostas(ids);
+        var refs = RefsCusto.ApagarDasPropostas(ids);
+        _msg = $"{ids.Count} proposta(s) excluída(s)" + (refs > 0 ? $", com {refs} referência(s) de preço." : ".");
+        _marcadas.Clear();
+        _confirmar = false;
+        _all = OffersRepo.All();
+    }
 }
