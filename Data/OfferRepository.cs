@@ -121,7 +121,7 @@ public class OfferRepository
         "id, offer_id, description, quantity, unit_price, total_price, " +
         "equipment_id, part_number, nacionalizado, custo_referencia, custo_data, ultima_venda, ultima_venda_data, " +
         "importado, valor_moeda, custo_importacao, ordem, ncm, custo_manual, custo_unitario, prazo_entrega_dias, " +
-        "modelo, serial_number, tag, preco_meta, custo_ta, peso_kg, base_custo",
+        "modelo, serial_number, tag, preco_meta, custo_ta, peso_kg, base_custo, ta_manual",
         r => new CommercialOfferItem
         {
             Id = Fmt.S(r, 0), OfferId = Fmt.S(r, 1), Description = Fmt.S(r, 2),
@@ -133,7 +133,7 @@ public class OfferRepository
             CustoImportacao = DecOuNull(Fmt.S(r, 15)), Ordem = Fmt.Int(Fmt.S(r, 16)), Ncm = Fmt.S(r, 17),
             CustoManual = DecOuNull(Fmt.S(r, 18)), CustoUnitario = DecOuNull(Fmt.S(r, 19)), PrazoEntregaDias = Fmt.Int(Fmt.S(r, 20)),
             Modelo = Fmt.S(r, 21), SerialNumber = Fmt.S(r, 22), Tag = Fmt.S(r, 23),
-            PrecoMeta = Fmt.Dec(Fmt.S(r, 24)), CustoTa = Fmt.Dec(Fmt.S(r, 25)), PesoKg = Fmt.Dec(Fmt.S(r, 26)), BaseCusto = Fmt.S(r, 27),
+            PrecoMeta = Fmt.Dec(Fmt.S(r, 24)), CustoTa = Fmt.Dec(Fmt.S(r, 25)), PesoKg = Fmt.Dec(Fmt.S(r, 26)), BaseCusto = Fmt.S(r, 27), TaManual = Fmt.S(r, 28) == "1",
         });
 
     /// <summary>Vazio continua vazio: "custo não disponível" não pode virar R$ 0,00.</summary>
@@ -163,6 +163,6 @@ public class OfferRepository
             new("custo_manual", DOuVazio(it.CustoManual)), new("custo_unitario", DOuVazio(it.CustoUnitario)),
             new("prazo_entrega_dias", it.PrazoEntregaDias.ToString()),
             new("modelo", it.Modelo), new("serial_number", it.SerialNumber), new("tag", it.Tag),
-            new("preco_meta", D(it.PrecoMeta)), new("custo_ta", D(it.CustoTa)), new("peso_kg", D(it.PesoKg)), new("base_custo", it.BaseCusto),
+            new("preco_meta", D(it.PrecoMeta)), new("custo_ta", D(it.CustoTa)), new("peso_kg", D(it.PesoKg)), new("base_custo", it.BaseCusto), new("ta_manual", it.TaManual ? "1" : "0"),
         });
 }

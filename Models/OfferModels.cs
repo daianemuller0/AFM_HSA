@@ -243,6 +243,12 @@ public class CommercialOfferItem
     /// <summary>TA: o custo (R$, unitário) acrescentado para o preço chegar na meta. Calculado.</summary>
     public decimal CustoTa { get; set; }
 
+    /// <summary>
+    /// O TA foi digitado (e não calculado pelo preço meta): fica como está.
+    /// Digitar o TA tira a meta; pôr uma meta volta o TA para o cálculo.
+    /// </summary>
+    public bool TaManual { get; set; }
+
     /// <summary>Peso unitário (kg). Não é mais usado (o frete se divide pelo valor); fica para as propostas já gravadas.</summary>
     public decimal PesoKg { get; set; }
 

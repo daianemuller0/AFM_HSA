@@ -1469,3 +1469,12 @@ tr.inativo td { color: #9aa5b1; }
 .it-in-custo { max-width: 92px; }
 .it-peca .it-sub { white-space: normal; max-width: none; }
 .it-peca { min-width: 180px; }
+/* coluna TA no grupo Custo */
+.it-c-ta { width: 84px; } .it-c-v { width: 84px; } .it-peca { min-width: 150px; }
+#f-itens td.g-custo:has(.it-in-ta) { padding-left: 3px; padding-right: 3px; }
+.it-in-ta { width: 100%; max-width: 84px; min-width: 0; padding-left: 4px; padding-right: 4px; font-size: 0.82rem; }
+.it-in-ta.meta { background: #fffbeb; border-color: #fcd34d; color: #92400e; font-weight: 600; }
+.it-in-ta.manual { background: #fff7ed; border-color: #fdba74; color: #9a3412; font-weight: 600; }
+.it-in-ta { -moz-appearance: textfield; appearance: textfield; text-align: right; }
+.it-in-ta::-webkit-outer-spin-button, .it-in-ta::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.it-c-ta { width: 90px; } .it-c-qtd { width: 44px; } .it-in-ta { max-width: 90px; }

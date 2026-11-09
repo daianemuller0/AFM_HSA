@@ -109,7 +109,8 @@ public partial class NovaOferta
     /// </summary>
     private void CalcularTa()
     {
-        foreach (var it in _items.Where(i => i.PrecoMeta <= 0m && i.CustoTa != 0m)) it.CustoTa = 0m;
+        // o TA digitado fica; o da meta some quando a meta sai
+        foreach (var it in _items.Where(i => i.PrecoMeta <= 0m && !i.TaManual && i.CustoTa != 0m)) it.CustoTa = 0m;
         if (!_items.Any(i => i.PrecoMeta > 0m)) return;
         for (var volta = 0; volta < 12; volta++)
         {
@@ -137,7 +138,21 @@ public partial class NovaOferta
     private void MudarMeta(CommercialOfferItem it, ChangeEventArgs e)
     {
         it.PrecoMeta = Numero(e) is decimal v && v > 0m ? Math.Round(v, 2) : 0m;
-        if (it.PrecoMeta <= 0m) it.CustoTa = 0m;
+        if (it.PrecoMeta > 0m) it.TaManual = false;           // com meta, o TA volta a ser calculado
+        else if (!it.TaManual) it.CustoTa = 0m;
+    }
+
+    /// <summary>
+    /// TA digitado (R$ por unidade, no custo): vale como está e tira a meta do
+    /// item (os dois juntos se contradizem). Vazio ou zero = sem TA.
+    /// </summary>
+    private void MudarTaDoItem(CommercialOfferItem it, ChangeEventArgs e)
+    {
+        var v = Numero(e) is decimal d && d > 0m ? Math.Round(d, 2) : 0m;
+        it.CustoTa = v;
+        it.TaManual = v > 0m;
+        if (v > 0m) it.PrecoMeta = 0m;
+        Redesenhar(it);
     }
 
     private void MudarCustoDoItem(CommercialOfferItem it, ChangeEventArgs e)
