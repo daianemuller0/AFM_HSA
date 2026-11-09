@@ -57,3 +57,29 @@ window.appAtalhos = {
         }
     },
 };
+
+// copia o e-mail com a formatação (HTML) — no navegador sem https a API de
+// área de transferência não existe: aí copia por uma seleção escondida
+window.appCopiarHtml = async (html, texto) => {
+    try {
+        if (navigator.clipboard && window.ClipboardItem && window.isSecureContext) {
+            await navigator.clipboard.write([new ClipboardItem({
+                'text/html': new Blob([html], { type: 'text/html' }),
+                'text/plain': new Blob([texto], { type: 'text/plain' }),
+            })]);
+            return true;
+        }
+    } catch (e) { /* segue para o modo antigo */ }
+    try {
+        const div = document.createElement('div');
+        div.contentEditable = 'true';
+        div.style.position = 'fixed'; div.style.left = '-9999px'; div.style.top = '0';
+        div.innerHTML = html;
+        document.body.appendChild(div);
+        const faixa = document.createRange(); faixa.selectNodeContents(div);
+        const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(faixa);
+        const ok = document.execCommand('copy');
+        sel.removeAllRanges(); div.remove();
+        return ok;
+    } catch (e) { return false; }
+};

@@ -1372,6 +1372,51 @@
     </p>
 </div>
 
+<div class="panel" style="margin-bottom:14px" id="f-emails">
+    <div class="dash-title">E-mails
+        <span class="dash-sub">os da aba "EMAILS AUTOMÁTICOS" do pricing: o arquivo abre no Outlook como mensagem nova, já com o anexo — confira e envie</span>
+    </div>
+    <div class="emails-grade">
+        @{ var aprov = EmailDeAprovacao(); var cli = EmailAoCliente(); }
+        <div class="email-card">
+            <div class="email-titulo">✔ Aprovação do pricing</div>
+            <label>Para<input class="cell" value="@AprovPara" @onchange="e => _aprovParaDigitado = e.Value?.ToString() ?? string.Empty" /></label>
+            <label>Cc<input class="cell" value="@AprovCc" @onchange="e => _aprovCcDigitado = e.Value?.ToString() ?? string.Empty" /></label>
+            <div class="email-assunto"><span>Assunto</span>@aprov.Assunto</div>
+            <div class="nota">Cliente, unidade, tipo de equipamento, margem, valor líquido, prazo de entrega, preços com cada nível de impostos, margens e itens.</div>
+            @if (string.IsNullOrWhiteSpace(_o.ContemProdutoIc) || _o.ContemProdutoIc.Trim().Equals("preencher", StringComparison.OrdinalIgnoreCase))
+            {
+                <div class="custo-indisp">Informe se há itens Intercompany ("Contém produto IC?", no pricing): com "Sim" o assunto sai com "IC - ".</div>
+            }
+            <div class="email-acoes">
+                <button class="btn-accent" disabled="@_gerandoEmail" @onclick="EmlDeAprovacao">✉ Abrir no Outlook (pricing anexo)</button>
+                <button class="btn-ghost" @onclick="() => Copiar(aprov)">⧉ Copiar</button>
+                <a class="btn-link" href="@EmailsDaProposta.Mailto(aprov)">mailto</a>
+                <button class="btn-link" @onclick='() => _emailAberto = _emailAberto == "aprov" ? null : "aprov"'>@(_emailAberto == "aprov" ? "esconder" : "ver o e-mail")</button>
+            </div>
+            @if (_emailAberto == "aprov") { <div class="email-previa">@((MarkupString)aprov.Html)</div> }
+        </div>
+        <div class="email-card">
+            <div class="email-titulo">✈ Envio da proposta ao cliente</div>
+            <label>Para<input class="cell" value="@PropPara" placeholder="e-mail do contato do cliente" @onchange="e => _propParaDigitado = e.Value?.ToString() ?? string.Empty" /></label>
+            <label>Cc<input class="cell" value="@PropCc" @onchange="e => _propCcDigitado = e.Value?.ToString() ?? string.Empty" /></label>
+            <div class="email-assunto"><span>Assunto</span>@cli.Assunto</div>
+            <div class="nota">Em @IdiomasDaProposta.Nome(_o.Idioma).ToLowerInvariant(), com o contato do vendedor; sem custo nem margem. A proposta em Word vai anexa — anexe também a T&amp;C.</div>
+            @if (string.IsNullOrWhiteSpace(PropPara))
+            {
+                <div class="custo-indisp">Sem e-mail do contato: preencha em Cliente e condições ou digite aqui.</div>
+            }
+            <div class="email-acoes">
+                <button class="btn-accent" disabled="@_gerandoEmail" @onclick="EmlAoCliente">✉ Abrir no Outlook (proposta anexa)</button>
+                <button class="btn-ghost" @onclick="() => Copiar(cli)">⧉ Copiar</button>
+                <a class="btn-link" href="@EmailsDaProposta.Mailto(cli)">mailto</a>
+                <button class="btn-link" @onclick='() => _emailAberto = _emailAberto == "cli" ? null : "cli"'>@(_emailAberto == "cli" ? "esconder" : "ver o e-mail")</button>
+            </div>
+            @if (_emailAberto == "cli") { <div class="email-previa">@((MarkupString)cli.Html)</div> }
+        </div>
+    </div>
+</div>
+
 <div class="panel" style="margin-bottom:14px">
     <div class="dash-title">Como a proposta sai</div>
     <div class="resumo-doc">
