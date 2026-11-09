@@ -688,8 +688,7 @@
                    title="Pedir a cotação destes itens a outra unidade Howden (salve antes)">⇄ Pedir cotação Intercompany</a>
             }
         </div>
-        <datalist id="dl-modelos">@foreach (var m in ModelosConhecidos) { <option value="@m" /> }</datalist>
-        @{
+                @{
             var rateio = Rateio();
             var itensReais = _items.Where(x => x != _itemDemais).ToList();
             var pendentes = itensReais.Count(x => CustoDoItem(x) is null);
@@ -720,18 +719,27 @@
             </div>
         </div>
 
+        <datalist id="dl-equipamentos">@foreach (var (v, rot) in OpcoesDeEquipamento()) { <option value="@v">@rot</option> }</datalist>
+        <datalist id="dl-pns">@foreach (var (pn, d) in PartNumbersConhecidos()) { <option value="@pn">@d</option> }</datalist>
         @if (_items.Count == 0)
         {
             <div class="empty" style="padding:6px 0 14px">Nenhum item ainda. Marque itens da BOM acima ou adicione um item abaixo.</div>
         }
         else
         {
+            var moedaVenda = Cambio.MoedaDoPreco(_o).Rotulo();
             <div class="it-tabela-rolante">
             <table class="it-tabela">
                 <thead>
+                    <tr class="it-grupos">
+                        <th rowspan="2" class="it-c-num">#</th><th rowspan="2">Peça</th><th rowspan="2" class="right it-c-qtd">Qtd</th>
+                        <th colspan="2" class="g-custo">Custo (R$)</th>
+                        <th colspan="2" class="g-venda">Venda (@moedaVenda)</th>
+                        <th rowspan="2" class="it-c-acoes"></th>
+                    </tr>
                     <tr>
-                        <th class="it-c-num">#</th><th>Peça</th><th class="right it-c-qtd">Qtd</th><th class="right it-c-custo">Custo unit. (R$)</th>
-                        <th class="right it-c-prazo" title="dias">Prazo</th><th class="right it-c-preco">Preço</th><th class="it-c-acoes"></th>
+                        <th class="right g-custo it-c-v">Unit.</th><th class="right g-custo it-c-v">Total</th>
+                        <th class="right g-venda it-c-v">Unit.</th><th class="right g-venda it-c-v">Total</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -741,48 +749,47 @@
                         var idx = i;
                         if (!PassaNoFiltro(it)) continue;
                         var aberto = _abertos.Contains(it);
-                        var semCusto = it != _itemDemais && CustoDoItem(it) is null;
+                        var custoIt = CustoDoItem(it);
+                        var semCusto = it != _itemDemais && custoIt is null;
                         <tr class="it-linha @(semCusto ? "pend" : "") @(aberto ? "aberta" : "")" @key="it">
                             <td class="it-c-num">@((idx + 1).ToString("D2"))</td>
                             @if (it == _itemDemais)
                             {
-                                <td colspan="4"><strong class="item-demais">@it.Description</strong>
-                                    <div class="it-sub">custos da tabela do pricing além dos itens (@Fmt.Brl(DemaisCustos(custosLado, prLado)))</div></td>
-                                <td class="right"><div class="it-total">@Venda(it.TotalPrice)</div></td>
+                                <td colspan="2"><strong class="item-demais">@it.Description</strong>
+                                    <div class="it-sub">custos da tabela do pricing além dos itens</div></td>
+                                <td class="right g-custo">—</td>
+                                <td class="right g-custo">@N2(DemaisCustos(custosLado, prLado))</td>
+                                <td class="right g-venda">—</td>
+                                <td class="right g-venda"><span class="it-total">@V(it.TotalPrice)</span></td>
                                 <td class="it-c-acoes"><button class="it-bt perigo" title="Tirar" @onclick="() => Remover(idx)">✕</button></td>
                             }
                             else
                             {
                                 <td class="it-peca" @onclick="() => Alternar(it)" title="Clique para ver e editar os detalhes">
-                                    <div><span class="it-pn">@PropostaWord.Ou(it.PartNumber, "sem PN")</span> <span class="it-desc">@DescricaoSemPn(it)</span></div>
+                                    <div><span class="it-seta">@(aberto ? "▾" : "▸")</span> <span class="it-pn">@PropostaWord.Ou(it.PartNumber, "sem PN")</span> <span class="it-desc">@DescricaoSemPn(it)</span></div>
                                     <div class="it-sub">@LinhaDoEquipamento(it)</div>
-                                    <div class="it-sinais">@SinaisDoItem(it)</div>
                                 </td>
                                 <td class="right"><input class="cell num it-in" type="number" min="1" step="1" @key="@($"qtd-{Versao(it)}")"
                                                          value="@it.Quantity" @onchange="e => MudarQtdDe(it, e)" /></td>
-                                <td class="right">
+                                <td class="right g-custo">
                                     @if (it.Importado)
                                     {
-                                        <span class="it-valor">@(CustoImportadoDo(it) is decimal cu ? Fmt.Brl(cu) : "—")</span>
+                                        <span class="it-valor">@(CustoBaseDoItem(it) is decimal ci ? N2(ci) : "—")</span>
                                     }
                                     else
                                     {
                                         <input class="cell num it-in it-in-custo" type="number" min="0" step="0.01" placeholder="digite"
+                                               title="custo unitário sem frete e sem TA (a composição está no detalhe)"
                                                value="@(CustoNacionalDe(it) is decimal cn ? cn.ToString(CultureInfo.InvariantCulture) : "")"
                                                @onchange="e => MudarCustoDoItem(it, e)" />
                                     }
-                                    <div class="it-sub">@OrigemCurta(it)@if (it.BaseCusto.Length > 0) { <span class="it-base @(it.BaseCusto == ReferenciaDeCustoRepository.Cotacao ? "cot" : "est")">@it.BaseCusto</span> }</div>
+                                    <div class="it-sub">@OrigemCurta(it)@if (it.BaseCusto.Length > 0) { <span class="it-base @(it.BaseCusto == ReferenciaDeCustoRepository.Cotacao ? "cot" : "est")">@(it.BaseCusto == ReferenciaDeCustoRepository.Cotacao ? "cot." : "est.")</span> }</div>
                                 </td>
-                                <td class="right"><input class="cell num it-in it-in-prazo" type="number" min="0" step="1" @key="@($"prazo-{Versao(it)}")"
-                                                         placeholder="@(PricingDaProposta.PrazoEmDias(_o.PrazoEntrega) is > 0 and var pp ? pp.ToString() : "—")" title="dias · vazio = o prazo da proposta"
-                                                         value="@(it.PrazoEntregaDias > 0 ? it.PrazoEntregaDias.ToString() : "")" @onchange="e => MudarPrazoDoItem(it, e)" /></td>
-                                <td class="right">
-                                    <div class="it-total">@Venda(it.TotalPrice)</div>
-                                    <div class="it-sub">@(it.UnitPrice > 0 ? Venda(it.UnitPrice) : "—") un.</div>
-                                    @if (it.PrecoMeta > 0) { <div class="it-sub" title="preço meta (unitário)">meta @Venda(it.PrecoMeta)</div> }
-                                </td>
+                                <td class="right g-custo" title="@(custoIt is decimal ctt ? $"total com frete e TA · {N2(ctt)} un." : "")">@(custoIt is decimal ct ? N2(ct * it.Quantity) : "—")</td>
+                                <td class="right g-venda">@(it.UnitPrice > 0 ? V(it.UnitPrice) : "—")
+                                    @if (it.PrecoMeta > 0) { <div class="it-sub" title="preço meta (unitário)">meta @V(it.PrecoMeta)</div> }</td>
+                                <td class="right g-venda"><span class="it-total">@V(it.TotalPrice)</span></td>
                                 <td class="it-c-acoes">
-                                    <button class="it-bt" title="@(aberto ? "Fechar os detalhes" : "Ver e editar os detalhes")" @onclick="() => Alternar(it)">@(aberto ? "▾" : "▸")</button>
                                     <button class="it-bt" title="Duplicar a linha (a cópia vem preenchida, logo abaixo)" @onclick="() => DuplicarItem(idx)">⧉</button>
                                     <button class="it-bt perigo" title="Tirar o item" @onclick="() => Remover(idx)">✕</button>
                                 </td>
@@ -790,7 +797,7 @@
                         </tr>
                         @if (aberto && it != _itemDemais)
                         {
-                            <tr class="it-detalhe" @key="@("d-" + idx)"><td colspan="7">@CamposDoItem(it, novo: false)</td></tr>
+                            <tr class="it-detalhe" @key="@("d-" + idx)"><td colspan="8">@CamposDoItem(it, novo: false)</td></tr>
                         }
                     }
                 </tbody>
@@ -2044,6 +2051,7 @@
         _units = Units.All();
         LerCondicoes();
         LerReferenciasDeCusto();
+        LerListas();
         _base = Base.All();
         _parts = Pecas.All();
         _equipamentos = Equipamentos.All();
@@ -2328,10 +2336,10 @@
     // ---- o cartão do item: os mesmos campos para os itens e para o item novo ----
 
     /// <summary>
-    /// O detalhe do item, em três blocos: a peça e o equipamento (o que sai no
-    /// Word), o custo (de onde vem, cotação ou estimado, frete) e as
-    /// referências do part number com o preço meta. No item novo, o bloco do
-    /// custo traz também quantidade e prazo (que nos itens ficam na linha).
+    /// O detalhe do item, na mesma ordem da linha: a peça (o que sai no Word),
+    /// o custo (com o custo de referência do part number) e a venda (prazo,
+    /// preço meta, última venda e preço já enviado). As listas dos campos
+    /// aprendem com o que a equipe digita (NovaOferta.Listas.cs).
     /// </summary>
     private RenderFragment CamposDoItem(CommercialOfferItem it, bool novo) => __builder =>
     {
@@ -2339,15 +2347,12 @@
         var refCusto = ReferenciaDeCustoRepository.MaisRecente(_refsCusto, it.PartNumber, _o.Id);
         var refPreco = ReferenciaDeCustoRepository.UltimoPreco(_refsCusto, it.PartNumber, _o.Id, _o.ClientName);
         var custoBase = CustoBaseDoItem(it);
+        var chave = novo ? "novo" : _items.IndexOf(it).ToString();
         <div class="it-det">
             <section class="it-bloco">
-                <h4>Peça e equipamento</h4>
-                <label class="it-largo">Descrição (sai no Word)
-                    <input class="cell" placeholder="descrição da peça" value="@it.Description"
-                           @onchange="e => it.Description = e.Value?.ToString()?.Trim() ?? string.Empty" />
-                </label>
+                <h4>Peça</h4>
                 <label>Part Number
-                    <input class="cell" placeholder="PN" value="@it.PartNumber" @onchange="e => MudarPn(it, e)" />
+                    <input class="cell" list="dl-pns" placeholder="PN" value="@it.PartNumber" @onchange="e => MudarPn(it, e)" />
                 </label>
                 <label>NCM
                     <select class="cell" value="@it.Ncm" @onchange="e => it.Ncm = e.Value?.ToString() ?? string.Empty">
@@ -2355,79 +2360,61 @@
                         @foreach (var n in ListasDaProposta.Ncms) { <option value="@n.Codigo">@n.Texto</option> }
                     </select>
                 </label>
-                <label class="it-largo">Equipamento
-                    <select class="cell" value="@it.EquipmentId" @onchange="e => MudarEquipDoItem(it, e)">
-                        <option value="">não cadastrado — digite o modelo</option>
-                        @foreach (var eqp in _o.EquipamentosDaProposta) { <option value="@eqp.Id">@RotuloDoEquip(eqp)</option> }
-                        @if (it.EquipmentId.Length > 0 && !_o.EquipamentosDaProposta.Any(x => x.Id == it.EquipmentId))
-                        {
-                            <option value="@it.EquipmentId">@ModeloDe(it.EquipmentId) (fora da lista)</option>
-                        }
-                    </select>
+                <label class="it-largo">Descrição (sai no Word)
+                    <input class="cell" placeholder="descrição da peça" value="@it.Description"
+                           @onchange="e => it.Description = e.Value?.ToString()?.Trim() ?? string.Empty" />
                 </label>
-                <label class="it-largo">Modelo do compressor
-                    <input class="cell" list="dl-modelos" placeholder="digite ou escolha" value="@ModeloDoItem(it)" @onchange="e => MudarModeloDoItem(it, e, novo)" />
+                <label class="it-largo">Equipamento (modelo do compressor)
+                    <input class="cell" list="dl-equipamentos" placeholder="escolha ou digite o modelo" value="@EquipamentoDoItem(it)"
+                           @onchange="e => MudarEquipamentoDoItem(it, e, novo)" />
                 </label>
                 <label>Serial Number
-                    <input class="cell" placeholder="serial" value="@SerialDoItem(it)" @onchange="e => MudarSerialDoItem(it, e)" />
+                    <input class="cell" list="@($"dl-sn-{chave}")" placeholder="serial" value="@SerialDoItem(it)" @onchange="e => MudarSerialDoItem(it, e)" />
+                    <datalist id="@($"dl-sn-{chave}")">@foreach (var v in ValoresDoModelo(ListasCompartilhadasRepository.Serial, it)) { <option value="@v" /> }</datalist>
                 </label>
                 <label>TAG
-                    <input class="cell" placeholder="TAG" value="@TagDoItem(it)" @onchange="e => MudarTagDoItem(it, e)" />
+                    <input class="cell" list="@($"dl-tag-{chave}")" placeholder="TAG" value="@TagDoItem(it)" @onchange="e => MudarTagDoItem(it, e)" />
+                    <datalist id="@($"dl-tag-{chave}")">@foreach (var v in ValoresDoModelo(ListasCompartilhadasRepository.Tag, it)) { <option value="@v" /> }</datalist>
                 </label>
             </section>
 
-            <section class="it-bloco">
-                <h4>Custo</h4>
+            <section class="it-bloco b-custo">
+                <h4>Custo (R$)</h4>
                 <div class="it-linha-campo">
-                    <span class="it-rot">Origem</span>
-                    <span class="item-origem">
-                        @if (it.PartNumber.Length > 0) { @SeloNac(r) }
-                        <label class="chk-inline"><input type="checkbox" checked="@it.Importado" @onchange="e => MarcarImportadoDe(it, e)" /> importado</label>
-                    </span>
+                    <label class="chk-inline"><input type="checkbox" checked="@it.Importado" @onchange="e => MarcarImportadoDe(it, e)" /> importado</label>
+                    @if (it.PartNumber.Length > 0) { @SeloNac(r) }
                 </div>
                 @if (it.Importado)
                 {
-                    <label>Preço do fornecedor (@_o.Moeda, unitário)
+                    <label>Preço do fornecedor (@_o.Moeda, unit.)
                         <input class="cell num" type="number" min="0" step="0.01" placeholder="preço unit."
                                value="@(it.ValorMoeda > 0 ? it.ValorMoeda.ToString(CultureInfo.InvariantCulture) : "")"
                                @onchange="e => MudarValorMoedaDe(it, e)" />
                     </label>
-                    <div class="it-linha-campo">
-                        <span class="it-rot">Custo unitário (R$)</span>
-                        @if (!novo && CustoImportadoDo(it) is decimal cu)
-                        {
-                            <strong>@Fmt.Brl(cu)</strong><small>importação @(_o.ImportacaoModo == "item" ? "por item" : "por total")</small>
-                        }
-                        else
-                        {
-                            <small class="custo-indisp">@(novo ? "calculado ao incluir" : it.ValorMoeda <= 0 ? $"informe o preço em {_o.Moeda}" : "complete a importação abaixo")</small>
-                        }
-                    </div>
+                    @if (novo || CustoImportadoDo(it) is null)
+                    {
+                        <small class="it-nota custo-indisp">@(novo ? "o custo em R$ é calculado ao incluir" : it.ValorMoeda <= 0 ? $"informe o preço em {_o.Moeda}" : "complete a importação abaixo")</small>
+                    }
                 }
                 else
                 {
-                    <label>Custo unitário (R$)
+                    <label>Custo unitário
                         <input class="cell num" type="number" min="0" step="0.01" placeholder="digite o custo"
                                value="@(CustoNacionalDe(it) is decimal cn ? cn.ToString(CultureInfo.InvariantCulture) : "")"
                                @onchange="e => MudarCustoDoItem(it, e)" />
                     </label>
                     <small class="it-nota">
-                        @if (it.CustoManual is not null)
+                        @if (it.CustoManual is not null && r.Nacionalizado && r.Custo is decimal rc)
                         {
-                            <span>digitado</span>
-                            @if (r.Nacionalizado && r.Custo is decimal rc)
-                            {
-                                <span> · Nacionalização @Fmt.Brl(rc) </span>
-                                <button class="btn-link" title="Voltar ao custo da Nacionalização" @onclick="() => it.CustoManual = null">↺ voltar</button>
-                            }
+                            <span>digitado · Nacionalização @Fmt.Brl(rc) </span><button class="btn-link" @onclick="() => it.CustoManual = null">↺ voltar</button>
                         }
-                        else if (r.Nacionalizado && r.Custo is not null)
+                        else if (it.CustoManual is null && r.Nacionalizado && r.Custo is not null)
                         {
                             <span>da Nacionalização@(r.CustoData.Length > 0 ? $" · {Fmt.Date(r.CustoData)}" : "")</span>
                         }
-                        else
+                        else if (it.CustoManual is null)
                         {
-                            <span class="custo-indisp">sem referência: digite</span>
+                            <span class="custo-indisp">sem custo: digite</span>
                         }
                     </small>
                 }
@@ -2441,98 +2428,80 @@
                         }
                     </span>
                 </div>
-                @if (!novo && (FreteDo(it) > 0m || it.CustoTa > 0m))
+                @if (!novo && CustoDoItem(it) is decimal ctotal)
                 {
                     <div class="it-composicao">
                         <span>base @Fmt.Brl(custoBase ?? 0m)</span>
                         @if (FreteDo(it) > 0m) { <span>+ frete @Fmt.Brl(FreteDo(it))</span> }
                         @if (it.CustoTa > 0m) { <span>+ TA @Fmt.Brl(Math.Round(it.CustoTa, 2))</span> }
-                        <strong>= @Fmt.Brl(CustoDoItem(it) ?? 0m)</strong>
+                        <strong>= @Fmt.Brl(ctotal) un.</strong>
                     </div>
                 }
-                @if (novo)
+                @if (refCusto is not null)
                 {
-                    <div class="it-dupla">
-                        <label>Quantidade
-                            <input class="cell num" type="number" min="1" step="1" value="@it.Quantity" @onchange="e => MudarQtdDe(it, e)" />
-                        </label>
-                        <label>Prazo (dias)
-                            <input class="cell num" type="number" min="0" step="1" placeholder="@(PricingDaProposta.PrazoEmDias(_o.PrazoEntrega) is > 0 and var pp ? pp.ToString() : "—")"
-                                   value="@(it.PrazoEntregaDias > 0 ? it.PrazoEntregaDias.ToString() : "")" @onchange="e => MudarPrazoDoItem(it, e)" />
-                        </label>
+                    <div class="it-ref" title="@($"{refCusto.Proposta} · {refCusto.Cliente} · {refCusto.Origem} · {refCusto.Usuario}")">
+                        <span class="it-ref-rot">Custo de referência</span>
+                        <strong>@Fmt.Brl(refCusto.Valor)</strong>
+                        <span class="it-ref-de">@Fmt.Date(refCusto.Data) · @refCusto.Proposta @SeloBase(refCusto.BaseDoCusto)</span>
+                        @if (!it.Importado && refCusto.Valor != custoBase)
+                        {
+                            <button class="btn-link" @onclick="() => { it.CustoManual = refCusto.Valor; if (it.BaseCusto.Length == 0) it.BaseCusto = refCusto.BaseDoCusto; }">usar este custo</button>
+                        }
                     </div>
                 }
             </section>
 
-            <section class="it-bloco">
-                <h4>Referências do part number</h4>
-                @if (it.PartNumber.Trim().Length == 0)
+            <section class="it-bloco b-venda">
+                <h4>Venda (@Cambio.MoedaDoPreco(_o).Rotulo())</h4>
+                @if (novo)
                 {
-                    <div class="it-nota">Digite o part number para ver custo de referência, última venda e preço já enviado.</div>
+                    <label>Quantidade
+                        <input class="cell num" type="number" min="1" step="1" value="@it.Quantity" @onchange="e => MudarQtdDe(it, e)" />
+                    </label>
                 }
-                else if (refCusto is null && r.UltimaVenda is null && refPreco is null)
-                {
-                    <div class="it-nota">Nenhuma referência para este part number.</div>
-                }
-                <div class="it-refs">
-                    @if (refCusto is not null)
-                    {
-                        <div class="it-ref" title="@($"{refCusto.Proposta} · {refCusto.Cliente} · {refCusto.Origem} · {refCusto.Usuario}")">
-                            <span class="it-ref-rot">Custo de referência</span>
-                            <strong>@Fmt.Brl(refCusto.Valor)</strong>
-                            <span class="it-ref-de">@Fmt.Date(refCusto.Data) · @refCusto.Proposta@(refCusto.Modelo.Length > 0 ? $" · {refCusto.Modelo}" : "")</span>
-                            <span>@SeloBase(refCusto.BaseDoCusto) @SeloVenda(refCusto)</span>
-                            @if (!it.Importado && refCusto.Valor != custoBase)
-                            {
-                                <button class="btn-link" @onclick="() => { it.CustoManual = refCusto.Valor; if (it.BaseCusto.Length == 0) it.BaseCusto = refCusto.BaseDoCusto; }">usar este custo</button>
-                            }
-                        </div>
-                    }
-                    @if (r.UltimaVenda is decimal uv)
-                    {
-                        <div class="it-ref">
-                            <span class="it-ref-rot">Última venda</span>
-                            <strong>@Fmt.Brl(uv)</strong>
-                            <span class="it-ref-de">@Fmt.Date(r.UltimaVendaData) · @(r.UltimaVendaDoCliente ? "este cliente" : "outro cliente")</span>
-                            @if (it.PrecoMeta != Math.Round(Cambio.ParaVenda(_o, uv), 2))
-                            {
-                                <button class="btn-link" title="Usar a última venda como preço meta" @onclick="() => it.PrecoMeta = Math.Round(Cambio.ParaVenda(_o, uv), 2)">meta = esta venda</button>
-                            }
-                        </div>
-                    }
-                    @if (refPreco is not null)
-                    {
-                        var metaEnviada = MetaDoPrecoEnviado(refPreco);
-                        <div class="it-ref" title="@($"{refPreco.Proposta} rev. {refPreco.Revisao} · {refPreco.Cliente} · {refPreco.Plantas} · {refPreco.Intercompany} · qtd {refPreco.Quantidade:0.##}")">
-                            <span class="it-ref-rot">Preço já enviado</span>
-                            <strong>@Moedas.Dinheiro(refPreco.MoedaDoPreco, refPreco.PrecoUnitLiquido)</strong>
-                            <span class="it-ref-de">@Fmt.Date(refPreco.Data) · @(Textos.Igual(refPreco.Cliente, _o.ClientName) ? "este cliente" : refPreco.Cliente) · @refPreco.Proposta@(refPreco.Revisao.Length > 0 ? $"-C{refPreco.Revisao}" : "")</span>
-                            <span>@SeloVenda(refPreco) @SeloBase(refPreco.BaseDoCusto)</span>
-                            @if (metaEnviada is decimal me && it.PrecoMeta != me)
-                            {
-                                <button class="btn-link" title="Usar o preço já enviado como preço meta" @onclick="() => it.PrecoMeta = me">meta = este preço</button>
-                            }
-                        </div>
-                    }
-                </div>
-                <label class="it-meta">Preço meta (@Cambio.MoedaDoPreco(_o).Rotulo(), unitário)
+                <label>Prazo (dias)
+                    <input class="cell num" type="number" min="0" step="1" @key="@($"prazo-{Versao(it)}")"
+                           placeholder="@(PricingDaProposta.PrazoEmDias(_o.PrazoEntrega) is > 0 and var pp ? pp + " (da proposta)" : "—")"
+                           value="@(it.PrazoEntregaDias > 0 ? it.PrazoEntregaDias.ToString() : "")" @onchange="e => MudarPrazoDoItem(it, e)" />
+                </label>
+                <label>Preço meta (unit.)
                     <input class="cell num" type="number" min="0" step="0.01" placeholder="sem meta"
                            value="@(it.PrecoMeta > 0 ? it.PrecoMeta.ToString(CultureInfo.InvariantCulture) : "")" @onchange="e => MudarMeta(it, e)" />
                 </label>
-                <small class="it-nota">
-                    @if (it.PrecoMeta > 0 && it.CustoTa > 0)
-                    {
-                        <span class="ta">o TA de @Fmt.Brl(Math.Round(it.CustoTa, 2)) entra no custo para chegar na meta</span>
-                    }
-                    else if (it.PrecoMeta > 0 && !novo && it.UnitPrice > it.PrecoMeta + 0.01m)
-                    {
-                        <span class="custo-indisp">o preço já está acima da meta</span>
-                    }
-                    else if (it.PrecoMeta <= 0)
-                    {
-                        <span>com meta, o TA completa o custo até o preço chegar nela</span>
-                    }
-                </small>
+                @if (!novo)
+                {
+                    <div class="it-composicao">
+                        <span>preço @(it.UnitPrice > 0 ? Venda(it.UnitPrice) : "—") un.</span>
+                        <strong>total @Venda(it.TotalPrice)</strong>
+                        @if (it.PrecoMeta > 0 && it.CustoTa > 0) { <span class="ta">TA @Fmt.Brl(Math.Round(it.CustoTa, 2)) para chegar na meta</span> }
+                        else if (it.PrecoMeta > 0 && it.UnitPrice > it.PrecoMeta + 0.01m) { <span class="custo-indisp">acima da meta</span> }
+                    </div>
+                }
+                @if (r.UltimaVenda is decimal uv)
+                {
+                    <div class="it-ref">
+                        <span class="it-ref-rot">Última venda</span>
+                        <strong>@Fmt.Brl(uv)</strong>
+                        <span class="it-ref-de">@Fmt.Date(r.UltimaVendaData) · @(r.UltimaVendaDoCliente ? "este cliente" : "outro cliente")</span>
+                        @if (it.PrecoMeta != Math.Round(Cambio.ParaVenda(_o, uv), 2))
+                        {
+                            <button class="btn-link" @onclick="() => it.PrecoMeta = Math.Round(Cambio.ParaVenda(_o, uv), 2)">meta = esta venda</button>
+                        }
+                    </div>
+                }
+                @if (refPreco is not null)
+                {
+                    var metaEnviada = MetaDoPrecoEnviado(refPreco);
+                    <div class="it-ref" title="@($"{refPreco.Proposta} rev. {refPreco.Revisao} · {refPreco.Cliente} · {refPreco.Plantas} · {refPreco.Intercompany} · qtd {refPreco.Quantidade:0.##}")">
+                        <span class="it-ref-rot">Preço já enviado</span>
+                        <strong>@Moedas.Dinheiro(refPreco.MoedaDoPreco, refPreco.PrecoUnitLiquido)</strong>
+                        <span class="it-ref-de">@Fmt.Date(refPreco.Data) · @(Textos.Igual(refPreco.Cliente, _o.ClientName) ? "este cliente" : refPreco.Cliente) @SeloVenda(refPreco)</span>
+                        @if (metaEnviada is decimal me && it.PrecoMeta != me)
+                        {
+                            <button class="btn-link" @onclick="() => it.PrecoMeta = me">meta = este preço</button>
+                        }
+                    </div>
+                }
             </section>
         </div>
     };
@@ -2543,6 +2512,10 @@
     private bool _novoAberto;
 
     private void Alternar(CommercialOfferItem it) { if (!_abertos.Remove(it)) _abertos.Add(it); }
+
+    // nas colunas de custo e venda a moeda está no título: os valores vão sem ela (cabem na tela)
+    private string N2(decimal v) => v.ToString("N2", PtBr);
+    private string V(decimal v) => v.ToString(Moedas.Formato(Cambio.MoedaDoPreco(_o)), PtBr);
 
     private void AbrirOuFecharTodos()
     {
@@ -2561,7 +2534,8 @@
     /// <summary>"VX 2025 · SN 123 · TAG K-201" — a linha cinza embaixo da peça.</summary>
     private string LinhaDoEquipamento(CommercialOfferItem it) => string.Join(" · ", new[]
     {
-        ModeloDoItem(it), SerialDoItem(it) is { Length: > 0 } sn ? "SN " + sn : "", TagDoItem(it) is { Length: > 0 } tag ? "TAG " + tag : "",
+        EquipamentoDoItem(it), SerialDoItem(it) is { Length: > 0 } sn ? "SN " + sn : "", TagDoItem(it) is { Length: > 0 } tag ? "TAG " + tag : "",
+        PrazoDoItem(it) is > 0 and var d ? $"{d} dias" : "",
     }.Where(x => x.Length > 0));
 
     /// <summary>De onde vem o custo, numa palavra: importado, digitado, Nacionalização ou "sem custo".</summary>
@@ -2573,20 +2547,5 @@
         return r.Nacionalizado && r.Custo is > 0 ? "Nacionalização " : "sem custo ";
     }
 
-    /// <summary>Os sinais da linha: o que existe de referência para o part number e o preço meta.</summary>
-    private RenderFragment SinaisDoItem(CommercialOfferItem it) => __builder =>
-    {
-        var r = RefDoItem(it);
-        var refCusto = ReferenciaDeCustoRepository.MaisRecente(_refsCusto, it.PartNumber, _o.Id);
-        var refPreco = ReferenciaDeCustoRepository.UltimoPreco(_refsCusto, it.PartNumber, _o.Id, _o.ClientName);
-        if (refCusto is not null) { <span class="sinal custo" title="@($"Custo de referência {Fmt.Brl(refCusto.Valor)} · {Fmt.Date(refCusto.Data)} · {refCusto.Proposta}")">custo</span> }
-        if (r.UltimaVenda is decimal uv) { <span class="sinal venda" title="@($"Última venda {Fmt.Brl(uv)} · {Fmt.Date(r.UltimaVendaData)}")">venda</span> }
-        if (refPreco is not null)
-        {
-            <span class="sinal enviado" title="@($"Preço já enviado {Moedas.Dinheiro(refPreco.MoedaDoPreco, refPreco.PrecoUnitLiquido)} · {Fmt.Date(refPreco.Data)} · {refPreco.Cliente}")">enviado</span>
-            if (refPreco.Vendido) { <span class="sinal af" title="@($"Vendido · AF {refPreco.NumeroAf}")">AF</span> }
-        }
-        if (it.CustoTa > 0) { <span class="sinal ta" title="@($"TA de {Fmt.Brl(Math.Round(it.CustoTa, 2))} no custo para chegar na meta")">TA</span> }
-    };
 
 }

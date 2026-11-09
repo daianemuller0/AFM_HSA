@@ -1446,3 +1446,26 @@ tr.inativo td { color: #9aa5b1; }
 .it-ref-rot { grid-column: 1; }
 .it-ref strong { grid-column: 2; text-align: right; }
 .it-ref-de, .it-ref > span:nth-child(4), .it-ref > .btn-link { grid-column: 1 / -1; }
+
+/* ======================= itens v2: custo e venda agrupados ======================= */
+.it-c-qtd { width: 58px; } .it-c-v { width: 104px; } .it-c-acoes { width: 64px; }
+.it-tabela thead tr.it-grupos th { border-bottom: none; padding-bottom: 2px; }
+.it-tabela thead th.g-custo { background: #e3effb; color: #1e4f86; }
+.it-tabela thead th.g-venda { background: #e2f5e9; color: #166534; }
+.it-tabela thead tr.it-grupos th.g-custo, .it-tabela thead tr.it-grupos th.g-venda { text-align: center; border-left: 2px solid #fff; }
+.it-tabela td.g-custo { background: #f6fafe; }
+.it-tabela td.g-venda { background: #f5fcf7; }
+.it-linha:hover td.g-custo { background: #edf4fc; } .it-linha:hover td.g-venda { background: #ebf8ef; }
+.it-linha.aberta td.g-custo, .it-linha.aberta td.g-venda { background: #eef5fd; }
+.it-tabela td.g-custo + td.g-venda, .it-tabela th.g-custo + th.g-venda { border-left: 2px solid #cfdcea; }
+.it-seta { color: var(--muted); font-size: 11px; display: inline-block; width: 12px; }
+.it-tabela td.g-venda .it-total { font-size: 13.5px; }
+.it-bloco.b-custo { border-color: #c5dbf2; } .it-bloco.b-custo h4 { color: #1e4f86; }
+.it-bloco.b-venda { border-color: #bfe5cc; } .it-bloco.b-venda h4 { color: #166534; }
+.it-det { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.it-bloco .it-ref { grid-column: 1 / -1; }
+.it-c-qtd { width: 50px; } .it-c-v { width: 92px; } .it-c-acoes { width: 60px; }
+.it-tabela td.g-custo, .it-tabela td.g-venda { padding-left: 6px; padding-right: 8px; }
+.it-in-custo { max-width: 92px; }
+.it-peca .it-sub { white-space: normal; max-width: none; }
+.it-peca { min-width: 180px; }

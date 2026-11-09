@@ -7,6 +7,7 @@
 @inject IJSRuntime JS
 @inject AuthenticationStateProvider Auth
 @inject OutlookLocal Outlook
+@inject ListasCompartilhadasRepository Listas
 
 <PageTitle>Cotação Intercompany · AFM HSA</PageTitle>
 
@@ -48,8 +49,8 @@
                 </select>
             </label>
             <label>Unidade (para quem)
-                <input class="cell" list="ic-unidades" value="@s.Unidade" placeholder="ex.: Howden UK – Renfrew" @onchange="e => s.Unidade = e.Value?.ToString() ?? string.Empty" />
-                <datalist id="ic-unidades">@foreach (var u in PedidoIntercompany.Unidades) { <option value="@u" /> }</datalist>
+                <input class="cell" list="ic-unidades" value="@s.Unidade" placeholder="ex.: Howden UK – Renfrew" @onchange="e => MudarUnidade(e.Value?.ToString() ?? string.Empty)" />
+                <datalist id="ic-unidades">@foreach (var (u, mail) in UnidadesConhecidas()) { <option value="@u">@mail</option> }</datalist>
             </label>
             <label>Para (e-mail)<input class="cell" value="@s.Para" placeholder="quem cota na unidade" @onchange="e => s.Para = e.Value?.ToString() ?? string.Empty" /></label>
             <label>Cc<input class="cell" value="@s.Cc" @onchange="e => s.Cc = e.Value?.ToString() ?? string.Empty" /></label>
@@ -179,6 +180,7 @@
     {
         _usuario = (await Auth.GetAuthenticationStateAsync()).User.Identity?.Name ?? "";
         _todas = Solicitacoes.Todas();
+        _listas = Listas.Todas();
         _ofertas = Ofertas.All().Where(o => (o.OfferCode ?? "").Trim().Length > 0)
             .OrderByDescending(o => o.OfferDate).ThenByDescending(o => o.OfferCode).ToList();
         if (!string.IsNullOrEmpty(PropostaDaUrl)) Nova(PropostaDaUrl);
@@ -262,9 +264,38 @@
         return true;
     }
 
+    // ---- as unidades e os e-mails já usados ficam na lista para todos ----
+    private List<ValorDeLista> _listas = new();
+
+    private IEnumerable<(string Unidade, string Email)> UnidadesConhecidas() => _listas
+        .Where(l => l.Lista == ListasCompartilhadasRepository.UnidadeIntercompany).Select(l => (l.Valor, l.Extra))
+        .Concat(PedidoIntercompany.Unidades.Select(u => (u, "")))
+        .GroupBy(x => Textos.Simples(x.Item1)).Select(g => g.First());
+
+    /// <summary>Escolher a unidade traz o e-mail que já foi usado com ela (se o "Para" estiver vazio).</summary>
+    private void MudarUnidade(string unidade)
+    {
+        if (_edit is null) return;
+        _edit.Unidade = unidade.Trim();
+        if (_edit.Para.Trim().Length == 0 && UnidadesConhecidas().FirstOrDefault(u => Textos.Igual(u.Unidade, unidade)).Email is { Length: > 0 } email)
+            _edit.Para = email;
+    }
+
+    private void LembrarUnidade()
+    {
+        if (_edit is null || _edit.Unidade.Trim().Length == 0) return;
+        try
+        {
+            Listas.Gravar(new[] { (ListasCompartilhadasRepository.UnidadeIntercompany, "", _edit.Unidade, _edit.Para) }, _listas, _usuario);
+            _listas = Listas.Todas();
+        }
+        catch (Exception) { }
+    }
+
     private void Salvar()
     {
         if (!Validar()) return;
+        LembrarUnidade();
         Solicitacoes.Gravar(_edit!);
         _todas = Solicitacoes.Todas();
         _msg = $"Solicitação {_edit!.Codigo} salva.";
@@ -274,6 +305,7 @@
     {
         if (!Validar() || _edit is null) return;
         if (_edit.Para.Trim().Length == 0) { _erro = "Informe o e-mail de quem cota na unidade (Para)."; return; }
+        LembrarUnidade();
         if (_edit.Status == "rascunho") _edit.Status = "enviada";
         _edit.EnviadaEm = DateTime.Now.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
         Solicitacoes.Gravar(_edit);

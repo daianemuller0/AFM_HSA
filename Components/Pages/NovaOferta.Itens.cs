@@ -151,7 +151,12 @@ public partial class NovaOferta
     /// <summary>Trocar o part number refaz a referência (nacionalizado, custo, última venda).</summary>
     private void MudarPn(CommercialOfferItem it, ChangeEventArgs e)
     {
+        var antes = it.PartNumber;
         it.PartNumber = (e.Value?.ToString() ?? "").Trim();
+        // descrição em branco (ou que era só o PN antigo): vem a que já se conhece deste part number
+        var desc = (it.Description ?? "").Trim();
+        if ((desc.Length == 0 || Textos.Igual(desc, antes)) && DescricaoConhecida(it.PartNumber) is { Length: > 0 } conhecida)
+            it.Description = conhecida;
         var r = Ref(it.PartNumber);
         it.Nacionalizado = r.Nacionalizado;
         it.CustoReferencia = r.Custo; it.CustoData = r.CustoData;

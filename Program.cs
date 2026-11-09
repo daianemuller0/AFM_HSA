@@ -76,6 +76,7 @@ builder.Services.AddScoped<CondicoesComerciaisRepository>();
 builder.Services.AddScoped<ReferenciaDeCustoRepository>();
 builder.Services.AddScoped<PosicaoDaPlantaRepository>();
 builder.Services.AddScoped<CotacaoIntercompanyRepository>();
+builder.Services.AddScoped<ListasCompartilhadasRepository>();
 // o Outlook só abre direto quando o sistema roda no computador de quem usa (localhost)
 {
     var urls = builder.Configuration["urls"] ?? Environment.GetEnvironmentVariable("ASPNETCORE_URLS") ?? "http://localhost";

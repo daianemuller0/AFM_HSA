@@ -275,6 +275,7 @@ public partial class NovaOferta : IDisposable
         foreach (var id in apagados) OffersRepo.DeleteItem(id);
         _idsGravados = agora;
         GravarReferenciasDeCusto(apagados);
+        GravarListas();
 
         _baseSalva = Foto();
         _anteriores = OffersRepo.All();
