@@ -234,9 +234,10 @@ internal sealed class PreenchimentoDaProposta
     }
 
     /// <summary>
-    /// O bloco do cliente na capa (empresa, A/C, cidade, e-mail e telefone)
-    /// sai todo com a fonte do nome da empresa (Arial, negrito): o e-mail e o
-    /// telefone vinham com a fonte do texto de exemplo do modelo.
+    /// O cabeçalho da capa sai todo com a fonte do nome da empresa (Arial,
+    /// negrito): do lado do cliente (empresa, A/C, cidade, e-mail, telefone,
+    /// sua referência) e do outro lado (projeto, nossa referência, data,
+    /// preparada por) — vários vinham com a fonte cinza do texto de exemplo.
     /// </summary>
     private void MesmaFonteDoCliente(Table capa)
     {
@@ -246,10 +247,11 @@ internal sealed class PreenchimentoDaProposta
         if (molde is null) return;
 
         var alvos = new List<OpenXmlElement>();
-        foreach (var rotulo in new[] { "E-mail:", "Fone:" })
+        foreach (var rotulo in new[] { "E-mail:", "Fone:", "Preparada por:" })
             if (Celula(capa, rotulo)?.NextSibling<TableCell>() is { } valor) alvos.Add(valor);
         alvos.AddRange(capa.Descendants<SdtElement>()
-            .Where(s => s.SdtProperties?.GetFirstChild<SdtAlias>()?.Val?.Value is "Comentários" or "Endereço da Empresa"));
+            .Where(s => s.SdtProperties?.GetFirstChild<SdtAlias>()?.Val?.Value is
+                "Comentários" or "Endereço da Empresa" or "Categoria" or "Título" or "Data de Publicação" or "Palavras-chave"));
         foreach (var alvo in alvos)
             foreach (var run in alvo.Descendants<Run>().Where(r => r.Elements<Text>().Any()))
             {
@@ -593,6 +595,9 @@ internal sealed class PreenchimentoDaProposta
             EscreverNaCelula(celTotal[^1], new[] { Dinheiro(Total) });
         }
 
+        // o rótulo do total ("VALOR LÍQUIDO", "Precio Total (USD)") em negrito, na cor do valor ao lado
+        if (celTotal.Count >= 2) RotuloEmNegrito(celTotal[0], celTotal[^1]);
+
         // todas as linhas de item saem de uma cópia da primeira (é ela que tem os marcadores)
         var modelo = (TableRow)linhas[1].CloneNode(true);
         // um item não se parte entre duas páginas
@@ -605,6 +610,43 @@ internal sealed class PreenchimentoDaProposta
             tabela.InsertBefore(linha, total);
         }
         foreach (var antiga in linhas.Skip(1).Take(linhas.Count - 2)) antiga.Remove();
+    }
+
+    private static void RotuloEmNegrito(TableCell rotulo, TableCell valor)
+    {
+        var cor = valor.Descendants<Run>().FirstOrDefault(r => r.Elements<Text>().Any(t => t.Text.Trim().Length > 0))
+            ?.RunProperties?.GetFirstChild<Color>();
+        foreach (var run in rotulo.Descendants<Run>().Where(r => r.Elements<Text>().Any()))
+        {
+            run.RunProperties ??= new RunProperties();
+            var rp = run.RunProperties;
+            if (rp.GetFirstChild<Bold>() is null) rp.Append(new Bold());
+            if (rp.GetFirstChild<BoldComplexScript>() is null) rp.Append(new BoldComplexScript());
+            rp.GetFirstChild<Color>()?.Remove();
+            rp.Append(cor is not null ? (Color)cor.CloneNode(true) : new Color { Val = "000000" });
+            NaOrdem(rp);
+        }
+    }
+
+    /// <summary>A ordem que o Word exige dentro da formatação do texto (w:rPr): sem ela, o Word reclama ao abrir.</summary>
+    private static readonly Type[] OrdemDoRPr =
+    {
+        typeof(RunStyle), typeof(RunFonts), typeof(Bold), typeof(BoldComplexScript), typeof(Italic), typeof(ItalicComplexScript),
+        typeof(Caps), typeof(SmallCaps), typeof(Strike), typeof(DoubleStrike), typeof(Outline), typeof(Shadow), typeof(Emboss),
+        typeof(Imprint), typeof(NoProof), typeof(SnapToGrid), typeof(Vanish), typeof(WebHidden), typeof(Color), typeof(Spacing),
+        typeof(CharacterScale), typeof(Kern), typeof(Position), typeof(FontSize), typeof(FontSizeComplexScript), typeof(Highlight),
+        typeof(Underline), typeof(TextEffect), typeof(Border), typeof(Shading), typeof(FitText), typeof(VerticalTextAlignment),
+        typeof(RightToLeftText), typeof(ComplexScript), typeof(Emphasis), typeof(Languages),
+    };
+
+    private static void NaOrdem(RunProperties rp)
+    {
+        var filhos = rp.ChildElements.ToList();
+        int Posicao(OpenXmlElement e) => Array.IndexOf(OrdemDoRPr, e.GetType()) is var i and >= 0 ? i : OrdemDoRPr.Length;
+        var ordenados = filhos.Select((e, i) => (e, i)).OrderBy(x => Posicao(x.e)).ThenBy(x => x.i).Select(x => x.e).ToList();
+        if (ordenados.SequenceEqual(filhos)) return;
+        foreach (var f in filhos) f.Remove();
+        foreach (var f in ordenados) rp.Append(f);
     }
 
     private void PreencherItem(TableRow linha, int indice)
@@ -999,7 +1041,7 @@ internal sealed class PreenchimentoDaProposta
             var valor = (Run)p.Elements<Run>().Last().CloneNode(true);
             valor.RemoveAllChildren<Text>();
             valor.RunProperties ??= new RunProperties();
-            if (l.Negrito && !valor.RunProperties.Elements<Bold>().Any()) valor.RunProperties.Append(new Bold());
+            if (l.Negrito && !valor.RunProperties.Elements<Bold>().Any()) { valor.RunProperties.Append(new Bold()); NaOrdem(valor.RunProperties); }
             valor.Append(new Text(l.Valor) { Space = SpaceProcessingModeValues.Preserve });
             p.Append(valor);
             Inserir(p);
