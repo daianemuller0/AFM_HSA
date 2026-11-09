@@ -130,7 +130,7 @@ public partial class NovaOferta
         CalcularTa();
         var c = Custos;
         var r = PricingAtual(c);
-        var fator = r.CustoTotal > 0m && r.VendaLiquida > 0m ? PricingDaProposta.FatorNoNivel(r, _o.ImpostosNoPreco) : 0m;
+        var fator = r.CustoTotal > 0m && r.VendaLiquida > 0m ? PricingDaProposta.FatorNoNivel(r, PricingDaProposta.NivelPedido(_o)) : 0m;
         var custos = c.ComCusto.ToDictionary(x => x.It, x => x.Unit);
         foreach (var it in _items)
         {
@@ -164,7 +164,7 @@ public partial class NovaOferta
         {
             var c = Custos;
             var r = PricingAtual(c);
-            var fator = r.CustoTotal > 0m && r.VendaLiquida > 0m ? PricingDaProposta.FatorNoNivel(r, _o.ImpostosNoPreco) : 0m;
+            var fator = r.CustoTotal > 0m && r.VendaLiquida > 0m ? PricingDaProposta.FatorNoNivel(r, PricingDaProposta.NivelPedido(_o)) : 0m;
             if (fator <= 0m) return;
             var mudou = false;
             var frete = Rateio().Unitario;
@@ -383,7 +383,7 @@ public partial class NovaOferta
 
         // o preço do item está no nível de impostos escolhido: a referência guarda o líquido
         var r = PricingAtual(Custos);
-        var noNivel = PricingDaProposta.ValorNoNivel(r, _o.ImpostosNoPreco) ?? r.ValorDaProposta;
+        var noNivel = PricingDaProposta.ValorNoNivel(r, PricingDaProposta.NivelPedido(_o)) ?? r.ValorDaProposta;
         var paraLiquido = noNivel > 0m && r.ValorDaProposta > 0m ? r.ValorDaProposta / noNivel : 1m;
         var todasAsPlantas = string.Join("; ", _o.Plantas.Select(PlantasDaProposta.Rotulo).Where(t => t.Length > 0));
 
@@ -614,7 +614,7 @@ public partial class NovaOferta
                     demais ? 0m : Math.Round(it.CustoTa, 2),
                     it.PrecoMeta, it.UnitPrice, it.TotalPrice));
             }
-            var nivel = PricingDaProposta.NivelEfetivo(r, _o.ImpostosNoPreco).Rotulo;
+            var nivel = PricingDaProposta.NivelEfetivo(r, PricingDaProposta.NivelPedido(_o)).Rotulo;
             var bytes = CustoPorItemExcel.Gerar(_o, linhas, r, nivel);
             await JS.InvokeVoidAsync("appDownload", CustoPorItemExcel.NomeDoArquivo(_o), CustoPorItemExcel.TipoMime, Convert.ToBase64String(bytes));
             var comTa = _items.Count(x => x.CustoTa > 0m);

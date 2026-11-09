@@ -39,7 +39,7 @@ internal sealed class PreenchimentoDaProposta
         var comprados = comCusto.Where(x => !x.It.Importado).Sum(x => x.Custo * x.It.Quantity);
         var importados = comCusto.Where(x => x.It.Importado).Sum(x => x.Custo * x.It.Quantity);
         _pricing = PricingDaProposta.Da(_o, comprados, importados, PricingDaProposta.IpiDosItens(comCusto));
-        _nivel = PricingDaProposta.NivelEfetivo(_pricing, _o.ImpostosNoPreco);
+        _nivel = PricingDaProposta.NivelEfetivo(_pricing, PricingDaProposta.NivelPedido(_o));
         _idioma = IdiomasDaProposta.Normalizar(_o.Idioma);
     }
 
@@ -59,6 +59,7 @@ internal sealed class PreenchimentoDaProposta
         Pagamento();
         Entrega();
         Validade();
+        FaturamentoDeFora();
         SoAComercial();
         TirarAssessoria();
         Indice();
@@ -537,7 +538,17 @@ internal sealed class PreenchimentoDaProposta
         var total = linhas[^1];
         foreach (var sdt in total.Descendants<SdtElement>().ToList()) Abrir(sdt);
         var celTotal = total.Elements<TableCell>().ToList();
-        if (celTotal.Count >= 2)
+        if (celTotal.Count >= 2 && FaturamentoDaBu.ImpostoLocal(_o.Bu) is { } local)
+        {
+            // BU de fora: "Precio Total (USD)  38.557,00 / + IGV" — o líquido, com o imposto local à parte
+            var moeda = Cambio.MoedaDoPreco(_o).Rotulo();
+            var rotulo = _idioma == IdiomasDaProposta.Ingles ? "Total Price" : _idioma == IdiomasDaProposta.Espanhol ? "Precio Total" : "Preço Total";
+            var numero = Total.ToString(Moedas.Formato(Cambio.MoedaDoPreco(_o)), Br);
+            if (_idioma == IdiomasDaProposta.Ingles) numero = TraducaoDaProposta.NumeroEmIngles(numero);
+            EscreverNaCelula(celTotal[0], new[] { $"{rotulo} ({moeda})" });
+            EscreverNaCelula(celTotal[^1], new[] { numero, $"+ {local}" });
+        }
+        else if (celTotal.Count >= 2)
         {
             // a opção da lista do modelo com os impostos em que os preços estão
             EscreverNaCelula(celTotal[0], new[] { _nivel.NoWord });
@@ -775,7 +786,18 @@ internal sealed class PreenchimentoDaProposta
             Achar("ICMS: (12% - INDICAR"), Achar("ICMS: (17% - ES)"), Achar("IPI: 0%"), Achar("IPI: 9,75%"),
         };
 
-        if (r.SemImpostos)
+        if (FaturamentoDaBu.ImpostoLocal(_o.Bu) is { } local)
+        {
+            // BU de fora: os impostos do Brasil não se aplicam; o IVA / IGV vai somado ao valor líquido
+            if (pis is not null) Escrever(pis, _idioma switch
+            {
+                IdiomasDaProposta.Ingles => $"Net values: {local} not included (added to the price).",
+                IdiomasDaProposta.Espanhol => $"Valores netos: {local} no incluido (se suma al precio).",
+                _ => $"Valores líquidos: {local} não incluso (somado ao preço).",
+            });
+            apagar.AddRange(new[] { cofins, icmsSp, ipiModelo, issItatiba, issSerra });
+        }
+        else if (r.SemImpostos)
         {
             if (pis is not null) Escrever(pis, "Venda para exportação: não incidem PIS, COFINS, ICMS e IPI.");
             apagar.AddRange(new[] { cofins, icmsSp, ipiModelo, issItatiba, issSerra });
@@ -864,7 +886,7 @@ internal sealed class PreenchimentoDaProposta
 
         void Valor(TableRow linha, decimal v) => EscreverNaCelula(linha.Elements<TableCell>().Last(), new[] { Dinheiro(Math.Round(v, 2)) });
         Valor(linhas[0], liquido);
-        if (r.SemImpostos)
+        if (r.SemImpostos || FaturamentoDaBu.ImpostoLocal(_o.Bu) is not null)
         {
             foreach (var l in linhas.Skip(1)) l.Remove();
             return;
@@ -877,6 +899,91 @@ internal sealed class PreenchimentoDaProposta
         }
         Valor(linhas[2], comIcms);
         Valor(linhas[3], comIpi);
+    }
+
+    // ================= dados para faturamento das BUs de fora =================
+
+    /// <summary>
+    /// HCHL / HPU: no lugar dos dados da Howden South America (razão social,
+    /// endereço, CNPJ e o Itaú), os da empresa da BU e a tabela da conta
+    /// bancária — como o modelo da equipe (<see cref="FaturamentoDaBu"/>).
+    /// </summary>
+    private void FaturamentoDeFora()
+    {
+        if (FaturamentoDaBu.DaBu(_o.Bu) is not { } empresa) return;
+        // a seção fica no fim: a razão social e o endereço também estão na capa (por isso o último)
+        var titulo = Ultimo("Dados Para Faturamento");
+        var razao = Ultimo("Howden South America Ventiladores e Compressores");
+        var endereco = Ultimo("Av. Osvaldo Berto, 475");
+        // o "Banco:" fica dentro de uma tabela: procura em todos os parágrafos
+        var banco = _corpo.Descendants<Paragraph>().LastOrDefault(p => Texto(p).Contains("Banco: Banco Itaú", StringComparison.Ordinal));
+        if (titulo is null || razao is null || endereco is null || banco is null) return;
+        // razão social, endereço e CNPJ são parágrafos do corpo logo depois do título; o banco fica numa tabela
+        OpenXmlElement fim = banco.Ancestors<Table>().FirstOrDefault() is { } tabelaDoBanco ? tabelaDoBanco : banco;
+        if (titulo.Parent != _corpo || razao.Parent != _corpo || endereco.Parent != _corpo || fim.Parent != _corpo) return;
+        var ordem = _corpo.ChildElements.ToList();
+        int i(OpenXmlElement x) => ordem.IndexOf(x);
+        if (!(i(titulo) < i(razao) && i(razao) < i(endereco) && i(endereco) < i(fim) && i(fim) - i(titulo) <= 8)) return;
+
+        var moldeNegrito = (Paragraph)razao.CloneNode(true);
+        var moldeNormal = (Paragraph)endereco.CloneNode(true);
+        var moldeTitulo = (Paragraph)banco.CloneNode(true);
+        ApagarEntre(razao, fim);
+        razao.Remove();
+
+        OpenXmlElement depois = titulo;
+        void Inserir(OpenXmlElement e) { depois.InsertAfterSelf(e); depois = e; }
+
+        var nome = (Paragraph)moldeNegrito.CloneNode(true);
+        Escrever(nome, empresa.Nome);
+        Inserir(nome);
+        foreach (var l in empresa.Linhas)
+        {
+            var p = (Paragraph)moldeNormal.CloneNode(true);
+            Escrever(p, l.Rotulo + " ");
+            var valor = (Run)p.Elements<Run>().Last().CloneNode(true);
+            valor.RemoveAllChildren<Text>();
+            valor.RunProperties ??= new RunProperties();
+            if (l.Negrito && !valor.RunProperties.Elements<Bold>().Any()) valor.RunProperties.Append(new Bold());
+            valor.Append(new Text(l.Valor) { Space = SpaceProcessingModeValues.Preserve });
+            p.Append(valor);
+            Inserir(p);
+        }
+
+        // "Euro - EUR" em negrito e a tabela da conta, como no modelo da equipe
+        var moedaConta = (Paragraph)moldeTitulo.CloneNode(true);
+        Escrever(moedaConta, empresa.MoedaDaConta);
+        moedaConta.ParagraphProperties?.RemoveAllChildren<Indentation>();
+        moedaConta.ParagraphProperties?.Append(new SpacingBetweenLines { Before = "240", After = "120" });
+        Inserir(moedaConta);
+        Inserir(TabelaDaConta(empresa.Conta));
+    }
+
+    /// <summary>A conta bancária: rótulo em negrito e valor, sem bordas, recuada como no modelo da equipe.</summary>
+    private static Table TabelaDaConta(IEnumerable<FaturamentoDaBu.Linha> linhas)
+    {
+        Run Texto(string t, bool negrito)
+        {
+            var props = new RunProperties(new RunFonts { Ascii = "Arial", HighAnsi = "Arial", ComplexScript = "Arial" });
+            if (negrito) props.Append(new Bold());
+            props.Append(new FontSize { Val = "16" }, new FontSizeComplexScript { Val = "16" });
+            return new Run(props, new Text(t) { Space = SpaceProcessingModeValues.Preserve });
+        }
+        TableCell Celula(string t, bool negrito, int largura) => new(
+            new TableCellProperties(new TableCellWidth { Width = largura.ToString(), Type = TableWidthUnitValues.Dxa }),
+            new Paragraph(new ParagraphProperties(new SpacingBetweenLines { Before = "0", After = "20" }), Texto(t, negrito)));
+
+        var tabela = new Table(new TableProperties(
+            new TableIndentation { Width = 720, Type = TableWidthUnitValues.Dxa },
+            new TableBorders(
+                new TopBorder { Val = BorderValues.None }, new BottomBorder { Val = BorderValues.None },
+                new LeftBorder { Val = BorderValues.None }, new RightBorder { Val = BorderValues.None },
+                new InsideHorizontalBorder { Val = BorderValues.None }, new InsideVerticalBorder { Val = BorderValues.None }),
+            new TableLayout { Type = TableLayoutValues.Fixed }));
+        tabela.Append(new TableGrid(new GridColumn { Width = "2700" }, new GridColumn { Width = "4200" }));
+        foreach (var l in linhas)
+            tabela.Append(new TableRow(Celula(l.Rotulo, true, 2700), Celula(l.Valor, false, 4200)));
+        return tabela;
     }
 
     // ================= pagamento, entrega e validade =================

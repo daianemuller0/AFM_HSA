@@ -1351,15 +1351,15 @@
             <div class="pricing-acoes">
                 <span>
                     Os preços dos itens já saem daqui, em @moedaVenda.Rotulo(): custo de cada item × fator
-                    @PricingDaProposta.FatorNoNivel(pr, _o.ImpostosNoPreco).ToString("N4", PtBr)
-                    (@PricingDaProposta.NivelEfetivo(pr, _o.ImpostosNoPreco).Rotulo.ToLowerInvariant()). Mudou o custo, a margem ou os impostos, o preço acompanha.
+                    @PricingDaProposta.FatorNoNivel(pr, PricingDaProposta.NivelPedido(_o)).ToString("N4", PtBr)
+                    (@PricingDaProposta.NivelEfetivo(pr, PricingDaProposta.NivelPedido(_o)).Rotulo.ToLowerInvariant()). Mudou o custo, a margem ou os impostos, o preço acompanha.
                 </span>
             </div>
             @if (demais > 0.005m)
             {
                 <div class="pricing-acoes">
                     @if (_itemDemais is null || !_items.Contains(_itemDemais)) { <button class="btn-ghost" @onclick="AdicionarDemais">Incluir item "Serviços e demais custos"</button> }
-                    <span>A tabela de custo tem @Cu(demais) além dos itens (@NomesDosDemais()) — no preço, @VendaDe(demais * PricingDaProposta.FatorNoNivel(pr, _o.ImpostosNoPreco)).
+                    <span>A tabela de custo tem @Cu(demais) além dos itens (@NomesDosDemais()) — no preço, @VendaDe(demais * PricingDaProposta.FatorNoNivel(pr, PricingDaProposta.NivelPedido(_o))).
                         @(_itemDemais is not null && _items.Contains(_itemDemais) ? "Já está na proposta como item, com o preço atualizado." : "Inclua como item da proposta para cobrar à parte.")</span>
                 </div>
             }
@@ -1369,21 +1369,25 @@
 @* os preços dos itens ao lado do pricing: ajustar um preço não obriga a
    voltar à etapa Itens *@
 <div class="panel" id="f-precos" style="margin-bottom:14px">
-    @{ var nivelEfetivo = PricingDaProposta.NivelEfetivo(prLado, _o.ImpostosNoPreco); }
+    @{ var nivelEfetivo = PricingDaProposta.NivelEfetivo(prLado, PricingDaProposta.NivelPedido(_o)); }
     <div class="dash-title">Preço ao cliente <span class="dash-sub">com que impostos os preços saem na proposta (o total do Word diz o mesmo)</span></div>
     <div class="niveis-imposto" role="radiogroup" aria-label="Impostos no preço">
-        @foreach (var n in PricingDaProposta.Niveis)
+        @foreach (var n in DeFora ? PricingDaProposta.Niveis.Take(1) : PricingDaProposta.Niveis)
         {
             var nivel = n;
             var valorNivel = PricingDaProposta.ValorNoNivel(prLado, n.Codigo);
             <button class="nivel @(nivelEfetivo.Codigo == n.Codigo ? "on" : "")" role="radio" aria-checked="@(nivelEfetivo.Codigo == n.Codigo ? "true" : "false")"
-                    disabled="@(valorNivel is null)" @onclick="() => _o.ImpostosNoPreco = nivel.Codigo">
+                    disabled="@(valorNivel is null || DeFora)" @onclick="() => _o.ImpostosNoPreco = nivel.Codigo">
                 <strong>@n.Rotulo</strong>
                 <span>@(valorNivel is decimal vn && prLado.CustoTotal > 0 ? VendaDe(vn) : valorNivel is null ? "não se aplica" : "—")</span>
             </button>
         }
     </div>
-    @if (nivelEfetivo.Codigo != _o.ImpostosNoPreco)
+    @if (DeFora)
+    {
+        <div class="pricing-dica">BU @_o.Bu: o preço sai líquido, com "+ @FaturamentoDaBu.ImpostoLocal(_o.Bu)" embaixo do total no Word, e os dados de faturamento da @(FaturamentoDaBu.DaBu(_o.Bu)?.Nome).</div>
+    }
+    else if (nivelEfetivo.Codigo != PricingDaProposta.NivelPedido(_o))
     {
         <div class="imp-pendencia">Esta proposta não tem esse nível de imposto (exportação, Back to Back, sem Estado ou procurar o Financeiro): os preços saem sem impostos.</div>
     }
@@ -1517,7 +1521,7 @@
         <div><span>Vendedor (contato)</span><strong>@OuTraco(ContatosHowden.Do(_o.Vendedor)?.Nome ?? _o.Vendedor)</strong></div>
         <div><span>Idioma</span><strong>@IdiomasDaProposta.Nome(_o.Idioma)</strong></div>
         <div><span>Representante</span><strong>@OuTraco(string.Join(" · ", new[] { _o.Rep1, _o.Rep2 }.Where(r => !string.IsNullOrWhiteSpace(r) && r.Trim() != "-")))</strong></div>
-        <div><span>Valor da proposta</span><strong>@Venda(Total) <small class="nota">@PricingDaProposta.NivelEfetivo(prLado, _o.ImpostosNoPreco).Rotulo.ToLowerInvariant()</small></strong></div>
+        <div><span>Valor da proposta</span><strong>@Venda(Total) <small class="nota">@PricingDaProposta.NivelEfetivo(prLado, PricingDaProposta.NivelPedido(_o)).Rotulo.ToLowerInvariant()</small></strong></div>
     </div>
     <div class="tabela-rolante" style="margin-top:12px">
         <table class="grid">
@@ -1585,7 +1589,7 @@
         @if (Total > 0m)
         {
             <div class="side-total-value">@Venda(Total)</div>
-            <div class="side-total-nota">@PricingDaProposta.NivelEfetivo(prLado, _o.ImpostosNoPreco).Rotulo.ToLowerInvariant(), como sai na proposta</div>
+            <div class="side-total-nota">@PricingDaProposta.NivelEfetivo(prLado, PricingDaProposta.NivelPedido(_o)).Rotulo.ToLowerInvariant(), como sai na proposta</div>
         }
         else
         {

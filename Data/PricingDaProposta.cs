@@ -213,6 +213,13 @@ public static class PricingDaProposta
         new("todos", "Com PIS, COFINS, ICMS e IPI", "VALOR COM PIS, COFINS, ICMS E IPI", true, true, true),
     };
 
+    /// <summary>
+    /// O nível de imposto pedido para o preço: nas BUs de fora (HCHL, HPU) é
+    /// sempre o líquido — o IVA / IGV vai somado à parte no documento.
+    /// </summary>
+    public static string NivelPedido(CommercialOffer o) =>
+        Cambio.CompraDeFora(o.Bu) ? Niveis[0].Codigo : o.ImpostosNoPreco;
+
     public static NivelDeImposto NivelDe(string? codigo) => Niveis.FirstOrDefault(n => n.Codigo == codigo) ?? Niveis[0];
 
     /// <summary>

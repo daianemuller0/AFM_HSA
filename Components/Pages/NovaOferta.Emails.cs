@@ -49,7 +49,7 @@ public partial class NovaOferta
             .ToList();
 
         // preços sem impostos (os da tela estão no nível de impostos escolhido)
-        var noNivel = PricingDaProposta.ValorNoNivel(r, _o.ImpostosNoPreco) ?? r.ValorDaProposta;
+        var noNivel = PricingDaProposta.ValorNoNivel(r, PricingDaProposta.NivelPedido(_o)) ?? r.ValorDaProposta;
         var paraLiquido = noNivel > 0m && r.ValorDaProposta > 0m ? r.ValorDaProposta / noNivel : 1m;
         var itens = _items.Select((it, i) => (
             (i + 1).ToString("D2"),
