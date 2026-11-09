@@ -71,6 +71,14 @@ public static class FaturamentoDaBu
         return Bus.FirstOrDefault(x => x.Bu.Equals(b, StringComparison.OrdinalIgnoreCase)).Bu ?? "";
     }
 
+    /// <summary>As contas preenchidas da BU, a da moeda do preço primeiro (só as linhas com valor).</summary>
+    public static List<(Moeda Moeda, List<LinhaDeFaturamento> Linhas)> ContasParaOWord(DadosBancariosDaBu d, Moeda moedaDoPreco)
+    {
+        var ordem = (Bus.FirstOrDefault(b => b.Bu == d.Bu).Moedas ?? Array.Empty<Moeda>())
+            .OrderBy(m => m == moedaDoPreco ? 0 : 1).ToList();
+        return ordem.Where(d.TemConta).Select(m => (m, d.ContaEm(m).Where(l => !l.Vazia).ToList())).ToList();
+    }
+
     /// <summary>O título da tabela da conta ("Dólar Americano - USD").</summary>
     public static string TituloDaConta(Moeda m) => m switch
     {
