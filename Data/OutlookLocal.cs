@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.Versioning;
 
 namespace AfmHsa.Data;
 
@@ -40,7 +41,11 @@ public sealed class OutlookLocal
         string? erro = null;
         var t = new Thread(() =>
         {
-            try { AbrirPeloOutlook(email, caminhos); }
+            try
+            {
+                if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("o Outlook só abre no Windows");
+                AbrirPeloOutlook(email, caminhos);
+            }
             catch (Exception ex) { erro = ex.Message; }
         });
         if (OperatingSystem.IsWindows()) t.SetApartmentState(ApartmentState.STA);
@@ -62,6 +67,7 @@ public sealed class OutlookLocal
         }
     }
 
+    [SupportedOSPlatform("windows")]
     private static void AbrirPeloOutlook(EmailDaProposta email, IReadOnlyList<string> anexos)
     {
         var tipo = Type.GetTypeFromProgID("Outlook.Application") ?? throw new InvalidOperationException("o Outlook não está instalado");
