@@ -76,6 +76,12 @@ builder.Services.AddScoped<CondicoesComerciaisRepository>();
 builder.Services.AddScoped<ReferenciaDeCustoRepository>();
 builder.Services.AddScoped<PosicaoDaPlantaRepository>();
 builder.Services.AddScoped<CotacaoIntercompanyRepository>();
+// o Outlook só abre direto quando o sistema roda no computador de quem usa (localhost)
+{
+    var urls = builder.Configuration["urls"] ?? Environment.GetEnvironmentVariable("ASPNETCORE_URLS") ?? "http://localhost";
+    var local = urls.Split(';').All(u => u.Contains("localhost", StringComparison.OrdinalIgnoreCase) || u.Contains("127.0.0.1"));
+    builder.Services.AddSingleton(new OutlookLocal(local));
+}
 // Parâmetros da planilha de custos de importação (padrão: versão 02/03/2022);
 // a seção "Importacao" do appsettings substitui só os valores que trouxer.
 builder.Services.AddSingleton(sp =>

@@ -13,6 +13,7 @@ namespace AfmHsa.Components.Pages;
 public partial class NovaOferta
 {
     [Inject] private IConfiguration Config { get; set; } = default!;
+    [Inject] private OutlookLocal Outlook { get; set; } = default!;
 
     // o que foi digitado nos campos (null = o padrão)
     private string? _aprovParaDigitado, _aprovCcDigitado, _propParaDigitado, _propCcDigitado;
@@ -85,8 +86,9 @@ public partial class NovaOferta
             var anexos = new List<AnexoDoEmail>();
             if (PricingEmBytes() is { } pricing) anexos.Add(new(PricingExcel.NomeDoArquivo(_o), PricingExcel.TipoMime, pricing));
             var email = EmailDeAprovacao();
-            await BaixarEml(email, anexos);
-            _msg = $"E-mail de aprovação pronto: abra o arquivo no Outlook, confira e envie{(anexos.Count > 0 ? " (o pricing vai anexo)" : "")}.";
+            _msg = await BaixarEml(email, anexos)
+                ? $"E-mail de aprovação aberto no Outlook{(anexos.Count > 0 ? ", com o pricing anexo" : "")}: confira e envie."
+                : $"E-mail de aprovação pronto: abra o arquivo baixado no Outlook, confira e envie{(anexos.Count > 0 ? " (o pricing vai anexo)" : "")}.";
         }
         catch (Exception ex) { _erro = "Não deu para montar o e-mail de aprovação: " + ex.Message; }
         finally { _gerandoEmail = false; }
@@ -104,17 +106,21 @@ public partial class NovaOferta
             var anexos = new List<AnexoDoEmail>();
             if (WordEmBytes() is { } word)
                 anexos.Add(new(PropostaWord.NomeDoArquivo(_o), "application/vnd.openxmlformats-officedocument.wordprocessingml.document", word));
-            await BaixarEml(EmailAoCliente(), anexos);
-            _msg = "E-mail ao cliente pronto, com a proposta em Word anexa: abra no Outlook, anexe a T&C e envie.";
+            _msg = await BaixarEml(EmailAoCliente(), anexos)
+                ? "E-mail ao cliente aberto no Outlook, com a proposta em Word anexa: anexe a T&C e envie."
+                : "E-mail ao cliente pronto, com a proposta em Word anexa: abra o arquivo baixado no Outlook, anexe a T&C e envie.";
         }
         catch (Exception ex) { _erro = "Não deu para montar o e-mail ao cliente: " + ex.Message; }
         finally { _gerandoEmail = false; }
     }
 
-    private async Task BaixarEml(EmailDaProposta email, IReadOnlyList<AnexoDoEmail> anexos)
+    /// <summary>Abre direto no Outlook (como a macro do pricing); sem ele, baixa o .eml. true = abriu no Outlook.</summary>
+    private async Task<bool> BaixarEml(EmailDaProposta email, IReadOnlyList<AnexoDoEmail> anexos)
     {
+        if (await Task.Run(() => Outlook.Abrir(email, anexos)) is null) return true;
         var nome = PricingExcel.Limpo(email.Assunto.TrimEnd('.')) + ".eml";
         await JS.InvokeVoidAsync("appDownload", nome, "message/rfc822", Convert.ToBase64String(EmailsDaProposta.Eml(email, anexos)));
+        return false;
     }
 
     private async Task Copiar(EmailDaProposta email)

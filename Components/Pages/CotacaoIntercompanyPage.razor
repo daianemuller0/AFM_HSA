@@ -6,6 +6,7 @@
 @inject OfferRepository Ofertas
 @inject IJSRuntime JS
 @inject AuthenticationStateProvider Auth
+@inject OutlookLocal Outlook
 
 <PageTitle>Cotação Intercompany · AFM HSA</PageTitle>
 
@@ -119,7 +120,7 @@
         <div class="email-assunto" style="margin-top:12px"><span>Assunto</span>@email.Assunto</div>
         <div class="email-acoes" style="margin-top:10px">
             <button class="btn-primary" @onclick="Salvar">Salvar</button>
-            <button class="btn-accent" disabled="@(s.Itens.Count == 0)" @onclick="AbrirNoOutlook">✉ Abrir no Outlook (planilha anexa)</button>
+            <button class="btn-accent" disabled="@(s.Itens.Count == 0)" @onclick="AbrirNoOutlook">✉ Abrir e-mail no Outlook (planilha anexa)</button>
             <button class="btn-ghost" disabled="@(s.Itens.Count == 0)" @onclick="Copiar">⧉ Copiar</button>
             <a class="btn-link" href="@EmailsDaProposta.Mailto(email)">mailto</a>
             <button class="btn-ghost" disabled="@(s.Itens.Count == 0)" @onclick="BaixarPlanilha">⬇ Planilha</button>
@@ -275,9 +276,15 @@
         _todas = Solicitacoes.Todas();
         var email = PedidoIntercompany.Email(_edit, _usuario);
         var anexo = new AnexoDoEmail(PedidoIntercompany.NomeDaPlanilha(_edit), CustoPorItemExcel.TipoMime, PedidoIntercompany.Planilha(_edit, _usuario));
+        // direto no Outlook (como a macro); sem ele, o .eml para abrir
+        if (await Task.Run(() => Outlook.Abrir(email, new[] { anexo })) is null)
+        {
+            _msg = $"Pedido {_edit.Codigo} aberto no Outlook, com a planilha anexa: confira e envie.";
+            return;
+        }
         await JS.InvokeVoidAsync("appDownload", PricingExcel.Limpo(_edit.Codigo) + ".eml", "message/rfc822",
             Convert.ToBase64String(EmailsDaProposta.Eml(email, new[] { anexo })));
-        _msg = $"Pedido {_edit.Codigo} pronto: abra o arquivo no Outlook e envie (a planilha vai anexa).";
+        _msg = $"Pedido {_edit.Codigo} pronto: abra o arquivo baixado no Outlook e envie (a planilha vai anexa).";
     }
 
     private async Task Copiar()
