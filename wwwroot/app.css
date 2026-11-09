@@ -1478,3 +1478,6 @@ tr.inativo td { color: #9aa5b1; }
 .it-in-ta { -moz-appearance: textfield; appearance: textfield; text-align: right; }
 .it-in-ta::-webkit-outer-spin-button, .it-in-ta::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .it-c-ta { width: 90px; } .it-c-qtd { width: 44px; } .it-in-ta { max-width: 90px; }
+/* referência de preço de venda na linha do item */
+.it-ref-venda { color: #1d4ed8; font-weight: 600; cursor: help; }
+.it-ref-venda.vendido { color: #047857; }

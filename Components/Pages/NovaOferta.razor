@@ -807,7 +807,12 @@
                                 </td>
                                 <td class="right g-custo" title="@(custoIt is decimal ctt ? $"total com frete e TA · {N2(ctt)} un." : "")">@(custoIt is decimal ct ? N2(ct * it.Quantity) : "—")</td>
                                 <td class="right g-venda">@(it.UnitPrice > 0 ? V(it.UnitPrice) : "—")
-                                    @if (it.PrecoMeta > 0) { <div class="it-sub" title="preço meta (unitário)">meta @V(it.PrecoMeta)</div> }</td>
+                                    @if (it.PrecoMeta > 0) { <div class="it-sub" title="preço meta (unitário)">meta @V(it.PrecoMeta)</div> }
+                                    @if (RefPrecoDo(it) is { } rp)
+                                    {
+                                        <div class="it-sub it-ref-venda @(rp.NumeroAf.Trim().Length > 0 ? "vendido" : "")"
+                                             title="@TituloDoPrecoEnviado(rp)">@(rp.NumeroAf.Trim().Length > 0 ? "✔ " : "")ref. @ValorDoPrecoEnviado(rp)</div>
+                                    }</td>
                                 <td class="right g-venda"><span class="it-total">@V(it.TotalPrice)</span></td>
                                 <td class="it-c-acoes">
                                     <button class="it-bt" title="Duplicar a linha (a cópia vem preenchida, logo abaixo)" @onclick="() => DuplicarItem(idx)">⧉</button>
@@ -2362,7 +2367,7 @@
     {
         var r = RefDoItem(it);
         var refCusto = ReferenciaDeCustoRepository.MaisRecente(_refsCusto, it.PartNumber, _o.Id);
-        var refPreco = ReferenciaDeCustoRepository.UltimoPreco(_refsCusto, it.PartNumber, _o.Id, _o.ClientName);
+        var refPreco = RefPrecoDo(it);
         var custoBase = CustoBaseDoItem(it);
         var chave = novo ? "novo" : _items.IndexOf(it).ToString();
         <div class="it-det">

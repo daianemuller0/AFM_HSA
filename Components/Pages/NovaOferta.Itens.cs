@@ -430,6 +430,20 @@ public partial class NovaOferta
         && a.Estado == b.Estado && a.Intercompany == b.Intercompany && a.Quantidade == b.Quantidade && a.PrecoUnitLiquido == b.PrecoUnitLiquido
         && a.Moeda == b.Moeda && a.Data == b.Data && a.Descricao == b.Descricao && a.BaseDoCusto == b.BaseDoCusto;
 
+    /// <summary>A referência de preço de venda do part number: o último preço enviado (deste cliente primeiro).</summary>
+    private ReferenciaDeCusto? RefPrecoDo(CommercialOfferItem it) =>
+        it == _itemDemais ? null : ReferenciaDeCustoRepository.UltimoPreco(_refsCusto, it.PartNumber, _o.Id, _o.ClientName);
+
+    /// <summary>O preço enviado para a linha: só o número na moeda da proposta; a moeda junto quando é outra.</summary>
+    private string ValorDoPrecoEnviado(ReferenciaDeCusto rp) =>
+        rp.MoedaDoPreco == Cambio.MoedaDoPreco(_o) ? V(rp.PrecoUnitLiquido) : Moedas.Dinheiro(rp.MoedaDoPreco, rp.PrecoUnitLiquido);
+
+    private string TituloDoPrecoEnviado(ReferenciaDeCusto rp) =>
+        $"Referência de preço de venda: {Moedas.Dinheiro(rp.MoedaDoPreco, rp.PrecoUnitLiquido)} un. (líquido) em {Fmt.Date(rp.Data)}"
+        + $" · {PropostaWord.Ou(rp.Proposta, "importada")} · {(Textos.Igual(rp.Cliente, _o.ClientName) ? "este cliente" : PropostaWord.Ou(rp.Cliente, "—"))}"
+        + (rp.NumeroAf.Trim().Length > 0 ? $" · vendido (AF {rp.NumeroAf.Trim()})" : "")
+        + " — abra o item para usar como meta";
+
     /// <summary>
     /// O último preço enviado ao cliente como meta do item, na moeda desta
     /// proposta (de R$ converte; de outra moeda, só se for a mesma).

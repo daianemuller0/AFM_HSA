@@ -107,7 +107,7 @@ public sealed class ReferenciaDeCustoRepository
     {
         var pn = IntelligenceService.NormPn(partNumber);
         if (pn.Length == 0) return null;
-        return todas.Where(r => r.PropostaId != propostaAtual && IntelligenceService.NormPn(r.PartNumber) == pn && r.Valor > 0)
+        return todas.Where(r => DeOutra(r, propostaAtual) && IntelligenceService.NormPn(r.PartNumber) == pn && r.Valor > 0)
             .OrderByDescending(r => r.Data).ThenByDescending(r => r.Proposta).FirstOrDefault();
     }
 
@@ -119,10 +119,18 @@ public sealed class ReferenciaDeCustoRepository
     {
         var pn = IntelligenceService.NormPn(partNumber);
         if (pn.Length == 0) return null;
-        var doPn = todas.Where(r => r.PropostaId != propostaAtual && r.PrecoUnitLiquido > 0 && IntelligenceService.NormPn(r.PartNumber) == pn)
+        var doPn = todas.Where(r => DeOutra(r, propostaAtual) && r.PrecoUnitLiquido > 0 && IntelligenceService.NormPn(r.PartNumber) == pn)
             .OrderByDescending(r => r.Data).ThenByDescending(r => r.Proposta).ThenByDescending(r => r.Revisao).ToList();
         return doPn.FirstOrDefault(r => Textos.Igual(r.Cliente, cliente) && (cliente ?? "").Trim().Length > 0) ?? doPn.FirstOrDefault();
     }
+
+    /// <summary>
+    /// A referência não é desta proposta. As importadas do Excel não têm
+    /// proposta (id vazio) e valem sempre — também na proposta nova, que
+    /// ainda não tem id.
+    /// </summary>
+    private static bool DeOutra(ReferenciaDeCusto r, string propostaAtual) =>
+        r.PropostaId.Length == 0 || r.PropostaId != propostaAtual;
 
     public void Gravar(ReferenciaDeCusto r) => _store.WriteRow(Entidade, Linha(r));
 
