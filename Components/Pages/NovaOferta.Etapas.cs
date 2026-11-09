@@ -139,9 +139,7 @@ public partial class NovaOferta : IDisposable
         // 4 — preço
         Falta(Cambio.FaltaTaxa(_o), $"Taxa de câmbio do {Cambio.MoedaDoPreco(_o).Rotulo()}", 4, "f-taxa");
         if (Bancos.ParaProposta(_o) is { Conta: null } semConta)
-            Avisa(true, FaturamentoDaBu.ContasParaOWord(semConta.Dados, semConta.Moeda).Count == 0
-                ? $"Nenhuma conta bancária da {semConta.Dados.Bu} cadastrada (Dados e Importação → Dados bancários): o Word sai sem contas"
-                : $"Sem conta bancária em {semConta.Moeda.Rotulo()} da {semConta.Dados.Bu} (Dados e Importação → Dados bancários): o Word sai com as outras contas", 5, "");
+            Avisa(true, $"Sem conta bancária em {semConta.Moeda.Rotulo()} da {semConta.Dados.Bu} (Dados e Importação → Dados bancários): o Word sai sem a conta", 5, "");
         var acimaDaMeta = _items.Count(i => i.PrecoMeta > 0m && i.UnitPrice > i.PrecoMeta + 0.01m);
         Avisa(acimaDaMeta > 0, $"{Plural(acimaDaMeta, "item", "itens")} com preço acima da meta (o TA só sobe; para baixar, reduza a margem)", 3, "f-itens");
         Falta(comFianca && V(_o.TipoGarantia), "Tipo de garantia (fiança)", 4, "f-tipogarantia");

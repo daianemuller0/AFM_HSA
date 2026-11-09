@@ -1002,9 +1002,9 @@ internal sealed class PreenchimentoDaProposta
 
     /// <summary>
     /// "Dados para faturamento": no lugar do que o modelo traz (Howden South
-    /// America, CNPJ e o Itaú), a empresa da BU da proposta e, embaixo, as
-    /// contas bancárias dela (a da moeda do preço primeiro) — como estão em
-    /// Dados e Importação → Dados bancários (<see cref="DadosBancariosRepository"/>).
+    /// America, CNPJ e o Itaú), a empresa da BU da proposta e, embaixo, a
+    /// conta bancária na moeda do preço — como estão em Dados e Importação →
+    /// Dados bancários (<see cref="DadosBancariosRepository"/>). Sem conta nessa moeda, sai só a empresa.
     /// </summary>
     private void Faturamento()
     {
@@ -1053,10 +1053,11 @@ internal sealed class PreenchimentoDaProposta
             Inserir(p);
         }
 
-        // embaixo, as contas da BU — a da moeda do preço primeiro; cada uma com o título
-        // ("Dólar Americano - USD") em negrito e a tabela
-        foreach (var (moeda, conta) in FaturamentoDaBu.ContasParaOWord(empresa, fat.Moeda))
+        // embaixo, só a conta na moeda do preço: o título ("Dólar Americano - USD") em negrito e a tabela
+        if (fat.Conta is { } contaDaMoeda && contaDaMoeda.Any(l => !l.Vazia))
         {
+            var moeda = fat.Moeda;
+            var conta = contaDaMoeda.Where(l => !l.Vazia).ToList();
             var moedaConta = (Paragraph)moldeTitulo.CloneNode(true);
             Escrever(moedaConta, FaturamentoDaBu.TituloDaConta(moeda));
             moedaConta.ParagraphProperties?.RemoveAllChildren<Indentation>();

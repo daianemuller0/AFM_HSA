@@ -8,7 +8,7 @@
             <div class="dash-title">Dados bancários</div>
             <div class="nota">
                 A empresa que fatura e as contas de cada BU. No Word, em "Dados para faturamento", sai a empresa da BU da proposta
-                e, embaixo, todas as contas preenchidas — a da moeda do preço primeiro. Linha sem valor não sai.
+                e, embaixo, só a conta na moeda do preço (proposta em USD → a conta em USD). Linha sem valor não sai.
             </div>
         </div>
     </div>
@@ -81,7 +81,7 @@
                 </div>
                 @if (!_edit.TemConta(_moeda))
                 {
-                    <div class="imp-pendencia" style="margin-top:8px">Sem dados: esta conta não sai no Word.</div>
+                    <div class="imp-pendencia" style="margin-top:8px">Sem dados: a proposta da @_edit.Bu em @_moeda.Rotulo() sai sem a conta.</div>
                 }
             </section>
         </div>
