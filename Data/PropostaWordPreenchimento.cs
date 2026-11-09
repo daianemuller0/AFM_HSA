@@ -734,6 +734,9 @@ internal sealed class PreenchimentoDaProposta
         if (P("NCM:") is { } pNcm)
         {
             if (servico) Tirar(pNcm);
+            // HCHL / HPU: só o código (o IPI é do Brasil); peça de compressor sem NCM = 8414.90.39
+            else if (FaturamentoDaBu.ImpostoLocal(_o.Bu) is not null)
+                EscreverRotulo(pNcm, "NCM: ", ListasDaProposta.NcmDo(item.Ncm)?.Codigo ?? PropostaWord.Ou(item.Ncm, ListasDaProposta.NcmDeCompressor));
             else EscreverRotulo(pNcm, "NCM: ", ListasDaProposta.NcmDo(item.Ncm)?.Texto ?? "a definir");
         }
 
