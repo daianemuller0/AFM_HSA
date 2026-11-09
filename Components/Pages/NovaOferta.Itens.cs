@@ -424,15 +424,13 @@ public partial class NovaOferta
                 continue;
             }
             var origem = DeFora ? "preço de fora" : it.Importado ? "importação" : it.CustoManual is > 0 ? "digitado" : RefDoItem(it).Nacionalizado ? "nacionalização" : "proposta";
-            // a referência guarda o custo em R$: o de fora vai pela aba Conversão (sem a taxa lá, fica sem custo)
-            var paraReais = MoedaCusto == Moeda.Brl ? 1m : Conversao.Ler().ReaisPor(MoedaCusto) ?? 0m;
-            if (custo is decimal cf) custo = cf * paraReais;
+            // a referência guarda o custo e o TA na moeda em que foram feitos (EUR, USD, R$...), com a moeda junto
             var planta = PlantasDaProposta.PlantaDe(_o, PlantasDaProposta.DoItem(_o, it));
             var unit = Math.Round(it.UnitPrice * paraLiquido, 2);
             var nova = new ReferenciaDeCusto
             {
                 Id = it.Id, PartNumber = it.PartNumber.Trim(), Descricao = DescricaoSemPn(it), Valor = Math.Round(custo ?? 0m, 2),
-                Ta = Math.Round(it.CustoTa * paraReais, 2), Data = data, Modelo = ModeloDoItem(it), SerialNumber = SerialDoItem(it),
+                Ta = Math.Round(it.CustoTa, 2), MoedaCusto = MoedaCusto.Codigo(), Data = data, Modelo = ModeloDoItem(it), SerialNumber = SerialDoItem(it),
                 Origem = origem, PropostaId = _o.Id, Proposta = _o.OfferCode.Trim(), Revisao = PropostaWord.Ou(_o.Revisao, "0"),
                 Cliente = _o.ClientName, Usuario = _usuario,
                 Plantas = planta is not null ? PlantasDaProposta.Rotulo(planta) : todasAsPlantas,
@@ -456,7 +454,7 @@ public partial class NovaOferta
         a.Valor == b.Valor && a.Ta == b.Ta && a.PartNumber == b.PartNumber && a.Modelo == b.Modelo && a.SerialNumber == b.SerialNumber
         && a.Origem == b.Origem && a.Proposta == b.Proposta && a.Revisao == b.Revisao && a.Cliente == b.Cliente && a.Plantas == b.Plantas
         && a.Estado == b.Estado && a.Intercompany == b.Intercompany && a.Quantidade == b.Quantidade && a.PrecoUnitLiquido == b.PrecoUnitLiquido
-        && a.Moeda == b.Moeda && a.Data == b.Data && a.Descricao == b.Descricao && a.BaseDoCusto == b.BaseDoCusto;
+        && a.Moeda == b.Moeda && a.Data == b.Data && a.Descricao == b.Descricao && a.BaseDoCusto == b.BaseDoCusto && a.MoedaDoCusto == b.MoedaDoCusto;
 
     /// <summary>A referência de preço de venda do part number: o último preço enviado (deste cliente primeiro).</summary>
     private ReferenciaDeCusto? RefPrecoDo(CommercialOfferItem it) =>

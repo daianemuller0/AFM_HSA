@@ -79,8 +79,8 @@
                     <td class="right nowrap">@(r.PrecoUnitLiquido > 0 ? Moedas.Dinheiro(r.MoedaDoPreco, r.PrecoUnitLiquido) : "—")</td>
                     <td class="right nowrap">@(r.PrecoTotalLiquido > 0 ? Moedas.Dinheiro(r.MoedaDoPreco, r.PrecoTotalLiquido) : "—")</td>
                     <td class="nowrap">@(r.Data.Length > 0 ? Fmt.Date(r.Data) : "—")</td>
-                    <td class="right nowrap">@(r.Valor > 0 ? Fmt.Brl(r.Valor) : "—")</td>
-                    <td class="right nowrap">@(r.Ta > 0 ? Fmt.Brl(r.Ta) : "—")</td>
+                    <td class="right nowrap">@(r.Valor > 0 ? Moedas.Dinheiro(r.MoedaDoCusto, r.Valor) : "—")</td>
+                    <td class="right nowrap">@(r.Ta > 0 ? Moedas.Dinheiro(r.MoedaDoCusto, r.Ta) : "—")</td>
                     <td title="@Detalhe(r)">@Traco(r.Descricao)</td>
                     <td><input class="cell ref-af" value="@r.NumeroAf" placeholder="—" title="Número da AF: preenchido = vendido"
                                @onchange="e => MudarAf(r, e)" /></td>
@@ -150,8 +150,8 @@
         new("Valor unit. líquido", r => r.PrecoUnitLiquido, true),
         new("Valor total líquido", r => r.PrecoTotalLiquido, true),
         new("Data", r => r.Data),
-        new("Custo unit. (R$)", r => r.Valor, true),
-        new("TA (R$)", r => r.Ta, true),
+        new("Custo unit.", r => r.Valor, true),
+        new("TA", r => r.Ta, true),
         new("Descrição", r => Textos.Simples(r.Descricao)),
         new("Nº AF", r => r.NumeroAf),
         new("Vendido por", r => r.VendaPor),
@@ -279,7 +279,7 @@
             r.Proposta, r.Revisao, r.Cliente, r.Plantas, r.Estado, r.Intercompany, r.PartNumber, r.Quantidade.ToString("0.##"),
             r.PrecoUnitLiquido.ToString("0.00"), r.PrecoTotalLiquido.ToString("0.00"), r.DataComoData?.ToString("dd/MM/yyyy") ?? "",
             r.Valor.ToString("0.00"), r.Ta.ToString("0.00"), r.Descricao, r.NumeroAf, r.VendaPor,
-            r.ValorPacote > 0 ? r.ValorPacote.ToString("0.00") : "", r.BaseDoCusto, r.MoedaDoPreco.Codigo(),
+            r.ValorPacote > 0 ? r.ValorPacote.ToString("0.00") : "", r.BaseDoCusto, r.MoedaDoPreco.Codigo(), r.MoedaDoCusto.Codigo(),
         });
         var bytes = Planilha.Xlsx("Referências", ReferenciaDeCustoRepository.Colunas.Select(c => c.Nome).ToList(), linhas);
         await JS.InvokeVoidAsync("appDownload", "referencias_de_preco.xlsx",

@@ -55,6 +55,8 @@ public sealed class ReferenciaDeCusto
     public decimal ValorPacote { get; set; }
     /// <summary>De onde veio o custo: "cotação" (temos cotação de fornecedor / intercompany) ou "estimado".</summary>
     public string BaseDoCusto { get; set; } = "";
+    /// <summary>A moeda do custo e do TA (o custo fica na moeda em que foi feito: EUR, USD...); vazio = R$ (as antigas).</summary>
+    public string MoedaCusto { get; set; } = "";
 
     public bool Vendido => NumeroAf.Trim().Length > 0;
 
@@ -62,6 +64,7 @@ public sealed class ReferenciaDeCusto
         DateTime.TryParseExact(Data, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) ? d : null;
 
     public Moeda MoedaDoPreco => Moedas.Ler(Moeda);
+    public Moeda MoedaDoCusto => Moedas.Ler(MoedaCusto);
 }
 
 /// <summary>As referências de preço e custo (entidade "referencias_custo").</summary>
@@ -76,7 +79,7 @@ public sealed class ReferenciaDeCustoRepository
         .ReadLatest(Entidade,
             "id, part_number, descricao, valor, ta, data, modelo, serial_number, origem, proposta_id, proposta, cliente, usuario, " +
             "revisao, plantas, estado, intercompany, quantidade, preco_unit_liquido, preco_total_liquido, moeda, " +
-            "numero_af, venda_por, valor_pacote, base_custo",
+            "numero_af, venda_por, valor_pacote, base_custo, moeda_custo",
             r => new ReferenciaDeCusto
             {
                 Id = Fmt.S(r, 0), PartNumber = Fmt.S(r, 1), Descricao = Fmt.S(r, 2), Valor = Fmt.Dec(Fmt.S(r, 3)),
@@ -86,6 +89,7 @@ public sealed class ReferenciaDeCustoRepository
                 Intercompany = Fmt.S(r, 16), Quantidade = Fmt.Dec(Fmt.S(r, 17)), PrecoUnitLiquido = Fmt.Dec(Fmt.S(r, 18)),
                 PrecoTotalLiquido = Fmt.Dec(Fmt.S(r, 19)), Moeda = Fmt.S(r, 20),
                 NumeroAf = Fmt.S(r, 21), VendaPor = Fmt.S(r, 22), ValorPacote = Fmt.Dec(Fmt.S(r, 23)), BaseDoCusto = Fmt.S(r, 24),
+                MoedaCusto = Fmt.S(r, 25),
             })
         .Select(SepararRevisao)
         .OrderByDescending(r => r.Data).ThenByDescending(r => r.Proposta)
@@ -149,6 +153,7 @@ public sealed class ReferenciaDeCustoRepository
             new("quantidade", N(r.Quantidade)), new("preco_unit_liquido", N(r.PrecoUnitLiquido)),
             new("preco_total_liquido", N(r.PrecoTotalLiquido)), new("moeda", r.Moeda),
             new("numero_af", r.NumeroAf), new("venda_por", r.VendaPor), new("valor_pacote", N(r.ValorPacote)), new("base_custo", r.BaseDoCusto),
+            new("moeda_custo", r.MoedaCusto),
         };
     }
 
@@ -180,14 +185,15 @@ public sealed class ReferenciaDeCustoRepository
         ("Valor unitário líquido", new[] { "valor unitario liquido", "valor unit liquido", "preco unitario liquido", "preco unitario", "valor unitario", "unitario liquido" }),
         ("Valor total líquido", new[] { "valor total liquido", "preco total liquido", "valor total", "preco total", "total liquido" }),
         ("Data", new[] { "data", "data da proposta" }),
-        ("Custo unit. (R$)", new[] { "custo unit (r$)", "custo unit", "custo unitario", "custo unit r$", "custo" }),
-        ("TA (R$)", new[] { "ta (r$)", "ta", "ta r$" }),
+        ("Custo unit.", new[] { "custo unit (r$)", "custo unit", "custo unitario", "custo unit r$", "custo" }),
+        ("TA", new[] { "ta (r$)", "ta", "ta r$" }),
         ("Descrição", new[] { "descricao", "descricao da peca" }),
         ("Nº AF", new[] { "n af", "numero da af", "no af", "af", "n da af", "numero af" }),
         ("Vendido por", new[] { "vendido por", "venda por", "item ou total", "item/pacote", "por item ou total" }),
         ("Valor total do pacote", new[] { "valor total do pacote", "valor do pacote", "pacote" }),
         ("Base do custo", new[] { "base do custo", "cotacao ou estimado", "custo cotado ou estimado", "cotado/estimado" }),
-        ("Moeda", new[] { "moeda" }),
+        ("Moeda", new[] { "moeda", "moeda do preco", "moeda da venda" }),
+        ("Moeda do custo", new[] { "moeda do custo", "moeda custo", "moeda do custo e ta" }),
     };
 
     private static string ChaveDaColuna(string s) =>
@@ -211,7 +217,7 @@ public sealed class ReferenciaDeCustoRepository
         }
         if (!indice.ContainsKey("Part Number"))
             return (0, new List<string> { "A planilha não tem a coluna \"Part Number\". Baixe o modelo para ver as colunas." });
-        foreach (var (col, _) in Colunas.Where(c => c.Nome is not "Moeda" && !indice.ContainsKey(c.Nome)))
+        foreach (var (col, _) in Colunas.Where(c => c.Nome is not ("Moeda" or "Moeda do custo") && !indice.ContainsKey(c.Nome)))
             avisos.Add($"Coluna \"{col}\" não encontrada (fica vazia).");
 
         string C(string[] l, string col) => indice.TryGetValue(col, out var i) && i < l.Length ? (l[i] ?? "").Trim() : "";
@@ -228,7 +234,8 @@ public sealed class ReferenciaDeCustoRepository
                 Estado = C(l, "Estado"), Intercompany = C(l, "Intercompany"), PartNumber = pn,
                 Quantidade = Numero(C(l, "Quantidade")) ?? 0m, PrecoUnitLiquido = Numero(C(l, "Valor unitário líquido")) ?? 0m,
                 PrecoTotalLiquido = Numero(C(l, "Valor total líquido")) ?? 0m, Data = DataIso(C(l, "Data")),
-                Valor = Numero(C(l, "Custo unit. (R$)")) ?? 0m, Ta = Numero(C(l, "TA (R$)")) ?? 0m,
+                Valor = Numero(C(l, "Custo unit.")) ?? 0m, Ta = Numero(C(l, "TA")) ?? 0m,
+                MoedaCusto = Moedas.Ler(C(l, "Moeda do custo")).Codigo(),
                 Descricao = C(l, "Descrição"), Moeda = Moedas.Ler(C(l, "Moeda")).Codigo(),
                 NumeroAf = C(l, "Nº AF"), VendaPor = VendaPorDe(C(l, "Vendido por")), ValorPacote = Numero(C(l, "Valor total do pacote")) ?? 0m,
                 BaseDoCusto = BaseDe(C(l, "Base do custo")),
@@ -249,7 +256,7 @@ public sealed class ReferenciaDeCustoRepository
     /// <summary>O modelo da planilha de importação, com uma linha de exemplo.</summary>
     public static byte[] Modelo() => Planilha.Xlsx("Referências", Colunas.Select(c => c.Nome).ToList(), new[]
     {
-        (IReadOnlyList<string>)new[] { "HSA2026-0147", "2", "Vale", "São Luís", "MA", "HSA-SP", "HW-NAC-A", "3", "3853,22", "11559,66", "05/11/2026", "2100,00", "0", "Rolamento", "AF-12345", "pacote", "25000,00", "cotação", "BRL" },
+        (IReadOnlyList<string>)new[] { "HSA2026-0147", "2", "Vale", "São Luís", "MA", "HSA-SP", "HW-NAC-A", "3", "3853,22", "11559,66", "05/11/2026", "2100,00", "0", "Rolamento", "AF-12345", "pacote", "25000,00", "cotação", "BRL", "BRL" },
     });
 
     public const string Cotacao = "cotação";

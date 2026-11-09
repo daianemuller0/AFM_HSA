@@ -2590,9 +2590,10 @@
                 {
                     <div class="it-ref" title="@($"{refCusto.Proposta} · {refCusto.Cliente} · {refCusto.Origem} · {refCusto.Usuario}")">
                         <span class="it-ref-rot">Custo de referência</span>
-                        <strong>@Fmt.Brl(refCusto.Valor)</strong>
+                        <strong>@Moedas.Dinheiro(refCusto.MoedaDoCusto, refCusto.Valor)</strong>
+                        @if (refCusto.Ta > 0m) { <span>+ TA @Moedas.Dinheiro(refCusto.MoedaDoCusto, refCusto.Ta)</span> }
                         <span class="it-ref-de">@Fmt.Date(refCusto.Data) · @refCusto.Proposta @SeloBase(refCusto.BaseDoCusto)</span>
-                        @if (!it.Importado && !DeFora && refCusto.Valor != custoBase)
+                        @if (!Imp(it) && refCusto.MoedaDoCusto == MoedaCusto && refCusto.Valor != custoBase)
                         {
                             <button class="btn-link" @onclick="() => { it.CustoManual = refCusto.Valor; if (it.BaseCusto.Length == 0) it.BaseCusto = refCusto.BaseDoCusto; }">usar este custo</button>
                         }
