@@ -1,0 +1,339 @@
+@page "/cotacao-intercompany"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@using System.Globalization
+@inject CotacaoIntercompanyRepository Solicitacoes
+@inject OfferRepository Ofertas
+@inject IJSRuntime JS
+@inject AuthenticationStateProvider Auth
+
+<PageTitle>Cotação Intercompany · AFM HSA</PageTitle>
+
+<div class="page-head">
+    <div>
+        <h1>Cotação Intercompany</h1>
+        <p class="subtitle">
+            Escolha os itens de uma proposta (ou digite) e peça a cotação a outra unidade Howden / Chart, em português, inglês
+            ou espanhol. O e-mail sai pronto para o Outlook, com a planilha para eles preencherem; quando a resposta chegar,
+            digite o preço e o prazo de cada item e leve para a proposta como custo de cotação.
+        </p>
+    </div>
+    @if (_edit is null)
+    {
+        <button class="btn-primary" @onclick="() => Nova(null)">+ Nova solicitação</button>
+    }
+</div>
+
+@if (_msg is not null) { <div class="alert-ok" style="margin-bottom:10px">@_msg</div> }
+@if (_erro is not null) { <div class="alert-error" style="margin-bottom:10px">@_erro</div> }
+
+@if (_edit is not null)
+{
+    var s = _edit;
+    <div class="panel ic-editor">
+        <div class="ic-topo">
+            <div class="dash-title">@(s.Codigo.Length > 0 ? s.Codigo : "Nova solicitação") <span class="ic-status @s.Status">@NomeDoStatus(s.Status)</span></div>
+            <button class="btn-ghost" @onclick="Fechar">✕ fechar</button>
+        </div>
+
+        <div class="ic-campos">
+            <label>Proposta
+                <select class="cell" value="@s.PropostaId" @onchange="e => EscolherProposta(e.Value?.ToString() ?? string.Empty)">
+                    <option value="">— sem proposta (itens digitados) —</option>
+                    @foreach (var o in _ofertas) { <option value="@o.Id">@PropostaWord.Referencia(o) · @o.ClientName</option> }
+                </select>
+            </label>
+            <label>Unidade (para quem)
+                <input class="cell" list="ic-unidades" value="@s.Unidade" placeholder="ex.: Howden UK – Renfrew" @onchange="e => s.Unidade = e.Value?.ToString() ?? string.Empty" />
+                <datalist id="ic-unidades">@foreach (var u in PedidoIntercompany.Unidades) { <option value="@u" /> }</datalist>
+            </label>
+            <label>Para (e-mail)<input class="cell" value="@s.Para" placeholder="quem cota na unidade" @onchange="e => s.Para = e.Value?.ToString() ?? string.Empty" /></label>
+            <label>Cc<input class="cell" value="@s.Cc" @onchange="e => s.Cc = e.Value?.ToString() ?? string.Empty" /></label>
+            <label>Idioma do pedido
+                <select class="cell" value="@s.Idioma" @onchange="e => s.Idioma = IdiomasDaProposta.Normalizar(e.Value?.ToString())">
+                    @foreach (var (cod, nome) in IdiomasDaProposta.Opcoes) { <option value="@cod">@nome</option> }
+                </select>
+            </label>
+            <label>Moeda do preço
+                <select class="cell" value="@s.Moeda" @onchange="e => s.Moeda = e.Value?.ToString() ?? string.Empty">
+                    @foreach (var m in new[] { "USD", "EUR", "GBP", "BRL", "CLP", "PEN" }) { <option value="@m">@m</option> }
+                </select>
+            </label>
+            <label>Resposta até<input class="cell" type="date" value="@s.RespostaAte" @onchange="e => s.RespostaAte = e.Value?.ToString() ?? string.Empty" /></label>
+            <label>Condição de entrega (Incoterm)<input class="cell" value="@s.Entrega" placeholder="ex.: FCA Glasgow" @onchange="e => s.Entrega = e.Value?.ToString() ?? string.Empty" /></label>
+            <label class="ic-obs">Observações<input class="cell" value="@s.Observacoes" @onchange="e => s.Observacoes = e.Value?.ToString() ?? string.Empty" /></label>
+        </div>
+
+        @if (_daProposta.Count > 0)
+        {
+            <div class="ic-escolha">
+                <div class="pend-etapa">Itens da proposta — marque os que vão na cotação</div>
+                @foreach (var it in _daProposta)
+                {
+                    var marcado = s.Itens.Any(x => x.ItemId == it.Id);
+                    <label class="chk-inline ic-item-escolha">
+                        <input type="checkbox" checked="@marcado" @onchange="e => Marcar(it, e.Value is true)" />
+                        <strong>@PropostaWord.Ou(it.PartNumber, "sem PN")</strong> · @Descricao(it) · qtd @it.Quantity
+                        @if (it.Importado) { <span class="selo-ref vend">importado</span> }
+                    </label>
+                }
+            </div>
+        }
+
+        <table class="grid ic-itens">
+            <thead>
+                <tr><th>#</th><th>Part Number</th><th>Descrição</th><th>Modelo</th><th>Serial Number</th><th>TAG</th><th class="right">Qtd</th><th>Obs.</th>
+                    <th class="right ic-resp">Preço cotado (@s.Moeda)</th><th class="right ic-resp">Prazo (dias)</th><th></th></tr>
+            </thead>
+            <tbody>
+                @for (var i = 0; i < s.Itens.Count; i++)
+                {
+                    var it = s.Itens[i];
+                    var idx = i;
+                    <tr>
+                        <td>@((i + 1).ToString("D2"))</td>
+                        <td><input class="cell" value="@it.PartNumber" @onchange="e => it.PartNumber = e.Value?.ToString() ?? string.Empty" /></td>
+                        <td><input class="cell" value="@it.Descricao" @onchange="e => it.Descricao = e.Value?.ToString() ?? string.Empty" /></td>
+                        <td><input class="cell" value="@it.Modelo" @onchange="e => it.Modelo = e.Value?.ToString() ?? string.Empty" /></td>
+                        <td><input class="cell" value="@it.SerialNumber" @onchange="e => it.SerialNumber = e.Value?.ToString() ?? string.Empty" /></td>
+                        <td><input class="cell" value="@it.Tag" @onchange="e => it.Tag = e.Value?.ToString() ?? string.Empty" /></td>
+                        <td><input class="cell num ic-num" type="number" min="1" value="@it.Quantidade" @onchange="e => it.Quantidade = int.TryParse(e.Value?.ToString(), out var q) && q > 0 ? q : 1" /></td>
+                        <td><input class="cell" value="@it.Observacao" @onchange="e => it.Observacao = e.Value?.ToString() ?? string.Empty" /></td>
+                        <td class="ic-resp"><input class="cell num ic-num" type="number" min="0" step="0.01" placeholder="—"
+                                   value="@(it.PrecoCotado > 0 ? it.PrecoCotado.ToString(CultureInfo.InvariantCulture) : "")"
+                                   @onchange="e => it.PrecoCotado = ReferenciaDeCustoRepository.Numero(e.Value?.ToString()) ?? 0m" /></td>
+                        <td class="ic-resp"><input class="cell num ic-num" type="number" min="0" placeholder="—" value="@(it.PrazoDias > 0 ? it.PrazoDias.ToString() : "")"
+                                   @onchange="e => it.PrazoDias = int.TryParse(e.Value?.ToString(), out var d) && d > 0 ? d : 0" /></td>
+                        <td><button class="btn-link" title="Tirar da cotação" @onclick="() => s.Itens.RemoveAt(idx)">✕</button></td>
+                    </tr>
+                }
+                @if (s.Itens.Count == 0)
+                {
+                    <tr><td colspan="11" class="empty">Nenhum item: marque itens da proposta acima ou acrescente um.</td></tr>
+                }
+            </tbody>
+        </table>
+        <button class="btn-link" style="margin-top:6px" @onclick="() => s.Itens.Add(new ItemDaCotacao())">+ acrescentar item</button>
+
+        @{ var email = PedidoIntercompany.Email(s, _usuario); }
+        <div class="email-assunto" style="margin-top:12px"><span>Assunto</span>@email.Assunto</div>
+        <div class="email-acoes" style="margin-top:10px">
+            <button class="btn-primary" @onclick="Salvar">Salvar</button>
+            <button class="btn-accent" disabled="@(s.Itens.Count == 0)" @onclick="AbrirNoOutlook">✉ Abrir no Outlook (planilha anexa)</button>
+            <button class="btn-ghost" disabled="@(s.Itens.Count == 0)" @onclick="Copiar">⧉ Copiar</button>
+            <a class="btn-link" href="@EmailsDaProposta.Mailto(email)">mailto</a>
+            <button class="btn-ghost" disabled="@(s.Itens.Count == 0)" @onclick="BaixarPlanilha">⬇ Planilha</button>
+            <button class="btn-link" @onclick="() => _previa = !_previa">@(_previa ? "esconder" : "ver o e-mail")</button>
+            <span style="flex:1"></span>
+            @if (s.PropostaId.Length > 0 && s.Itens.Any(i => i.PrecoCotado > 0 && i.ItemId.Length > 0))
+            {
+                <button class="btn-accent" title="Os itens com preço cotado viram importados na proposta, com esse preço e marcados como cotação"
+                        @onclick="AplicarNaProposta">⇢ Levar a cotação para a proposta</button>
+            }
+        </div>
+        @if (_previa) { <div class="email-previa" style="margin-top:10px">@((MarkupString)email.Html)</div> }
+    </div>
+}
+
+<div class="panel" style="margin-top:14px">
+    <div class="dash-title">Solicitações</div>
+    <table class="grid">
+        <thead><tr><th>Código</th><th>Proposta</th><th>Cliente</th><th>Unidade</th><th>Idioma</th><th class="right">Itens</th><th class="right">Cotados</th><th>Situação</th><th>Data</th><th></th></tr></thead>
+        <tbody>
+            @foreach (var s in _todas)
+            {
+                <tr>
+                    <td class="nowrap"><button class="btn-link" @onclick="() => Abrir(s)">@s.Codigo</button></td>
+                    <td class="nowrap">@PropostaWord.Ou(s.Proposta, "—")</td>
+                    <td>@PropostaWord.Ou(s.Cliente, "—")</td>
+                    <td>@PropostaWord.Ou(s.Unidade, "—")</td>
+                    <td>@IdiomasDaProposta.Nome(s.Idioma)</td>
+                    <td class="right">@s.Itens.Count</td>
+                    <td class="right">@s.Itens.Count(i => i.PrecoCotado > 0)</td>
+                    <td><span class="ic-status @s.Status">@NomeDoStatus(s.Status)</span></td>
+                    <td class="nowrap">@(s.EnviadaEm.Length > 0 ? s.EnviadaEm : s.CriadaEm)</td>
+                    <td><button class="btn-link" title="Apagar" @onclick="() => Apagar(s)">✕</button></td>
+                </tr>
+            }
+            @if (_todas.Count == 0) { <tr><td colspan="10" class="empty">Nenhuma solicitação ainda.</td></tr> }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "proposta")] public string? PropostaDaUrl { get; set; }
+
+    private List<SolicitacaoIntercompany> _todas = new();
+    private List<CommercialOffer> _ofertas = new();
+    private List<CommercialOfferItem> _daProposta = new();
+    private SolicitacaoIntercompany? _edit;
+    private string _usuario = "";
+    private string? _msg, _erro;
+    private bool _previa;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _usuario = (await Auth.GetAuthenticationStateAsync()).User.Identity?.Name ?? "";
+        _todas = Solicitacoes.Todas();
+        _ofertas = Ofertas.All().Where(o => (o.OfferCode ?? "").Trim().Length > 0)
+            .OrderByDescending(o => o.OfferDate).ThenByDescending(o => o.OfferCode).ToList();
+        if (!string.IsNullOrEmpty(PropostaDaUrl)) Nova(PropostaDaUrl);
+    }
+
+    private static string NomeDoStatus(string s) => s switch { "enviada" => "enviada", "respondida" => "respondida", _ => "rascunho" };
+
+    private static string Descricao(CommercialOfferItem it)
+    {
+        var d = (it.Description ?? "").Trim();
+        var pn = (it.PartNumber ?? "").Trim();
+        if (pn.Length > 0 && d.StartsWith(pn, StringComparison.OrdinalIgnoreCase)) d = d[pn.Length..].TrimStart(' ', '—', '-', '–').Trim();
+        return d;
+    }
+
+    private void Nova(string? propostaId)
+    {
+        _msg = _erro = null;
+        _edit = new SolicitacaoIntercompany { Usuario = _usuario, Idioma = IdiomasDaProposta.Ingles };
+        _daProposta = new();
+        if (!string.IsNullOrEmpty(propostaId)) EscolherProposta(propostaId);
+    }
+
+    private void Abrir(SolicitacaoIntercompany s)
+    {
+        _msg = _erro = null;
+        _edit = System.Text.Json.JsonSerializer.Deserialize<SolicitacaoIntercompany>(System.Text.Json.JsonSerializer.Serialize(s));
+        _daProposta = s.PropostaId.Length > 0 ? ItensDaProposta(s.PropostaId) : new();
+    }
+
+    private void Fechar() { _edit = null; _previa = false; }
+
+    private List<CommercialOfferItem> ItensDaProposta(string id) => Ofertas.ItemsFor(id)
+        .Where(i => !(i.PartNumber.Length == 0 && i.EquipmentId.Length == 0 && i.Description.StartsWith("Serviços", StringComparison.Ordinal)))
+        .OrderBy(i => i.Ordem).ToList();
+
+    /// <summary>Ao escolher a proposta, vêm o cliente, a moeda da importação e todos os itens marcados.</summary>
+    private void EscolherProposta(string id)
+    {
+        if (_edit is null) return;
+        var o = _ofertas.FirstOrDefault(x => x.Id == id) ?? Ofertas.Get(id);
+        _edit.PropostaId = o?.Id ?? "";
+        _edit.Proposta = o is null ? "" : PropostaWord.Referencia(o);
+        _edit.Cliente = o?.ClientName ?? "";
+        if (o is not null && (o.Moeda ?? "").Trim().Length > 0) _edit.Moeda = o.Moeda.Trim().ToUpperInvariant();
+        _daProposta = o is null ? new() : ItensDaProposta(o.Id);
+        _edit.Itens.RemoveAll(i => i.ItemId.Length > 0);
+        if (o is not null)
+        {
+            if (_edit.Codigo.Length == 0) _edit.Codigo = CotacaoIntercompanyRepository.NovoCodigo(_todas, o.OfferCode);
+            foreach (var it in _daProposta) Marcar(it, true);
+        }
+    }
+
+    private void Marcar(CommercialOfferItem it, bool sim)
+    {
+        if (_edit is null) return;
+        _edit.Itens.RemoveAll(x => x.ItemId == it.Id);
+        if (!sim) return;
+        var eq = _ofertas.FirstOrDefault(o => o.Id == _edit.PropostaId) is { } o ? PlantasDaProposta.DoItem(o, it) : null;
+        var novo = new ItemDaCotacao
+        {
+            ItemId = it.Id, PartNumber = it.PartNumber, Descricao = Descricao(it),
+            Modelo = PropostaWord.Ou(it.Modelo, eq?.Modelo ?? ""), SerialNumber = PropostaWord.Ou(it.SerialNumber, eq?.SerialNumber ?? ""),
+            Tag = PropostaWord.Ou(it.Tag, eq?.Tag ?? ""), Quantidade = Math.Max(1, it.Quantity),
+        };
+        // na ordem da proposta
+        var ordem = _daProposta.FindIndex(x => x.Id == it.Id);
+        var pos = _edit.Itens.FindIndex(x => x.ItemId.Length > 0 && _daProposta.FindIndex(d => d.Id == x.ItemId) > ordem);
+        if (pos < 0) _edit.Itens.Add(novo); else _edit.Itens.Insert(pos, novo);
+    }
+
+    private bool Validar()
+    {
+        _erro = null;
+        if (_edit is null) return false;
+        _edit.Itens.RemoveAll(i => i.PartNumber.Trim().Length == 0 && i.Descricao.Trim().Length == 0);
+        if (_edit.Codigo.Length == 0) _edit.Codigo = CotacaoIntercompanyRepository.NovoCodigo(_todas, "");
+        if (_edit.Itens.Any(i => i.PrecoCotado > 0) && _edit.Status != "respondida") _edit.Status = "respondida";
+        return true;
+    }
+
+    private void Salvar()
+    {
+        if (!Validar()) return;
+        Solicitacoes.Gravar(_edit!);
+        _todas = Solicitacoes.Todas();
+        _msg = $"Solicitação {_edit!.Codigo} salva.";
+    }
+
+    private async Task AbrirNoOutlook()
+    {
+        if (!Validar() || _edit is null) return;
+        if (_edit.Para.Trim().Length == 0) { _erro = "Informe o e-mail de quem cota na unidade (Para)."; return; }
+        if (_edit.Status == "rascunho") _edit.Status = "enviada";
+        _edit.EnviadaEm = DateTime.Now.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
+        Solicitacoes.Gravar(_edit);
+        _todas = Solicitacoes.Todas();
+        var email = PedidoIntercompany.Email(_edit, _usuario);
+        var anexo = new AnexoDoEmail(PedidoIntercompany.NomeDaPlanilha(_edit), CustoPorItemExcel.TipoMime, PedidoIntercompany.Planilha(_edit, _usuario));
+        await JS.InvokeVoidAsync("appDownload", PricingExcel.Limpo(_edit.Codigo) + ".eml", "message/rfc822",
+            Convert.ToBase64String(EmailsDaProposta.Eml(email, new[] { anexo })));
+        _msg = $"Pedido {_edit.Codigo} pronto: abra o arquivo no Outlook e envie (a planilha vai anexa).";
+    }
+
+    private async Task Copiar()
+    {
+        if (_edit is null) return;
+        var email = PedidoIntercompany.Email(_edit, _usuario);
+        var ok = await JS.InvokeAsync<bool>("appCopiarHtml", email.Html, email.Texto);
+        if (ok) _msg = "E-mail copiado com a formatação."; else _erro = "O navegador não deixou copiar; use o arquivo do Outlook.";
+    }
+
+    private async Task BaixarPlanilha()
+    {
+        if (!Validar() || _edit is null) return;
+        await JS.InvokeVoidAsync("appDownload", PedidoIntercompany.NomeDaPlanilha(_edit), CustoPorItemExcel.TipoMime,
+            Convert.ToBase64String(PedidoIntercompany.Planilha(_edit, _usuario)));
+    }
+
+    /// <summary>
+    /// A resposta volta para a proposta: cada item cotado vira importado, com o
+    /// preço cotado (na moeda da importação dela), o prazo e a marca "cotação".
+    /// </summary>
+    private void AplicarNaProposta()
+    {
+        if (_edit is null || !Validar()) return;
+        var o = Ofertas.Get(_edit.PropostaId);
+        if (o is null) { _erro = "A proposta não foi encontrada."; return; }
+        if (!string.Equals((o.Moeda ?? "").Trim(), _edit.Moeda, StringComparison.OrdinalIgnoreCase))
+        {
+            _erro = $"A importação da proposta está em {o.Moeda} e a cotação em {_edit.Moeda}: troque a moeda de uma das duas para levar os preços.";
+            return;
+        }
+        var itens = Ofertas.ItemsFor(o.Id).ToDictionary(i => i.Id);
+        var levados = 0;
+        foreach (var c in _edit.Itens.Where(i => i.PrecoCotado > 0 && i.ItemId.Length > 0))
+        {
+            if (!itens.TryGetValue(c.ItemId, out var it)) continue;
+            it.Importado = true;
+            it.ValorMoeda = c.PrecoCotado;
+            it.CustoManual = null;
+            it.BaseCusto = ReferenciaDeCustoRepository.Cotacao;
+            if (c.PrazoDias > 0) it.PrazoEntregaDias = c.PrazoDias;
+            Ofertas.SaveItem(it);
+            levados++;
+        }
+        _edit.Status = "respondida";
+        Solicitacoes.Gravar(_edit);
+        _todas = Solicitacoes.Todas();
+        _msg = levados > 0
+            ? $"{levados} item(ns) levado(s) para a proposta {_edit.Proposta} como importados, com o preço cotado e marcados como cotação. Abra a proposta para conferir a importação e o preço."
+            : "Nenhum item da proposta foi atualizado (os itens cotados precisam ter vindo da proposta).";
+    }
+
+    private void Apagar(SolicitacaoIntercompany s)
+    {
+        Solicitacoes.Apagar(s.Id);
+        _todas.Remove(s);
+        if (_edit?.Id == s.Id) _edit = null;
+    }
+}

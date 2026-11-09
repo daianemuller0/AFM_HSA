@@ -1328,3 +1328,31 @@ tr.inativo td { color: #9aa5b1; }
 .email-acoes { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .email-previa { border: 1px solid var(--border); border-radius: 8px; padding: 12px; background: #fff; max-height: 520px; overflow: auto; }
 .email-card .custo-indisp { white-space: normal; display: block; }
+
+/* ---------- selos de referência (cotação / estimado / vendido) ---------- */
+.selo-ref { display: inline-block; font-size: 10.5px; font-weight: 700; border-radius: 999px; padding: 1px 7px; margin: 2px 2px 0 0; white-space: nowrap; }
+.selo-ref.cot { background: #dcfce7; color: #166534; }
+.selo-ref.est { background: #fef3c7; color: #92400e; }
+.selo-ref.vend { background: #dbeafe; color: #1e40af; }
+.selo-ref.nao { background: #f1f5f9; color: #64748b; }
+.base-custo { display: flex; gap: 4px; margin-top: 4px; }
+.chip-mini { font: inherit; font-size: 11px; border: 1px solid var(--border); background: #fff; border-radius: 999px; padding: 1px 8px; cursor: pointer; color: var(--muted); }
+.chip-mini.ativo.cot { background: #dcfce7; border-color: #86efac; color: #166534; font-weight: 700; }
+.chip-mini.ativo.est { background: #fef3c7; border-color: #fcd34d; color: #92400e; font-weight: 700; }
+.ref-af { width: 100px; font-size: 12px; padding: 3px 6px; }
+.ref-sel { font-size: 12px; padding: 3px 4px; }
+
+/* ---------- cotação intercompany ---------- */
+.ic-topo { display: flex; justify-content: space-between; align-items: center; }
+.ic-campos { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px 14px; margin: 10px 0; }
+.ic-campos label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
+.ic-campos .ic-obs { grid-column: 1 / -1; }
+.ic-escolha { border: 1px dashed #9db8d6; background: #f5f9fd; border-radius: 10px; padding: 8px 12px; margin: 6px 0 10px; display: flex; flex-direction: column; gap: 4px; }
+.ic-item-escolha { font-size: 12.5px; }
+.ic-itens td { padding: 4px 6px; }
+.ic-itens input.cell { min-width: 80px; font-size: 12.5px; padding: 4px 6px; }
+.ic-itens .ic-num { width: 90px; min-width: 70px; }
+.ic-resp { background: #fffbeb; }
+.ic-status { font-size: 11px; font-weight: 700; border-radius: 999px; padding: 2px 8px; margin-left: 8px; background: #f1f5f9; color: #64748b; }
+.ic-status.enviada { background: #dbeafe; color: #1e40af; }
+.ic-status.respondida { background: #dcfce7; color: #166534; }

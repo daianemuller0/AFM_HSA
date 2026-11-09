@@ -243,6 +243,9 @@ public class CommercialOfferItem
     /// <summary>Peso unitário (kg): é por ele que o frete da proposta se divide entre os itens.</summary>
     public decimal PesoKg { get; set; }
 
+    /// <summary>O custo é de cotação (fornecedor / intercompany) ou estimado: "cotação", "estimado" ou vazio.</summary>
+    public string BaseCusto { get; set; } = "";
+
     /// <summary>Item importado: o custo vem da planilha de importação.</summary>
     public bool Importado { get; set; }
     /// <summary>Preço unitário cotado lá fora, na moeda da proposta.</summary>

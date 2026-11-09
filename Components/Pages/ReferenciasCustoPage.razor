@@ -11,7 +11,8 @@
     <div>
         <h1>Referências de preço e custo</h1>
         <p class="subtitle">
-            O que já enviamos ao cliente para cada part number — vendido ou não, é referência. Nascem ao salvar uma proposta
+            O que já enviamos ao cliente para cada part number — vendido ou não, é referência. Com o Nº da AF, a linha fica como vendida
+            (por item ou no pacote); a base do custo diz se temos cotação ou se foi estimado. Nascem ao salvar uma proposta
             (um registro por item) ou de uma planilha. Na Gerar Proposta, ao digitar o part number, o último preço enviado
             aparece no item, com "meta = este preço".
         </p>
@@ -22,6 +23,12 @@
     <div class="toolbar" style="gap:10px; flex-wrap:wrap; margin:0">
         <input class="cell" style="min-width:260px; flex:1" placeholder="Buscar por proposta, cliente, planta, part number, descrição…"
                value="@_busca" @oninput="e => _busca = e.Value?.ToString() ?? string.Empty" />
+        <span class="chips">
+            @foreach (var (cod, nome) in new[] { ("", "Todas"), ("vendidas", "Vendidas (com AF)"), ("nao", "Não vendidas"), ("cotacao", "Custo de cotação"), ("estimado", "Custo estimado") })
+            {
+                <button class="chip @(_filtro == cod ? "active" : "")" @onclick="() => _filtro = cod">@nome</button>
+            }
+        </span>
         <span class="nota">@Filtradas.Count() de @_todas.Count referência(s)</span>
         <button class="btn-ghost" @onclick="BaixarModelo">⬇ Modelo da planilha</button>
         <button class="btn-ghost" @onclick="Exportar">⬇ Exportar a lista</button>
@@ -75,6 +82,26 @@
                     <td class="right nowrap">@(r.Valor > 0 ? Fmt.Brl(r.Valor) : "—")</td>
                     <td class="right nowrap">@(r.Ta > 0 ? Fmt.Brl(r.Ta) : "—")</td>
                     <td title="@Detalhe(r)">@Traco(r.Descricao)</td>
+                    <td><input class="cell ref-af" value="@r.NumeroAf" placeholder="—" title="Número da AF: preenchido = vendido"
+                               @onchange="e => MudarAf(r, e)" /></td>
+                    <td>
+                        <select class="cell ref-sel" value="@r.VendaPor" disabled="@(!r.Vendido)" @onchange="e => MudarVendaPor(r, e)">
+                            <option value="">—</option><option value="item">por item</option><option value="pacote">no pacote (total)</option>
+                        </select>
+                    </td>
+                    <td class="right">
+                        @if (r.VendaPor == "pacote")
+                        {
+                            <input class="cell ref-af num" type="number" min="0" step="0.01" value="@(r.ValorPacote > 0 ? r.ValorPacote.ToString(System.Globalization.CultureInfo.InvariantCulture) : "")"
+                                   placeholder="@r.MoedaDoPreco.Rotulo()" @onchange="e => MudarPacote(r, e)" />
+                        }
+                        else { <span>—</span> }
+                    </td>
+                    <td>
+                        <select class="cell ref-sel" value="@r.BaseDoCusto" @onchange="e => MudarBase(r, e)">
+                            <option value="">—</option><option value="@ReferenciaDeCustoRepository.Cotacao">cotação</option><option value="@ReferenciaDeCustoRepository.Estimado">estimado</option>
+                        </select>
+                    </td>
                     <td class="nowrap">
                         @if (r.Origem == ReferenciaDeCustoRepository.OrigemPlanilha)
                         {
@@ -85,7 +112,7 @@
             }
             @if (!Filtradas.Any())
             {
-                <tr><td colspan="15" class="empty">@(_todas.Count == 0 ? "Nenhuma referência ainda: salve uma proposta com itens ou arraste uma planilha aqui em cima." : "Nenhuma referência com esse texto.")</td></tr>
+                <tr><td colspan="19" class="empty">@(_todas.Count == 0 ? "Nenhuma referência ainda: salve uma proposta com itens ou arraste uma planilha aqui em cima." : "Nenhuma referência com esse texto.")</td></tr>
             }
         </tbody>
     </table>
@@ -126,7 +153,43 @@
         new("Custo unit. (R$)", r => r.Valor, true),
         new("TA (R$)", r => r.Ta, true),
         new("Descrição", r => Textos.Simples(r.Descricao)),
+        new("Nº AF", r => r.NumeroAf),
+        new("Vendido por", r => r.VendaPor),
+        new("Valor do pacote", r => r.ValorPacote, true),
+        new("Base do custo", r => r.BaseDoCusto),
     };
+
+    private string _filtro = "";
+
+    // ---- a venda e a base do custo, editadas na própria lista (a AF chega depois da proposta) ----
+    private void Gravar(ReferenciaDeCusto r) { Refs.Gravar(r); _msg = null; }
+
+    private void MudarAf(ReferenciaDeCusto r, ChangeEventArgs e)
+    {
+        r.NumeroAf = (e.Value?.ToString() ?? "").Trim();
+        if (r.NumeroAf.Length == 0) { r.VendaPor = ""; r.ValorPacote = 0m; }
+        else if (r.VendaPor.Length == 0) r.VendaPor = "item";
+        Gravar(r);
+    }
+
+    private void MudarVendaPor(ReferenciaDeCusto r, ChangeEventArgs e)
+    {
+        r.VendaPor = e.Value?.ToString() ?? "";
+        if (r.VendaPor != "pacote") r.ValorPacote = 0m;
+        Gravar(r);
+    }
+
+    private void MudarPacote(ReferenciaDeCusto r, ChangeEventArgs e)
+    {
+        r.ValorPacote = ReferenciaDeCustoRepository.Numero(e.Value?.ToString()) ?? 0m;
+        Gravar(r);
+    }
+
+    private void MudarBase(ReferenciaDeCusto r, ChangeEventArgs e)
+    {
+        r.BaseDoCusto = e.Value?.ToString() ?? "";
+        Gravar(r);
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -140,8 +203,15 @@
         get
         {
             var termos = Textos.Simples(_busca).Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            var lista = _todas.Where(r => termos.All(t => Textos.Simples(
-                $"{r.Proposta} {r.Revisao} {r.Cliente} {r.Plantas} {r.Estado} {r.Intercompany} {r.PartNumber} {r.Descricao} {r.Modelo} {r.SerialNumber} {r.Usuario}").Contains(t)));
+            var lista = _todas.Where(r => _filtro switch
+            {
+                "vendidas" => r.Vendido,
+                "nao" => !r.Vendido,
+                "cotacao" => r.BaseDoCusto == ReferenciaDeCustoRepository.Cotacao,
+                "estimado" => r.BaseDoCusto == ReferenciaDeCustoRepository.Estimado,
+                _ => true,
+            }).Where(r => termos.All(t => Textos.Simples(
+                $"{r.NumeroAf} {r.Proposta} {r.Revisao} {r.Cliente} {r.Plantas} {r.Estado} {r.Intercompany} {r.PartNumber} {r.Descricao} {r.Modelo} {r.SerialNumber} {r.Usuario}").Contains(t)));
             var col = Colunas.FirstOrDefault(c => c.Nome == _ordem) ?? Colunas[10];
             // vazio (sem valor, sem texto) fica sempre no fim, nos dois sentidos
             var comVazio = lista.OrderBy(r => Vazio(col.Chave(r)));
@@ -208,7 +278,8 @@
         {
             r.Proposta, r.Revisao, r.Cliente, r.Plantas, r.Estado, r.Intercompany, r.PartNumber, r.Quantidade.ToString("0.##"),
             r.PrecoUnitLiquido.ToString("0.00"), r.PrecoTotalLiquido.ToString("0.00"), r.DataComoData?.ToString("dd/MM/yyyy") ?? "",
-            r.Valor.ToString("0.00"), r.Ta.ToString("0.00"), r.Descricao, r.MoedaDoPreco.Codigo(),
+            r.Valor.ToString("0.00"), r.Ta.ToString("0.00"), r.Descricao, r.NumeroAf, r.VendaPor,
+            r.ValorPacote > 0 ? r.ValorPacote.ToString("0.00") : "", r.BaseDoCusto, r.MoedaDoPreco.Codigo(),
         });
         var bytes = Planilha.Xlsx("Referências", ReferenciaDeCustoRepository.Colunas.Select(c => c.Nome).ToList(), linhas);
         await JS.InvokeVoidAsync("appDownload", "referencias_de_preco.xlsx",

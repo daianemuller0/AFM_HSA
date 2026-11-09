@@ -20,7 +20,7 @@ public static class Acessos
     {
         (Adm, "Administrador", "Vê tudo, cria logins e escolhe o que cada um vê."),
         (Gestao, "Gestão", "Vê tudo (painéis, carteira, propostas, dados), menos os logins."),
-        (Aplicador, "Aplicador", "Monta propostas: Gerar Proposta, Propostas, Referências de preço e Clientes."),
+        (Aplicador, "Aplicador", "Monta propostas: Gerar Proposta, Propostas, Referências de preço, Cotação Intercompany e Clientes."),
     };
 
     /// <param name="Rotas">os caminhos da página (o primeiro é o do menu); vale também o que começa com eles</param>
@@ -40,11 +40,12 @@ public static class Acessos
         new("gerar-proposta", "Gerar Proposta", "Comercial", new[] { "/gerar-proposta", "/ofertas/nova" }),
         new("ofertas", "Propostas", "Comercial", new[] { "/ofertas" }),
         new("referencias", "Referências de preço", "Comercial", new[] { "/referencias-custo" }),
+        new("intercompany", "Cotação Intercompany", "Comercial", new[] { "/cotacao-intercompany" }),
         new("tempos", "Tempo das propostas", "Comercial", new[] { "/tempos-proposta" }),
         new("dados", "Dados e Importação", "Controle", new[] { "/dados-marca", "/vendedores", "/marca", "/importar", "/conversao" }),
     };
 
-    private static readonly string[] DoAplicador = { "gerar-proposta", "ofertas", "referencias", "clientes" };
+    private static readonly string[] DoAplicador = { "gerar-proposta", "ofertas", "referencias", "intercompany", "clientes" };
 
     public static string NormalizarPerfil(string? perfil) => (perfil ?? "").Trim().ToLowerInvariant() switch
     {

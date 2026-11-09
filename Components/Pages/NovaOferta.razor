@@ -679,6 +679,11 @@
     <div class="panel" id="f-itens" style="margin-bottom:16px">
         <div class="dash-title">Itens da proposta
             <span class="dash-sub">o preço sai do custo × pricing, na hora; com preço meta, o TA completa o custo até chegar nele</span>
+            @if (_o.Id.Length > 0 && _items.Count > 0)
+            {
+                <a class="btn-link" style="margin-left:auto" href="@($"/cotacao-intercompany?proposta={_o.Id}")"
+                   title="Pedir a cotação destes itens a outra unidade Howden (salve antes)">⇄ Pedir cotação Intercompany</a>
+            }
         </div>
         <datalist id="dl-modelos">@foreach (var m in ModelosConhecidos) { <option value="@m" /> }</datalist>
         @{ var rateio = Rateio(); }
@@ -2249,6 +2254,26 @@
 
     private static string Txt(string s) => string.IsNullOrWhiteSpace(s) ? "—" : s;
 
+    /// <summary>O selo "cotação" / "estimado" do custo de uma referência.</summary>
+    private static RenderFragment SeloBase(string baseDoCusto) => __builder =>
+    {
+        if (baseDoCusto == ReferenciaDeCustoRepository.Cotacao) { <span class="selo-ref cot" title="Temos cotação para este custo">✔ cotação</span> }
+        else if (baseDoCusto == ReferenciaDeCustoRepository.Estimado) { <span class="selo-ref est" title="O custo foi estimado">≈ estimado</span> }
+    };
+
+    /// <summary>O selo de venda: com Nº AF a referência foi vendida (por item ou no pacote).</summary>
+    private static RenderFragment SeloVenda(ReferenciaDeCusto r) => __builder =>
+    {
+        if (r.Vendido)
+        {
+            var pacote = r.VendaPor == "pacote";
+            <span class="selo-ref vend" title="@(pacote && r.ValorPacote > 0 ? $"Vendido no pacote de {Moedas.Dinheiro(r.MoedaDoPreco, r.ValorPacote)}" : "Vendido")">
+                vendido · AF @r.NumeroAf@(pacote ? " · no pacote" : r.VendaPor == "item" ? " · por item" : "")@(pacote && r.ValorPacote > 0 ? $" ({Moedas.Dinheiro(r.MoedaDoPreco, r.ValorPacote)})" : "")
+            </span>
+        }
+        else if (r.PrecoUnitLiquido > 0) { <span class="selo-ref nao">só cotado ao cliente</span> }
+    };
+
 
     // ---- o cartão do item: os mesmos campos para os itens e para o item novo ----
 
@@ -2348,16 +2373,24 @@
                         }
                     </small>
                 }
-                @if (refCusto is not null && refCusto.Valor != custoBase)
+                @if (refCusto is not null)
                 {
                     <small class="ref-custo" title="@($"{refCusto.Proposta} · {refCusto.Cliente} · {refCusto.Origem} · {refCusto.Usuario}")">
                         ref.: @Fmt.Brl(refCusto.Valor) em @Fmt.Date(refCusto.Data)@(refCusto.Modelo.Length > 0 ? $" · {refCusto.Modelo}" : "")@(refCusto.SerialNumber.Length > 0 ? $" · SN {refCusto.SerialNumber}" : "") · @refCusto.Proposta
-                        @if (!it.Importado)
+                        @SeloBase(refCusto.BaseDoCusto) @SeloVenda(refCusto)
+                        @if (!it.Importado && refCusto.Valor != custoBase)
                         {
-                            <button class="btn-link" @onclick="() => it.CustoManual = refCusto.Valor">usar</button>
+                            <button class="btn-link" @onclick="() => { it.CustoManual = refCusto.Valor; if (it.BaseCusto.Length == 0) it.BaseCusto = refCusto.BaseDoCusto; }">usar</button>
                         }
                     </small>
                 }
+                <span class="base-custo" title="Este custo é de cotação (fornecedor / intercompany) ou estimado? Vai para as Referências.">
+                    @foreach (var (cod, nome) in new[] { (ReferenciaDeCustoRepository.Cotacao, "cotação"), (ReferenciaDeCustoRepository.Estimado, "estimado") })
+                    {
+                        <button class="chip-mini @(it.BaseCusto == cod ? "ativo " + (cod == ReferenciaDeCustoRepository.Cotacao ? "cot" : "est") : "")"
+                                @onclick="() => it.BaseCusto = it.BaseCusto == cod ? string.Empty : cod">@nome</button>
+                    }
+                </span>
             </div>
             <div class="campo">Última venda / preço enviado
                 @if (r.UltimaVenda is decimal uv)
@@ -2376,6 +2409,7 @@
                         enviado: <strong>@Moedas.Dinheiro(refPreco.MoedaDoPreco, refPreco.PrecoUnitLiquido)</strong> líq.
                         · @Fmt.Date(refPreco.Data) · @(Textos.Igual(refPreco.Cliente, _o.ClientName) ? "este cliente" : refPreco.Cliente)
                         · @refPreco.Proposta@(refPreco.Revisao.Length > 0 ? $"-C{refPreco.Revisao}" : "")
+                        @SeloVenda(refPreco) @SeloBase(refPreco.BaseDoCusto)
                         @if (metaEnviada is decimal me && it.PrecoMeta != me)
                         {
                             <button class="btn-link" title="Usar o preço já enviado como preço meta do item" @onclick="() => it.PrecoMeta = me">meta = este preço</button>

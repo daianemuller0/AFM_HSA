@@ -346,8 +346,13 @@ public partial class NovaOferta
                 Estado = _o.Estado ?? "", Intercompany = _o.Bu ?? "", Quantidade = it.Quantity,
                 PrecoUnitLiquido = unit, PrecoTotalLiquido = Math.Round(unit * it.Quantity, 2), Moeda = Cambio.MoedaDoPreco(_o).Codigo(),
             };
-            // sem mudança, a referência fica como estava
-            if (porId.TryGetValue(it.Id, out var antiga) && Igual(antiga, nova)) continue;
+            nova.BaseDoCusto = it.BaseCusto;
+            // a venda (AF, por item ou pacote, valor do pacote) é marcada depois, nas Referências: fica a que já estava
+            if (porId.TryGetValue(it.Id, out var antiga))
+            {
+                nova.NumeroAf = antiga.NumeroAf; nova.VendaPor = antiga.VendaPor; nova.ValorPacote = antiga.ValorPacote;
+                if (Igual(antiga, nova)) continue;   // sem mudança, a referência fica como estava
+            }
             RefsCusto.Gravar(nova);
         }
         foreach (var id in itensApagados.Where(porId.ContainsKey)) RefsCusto.Apagar(id);
@@ -358,7 +363,7 @@ public partial class NovaOferta
         a.Valor == b.Valor && a.Ta == b.Ta && a.PartNumber == b.PartNumber && a.Modelo == b.Modelo && a.SerialNumber == b.SerialNumber
         && a.Origem == b.Origem && a.Proposta == b.Proposta && a.Revisao == b.Revisao && a.Cliente == b.Cliente && a.Plantas == b.Plantas
         && a.Estado == b.Estado && a.Intercompany == b.Intercompany && a.Quantidade == b.Quantidade && a.PrecoUnitLiquido == b.PrecoUnitLiquido
-        && a.Moeda == b.Moeda && a.Data == b.Data && a.Descricao == b.Descricao;
+        && a.Moeda == b.Moeda && a.Data == b.Data && a.Descricao == b.Descricao && a.BaseDoCusto == b.BaseDoCusto;
 
     /// <summary>
     /// O último preço enviado ao cliente como meta do item, na moeda desta

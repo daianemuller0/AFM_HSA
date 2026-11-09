@@ -47,6 +47,17 @@ public sealed class ReferenciaDeCusto
     /// <summary>BRL, USD, EUR...; vazio = BRL.</summary>
     public string Moeda { get; set; } = "";
 
+    /// <summary>Número da AF (autorização de fornecimento): preenchido = o item foi vendido.</summary>
+    public string NumeroAf { get; set; } = "";
+    /// <summary>Como foi vendido: "item" (preço do item) ou "pacote" (no total de um pacote).</summary>
+    public string VendaPor { get; set; } = "";
+    /// <summary>O valor total do pacote vendido (na <see cref="Moeda"/>), quando a venda foi por pacote.</summary>
+    public decimal ValorPacote { get; set; }
+    /// <summary>De onde veio o custo: "cotação" (temos cotação de fornecedor / intercompany) ou "estimado".</summary>
+    public string BaseDoCusto { get; set; } = "";
+
+    public bool Vendido => NumeroAf.Trim().Length > 0;
+
     public DateTime? DataComoData =>
         DateTime.TryParseExact(Data, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) ? d : null;
 
@@ -64,7 +75,8 @@ public sealed class ReferenciaDeCustoRepository
     public List<ReferenciaDeCusto> Todas() => _store
         .ReadLatest(Entidade,
             "id, part_number, descricao, valor, ta, data, modelo, serial_number, origem, proposta_id, proposta, cliente, usuario, " +
-            "revisao, plantas, estado, intercompany, quantidade, preco_unit_liquido, preco_total_liquido, moeda",
+            "revisao, plantas, estado, intercompany, quantidade, preco_unit_liquido, preco_total_liquido, moeda, " +
+            "numero_af, venda_por, valor_pacote, base_custo",
             r => new ReferenciaDeCusto
             {
                 Id = Fmt.S(r, 0), PartNumber = Fmt.S(r, 1), Descricao = Fmt.S(r, 2), Valor = Fmt.Dec(Fmt.S(r, 3)),
@@ -73,6 +85,7 @@ public sealed class ReferenciaDeCustoRepository
                 Usuario = Fmt.S(r, 12), Revisao = Fmt.S(r, 13), Plantas = Fmt.S(r, 14), Estado = Fmt.S(r, 15),
                 Intercompany = Fmt.S(r, 16), Quantidade = Fmt.Dec(Fmt.S(r, 17)), PrecoUnitLiquido = Fmt.Dec(Fmt.S(r, 18)),
                 PrecoTotalLiquido = Fmt.Dec(Fmt.S(r, 19)), Moeda = Fmt.S(r, 20),
+                NumeroAf = Fmt.S(r, 21), VendaPor = Fmt.S(r, 22), ValorPacote = Fmt.Dec(Fmt.S(r, 23)), BaseDoCusto = Fmt.S(r, 24),
             })
         .Select(SepararRevisao)
         .OrderByDescending(r => r.Data).ThenByDescending(r => r.Proposta)
@@ -127,6 +140,7 @@ public sealed class ReferenciaDeCustoRepository
             new("revisao", r.Revisao), new("plantas", r.Plantas), new("estado", r.Estado), new("intercompany", r.Intercompany),
             new("quantidade", N(r.Quantidade)), new("preco_unit_liquido", N(r.PrecoUnitLiquido)),
             new("preco_total_liquido", N(r.PrecoTotalLiquido)), new("moeda", r.Moeda),
+            new("numero_af", r.NumeroAf), new("venda_por", r.VendaPor), new("valor_pacote", N(r.ValorPacote)), new("base_custo", r.BaseDoCusto),
         };
     }
 
@@ -151,6 +165,10 @@ public sealed class ReferenciaDeCustoRepository
         ("Custo unit. (R$)", new[] { "custo unit (r$)", "custo unit", "custo unitario", "custo unit r$", "custo" }),
         ("TA (R$)", new[] { "ta (r$)", "ta", "ta r$" }),
         ("Descrição", new[] { "descricao", "descricao da peca" }),
+        ("Nº AF", new[] { "n af", "numero da af", "no af", "af", "n da af", "numero af" }),
+        ("Vendido por", new[] { "vendido por", "venda por", "item ou total", "item/pacote", "por item ou total" }),
+        ("Valor total do pacote", new[] { "valor total do pacote", "valor do pacote", "pacote" }),
+        ("Base do custo", new[] { "base do custo", "cotacao ou estimado", "custo cotado ou estimado", "cotado/estimado" }),
         ("Moeda", new[] { "moeda" }),
     };
 
@@ -194,6 +212,8 @@ public sealed class ReferenciaDeCustoRepository
                 PrecoTotalLiquido = Numero(C(l, "Valor total líquido")) ?? 0m, Data = DataIso(C(l, "Data")),
                 Valor = Numero(C(l, "Custo unit. (R$)")) ?? 0m, Ta = Numero(C(l, "TA (R$)")) ?? 0m,
                 Descricao = C(l, "Descrição"), Moeda = Moedas.Ler(C(l, "Moeda")).Codigo(),
+                NumeroAf = C(l, "Nº AF"), VendaPor = VendaPorDe(C(l, "Vendido por")), ValorPacote = Numero(C(l, "Valor total do pacote")) ?? 0m,
+                BaseDoCusto = BaseDe(C(l, "Base do custo")),
                 Origem = OrigemPlanilha, Usuario = usuario,
             };
             if (r.PrecoTotalLiquido == 0m && r.PrecoUnitLiquido > 0m && r.Quantidade > 0m) r.PrecoTotalLiquido = r.PrecoUnitLiquido * r.Quantidade;
@@ -211,8 +231,27 @@ public sealed class ReferenciaDeCustoRepository
     /// <summary>O modelo da planilha de importação, com uma linha de exemplo.</summary>
     public static byte[] Modelo() => Planilha.Xlsx("Referências", Colunas.Select(c => c.Nome).ToList(), new[]
     {
-        (IReadOnlyList<string>)new[] { "HSA2026-0147", "2", "Vale", "São Luís", "MA", "HSA-SP", "HW-NAC-A", "3", "3853,22", "11559,66", "05/11/2026", "2100,00", "0", "Rolamento", "BRL" },
+        (IReadOnlyList<string>)new[] { "HSA2026-0147", "2", "Vale", "São Luís", "MA", "HSA-SP", "HW-NAC-A", "3", "3853,22", "11559,66", "05/11/2026", "2100,00", "0", "Rolamento", "AF-12345", "pacote", "25000,00", "cotação", "BRL" },
     });
+
+    public const string Cotacao = "cotação";
+    public const string Estimado = "estimado";
+
+    /// <summary>"item", "por item", "unitário" → item; "total", "pacote", "kit" → pacote.</summary>
+    public static string VendaPorDe(string? texto)
+    {
+        var t = Textos.Simples(texto);
+        if (t.Length == 0) return "";
+        return t.Contains("pacote") || t.Contains("total") || t.Contains("kit") || t.Contains("lote") ? "pacote" : "item";
+    }
+
+    /// <summary>"cotação", "cotado", "quote" → cotação; "estimado", "estimativa" → estimado.</summary>
+    public static string BaseDe(string? texto)
+    {
+        var t = Textos.Simples(texto);
+        if (t.Length == 0) return "";
+        return t.StartsWith("cot") || t.Contains("quot") ? Cotacao : t.StartsWith("est") ? Estimado : "";
+    }
 
     private static string Hash(string s) =>
         Convert.ToHexString(SHA1.HashData(Encoding.UTF8.GetBytes(s.ToUpperInvariant())))[..20].ToLowerInvariant();
