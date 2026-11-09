@@ -193,6 +193,20 @@
                 <small class="pricing-dica">@string.Join(" · ", cv.Telefones) · @cv.Email</small>
             }
         </label>
+        <label id="f-vendedor2">2º vendedor (opcional)
+            <select class="cell" @bind="_o.Vendedor2">
+                <option value="">— nenhum —</option>
+                @foreach (var c in ContatosHowden.Todos.Where(c => !Textos.Igual(c.Nome, _o.Vendedor))) { <option value="@c.Nome">@c.Nome · @c.Cargo@(c.Area.Length > 0 ? " · " + c.Area : "")</option> }
+                @if (!string.IsNullOrWhiteSpace(_o.Vendedor2) && ContatosHowden.Do(_o.Vendedor2) is null)
+                {
+                    <option value="@_o.Vendedor2">@_o.Vendedor2</option>
+                }
+            </select>
+            @if (ContatosHowden.Do(_o.Vendedor2) is { } cv2)
+            {
+                <small class="pricing-dica">@string.Join(" · ", cv2.Telefones) · @cv2.Email</small>
+            }
+        </label>
         <label id="f-idioma">Idioma da proposta
             <select class="cell" @bind="_o.Idioma">
                 @foreach (var (cod, nome) in IdiomasDaProposta.Opcoes) { <option value="@cod">@nome</option> }
@@ -1518,7 +1532,7 @@
         <div><span>Prazo de entrega</span><strong>@(PricingDaProposta.PrazoEmDias(_o.PrazoEntrega) is > 0 and var pz ? $"{pz} dias" : "a confirmar")</strong></div>
         <div><span>Local de entrega</span><strong>@ListasDaProposta.LinhaDoIncoterm(_o.Incoterm, _o.IncotermLocal)</strong></div>
         <div><span>Validade</span><strong>@OuTraco(_o.ValidityText)</strong></div>
-        <div><span>Vendedor (contato)</span><strong>@OuTraco(ContatosHowden.Do(_o.Vendedor)?.Nome ?? _o.Vendedor)</strong></div>
+        <div><span>Vendedor (contato)</span><strong>@OuTraco(string.Join(" · ", new[] { ContatosHowden.Do(_o.Vendedor)?.Nome ?? _o.Vendedor, ContatosHowden.Do(_o.Vendedor2)?.Nome ?? _o.Vendedor2 }.Where(x => !string.IsNullOrWhiteSpace(x))))</strong></div>
         <div><span>Idioma</span><strong>@IdiomasDaProposta.Nome(_o.Idioma)</strong></div>
         <div><span>Representante</span><strong>@OuTraco(string.Join(" · ", new[] { _o.Rep1, _o.Rep2 }.Where(r => !string.IsNullOrWhiteSpace(r) && r.Trim() != "-")))</strong></div>
         <div><span>Valor da proposta</span><strong>@Venda(Total) <small class="nota">@PricingDaProposta.NivelEfetivo(prLado, PricingDaProposta.NivelPedido(_o)).Rotulo.ToLowerInvariant()</small></strong></div>

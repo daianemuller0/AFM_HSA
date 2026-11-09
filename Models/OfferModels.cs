@@ -51,6 +51,9 @@ public class CommercialOffer
     /// <summary>O vendedor que assina a proposta (<see cref="ContatosHowden"/>): o contato da capa do Word.</summary>
     public string Vendedor { get; set; } = "";
 
+    /// <summary>O segundo vendedor (opcional): o outro contato da capa, ao lado do primeiro.</summary>
+    public string Vendedor2 { get; set; } = "";
+
     /// <summary>Em que língua a proposta sai: "pt", "en" ou "es".</summary>
     public string Idioma { get; set; } = "pt";
 

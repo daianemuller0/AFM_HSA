@@ -555,6 +555,7 @@ public partial class NovaOferta : IDisposable
         _o.Rep1 = Ou(u.Rep1, _o.Rep1);
         _o.Rep2 = Ou(u.Rep2, _o.Rep2);
         _o.Vendedor = Ou(u.Vendedor, _o.Vendedor);
+        _o.Vendedor2 = Ou(u.Vendedor2, _o.Vendedor2);
         _o.Idioma = Ou(u.Idioma, _o.Idioma);
         _o.MarketSegments = Ou(u.MarketSegments, _o.MarketSegments);
         _o.PaymentTerms = Ou(u.PaymentTerms, _o.PaymentTerms);

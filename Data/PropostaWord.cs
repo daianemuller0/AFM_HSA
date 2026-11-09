@@ -12,7 +12,8 @@ public sealed record DadosDaPropostaWord(
     IReadOnlyList<InstalledBase> BaseDaUnidade,
     IReadOnlyList<BomItem> Bom,
     IReadOnlyList<SalesRecord> VendasDaUnidade,
-    IReadOnlyList<string>? CartaoDoVendedor = null);
+    IReadOnlyList<string>? CartaoDoVendedor = null,
+    IReadOnlyList<string>? CartaoDoVendedor2 = null);
 
 /// <summary>
 /// Gera a proposta comercial PREENCHENDO o modelo em Word da equipe
@@ -83,6 +84,9 @@ public static class PropostaWord
         // o vendedor escolhido na proposta manda; sem escolha, o da unidade
         var cartao = ContatosHowden.Do(o.Vendedor) is { } escolhido ? ContatosHowden.Cartao(escolhido)
             : !string.IsNullOrWhiteSpace(o.Vendedor) ? new List<string> { o.Vendedor.Trim() } : null;
+        // o segundo vendedor (opcional) entra ao lado do primeiro
+        var cartao2 = ContatosHowden.Do(o.Vendedor2) is { } segundo ? ContatosHowden.Cartao(segundo)
+            : !string.IsNullOrWhiteSpace(o.Vendedor2) ? new List<string> { o.Vendedor2.Trim() } : null;
         var unidadesDaProposta = PlantasDaProposta.Unidades(o);
 
         var porChave = new Dictionary<string, Equipment>();
@@ -110,7 +114,7 @@ public static class PropostaWord
             baseInstalada.Where(b => unidadesDaProposta.Contains(b.ClientUnitId) || cadastrados.Contains(b.EquipmentId)).ToList(),
             bom.Where(b => cadastrados.Contains(b.EquipmentId)).ToList(),
             vendas.Where(v => unidadesDaProposta.Contains((v.ClientUnitId ?? "").Trim())).ToList(),
-            cartao);
+            cartao, cartao2);
     }
 
     public static byte[] Gerar(DadosDaPropostaWord dados, string caminhoDoModelo)

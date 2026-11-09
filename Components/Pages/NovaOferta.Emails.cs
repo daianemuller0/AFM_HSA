@@ -24,8 +24,8 @@ public partial class NovaOferta
     private string AprovCc => _aprovCcDigitado ?? Config["Emails:AprovacaoCc"] ?? EmailsDaProposta.CopiaDaAprovacaoPadrao;
     private string PropPara => _propParaDigitado ?? _o.ContatoEmail ?? "";
 
-    /// <summary>Cópia do envio ao cliente: o vendedor da proposta (e quem o appsettings mandar).</summary>
-    private string PropCc => _propCcDigitado ?? string.Join("; ", new[] { ContatosHowden.Do(_o.Vendedor)?.Email, Config["Emails:PropostaCc"] }
+    /// <summary>Cópia do envio ao cliente: os vendedores da proposta (e quem o appsettings mandar).</summary>
+    private string PropCc => _propCcDigitado ?? string.Join("; ", new[] { ContatosHowden.Do(_o.Vendedor)?.Email, ContatosHowden.Do(_o.Vendedor2)?.Email, Config["Emails:PropostaCc"] }
         .Where(s => !string.IsNullOrWhiteSpace(s)).Distinct(StringComparer.OrdinalIgnoreCase));
 
     private string Remetente => PropostaWord.Ou(_usuario, PropostaWord.Ou(_o.PreparedBy, "Equipe Howden"));

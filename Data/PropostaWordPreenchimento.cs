@@ -224,12 +224,38 @@ internal sealed class PreenchimentoDaProposta
         var capa = Capa0();
         Rotulo(capa, "E-mail:", _o.ContatoEmail);
         Rotulo(capa, "Fone:", _o.ContatoTelefone);
+        MesmaFonteDoCliente(capa);
         Rotulo(capa, "Preparada por:", _o.PreparedBy);
         // "Sua referência:" é um campo ligado (Palavras-chave), já escrito em CamposLigados
 
         // só a comercial: o subtítulo perde o "Técnica"
         if (capa.Descendants<Paragraph>().FirstOrDefault(p => Texto(p).Trim() == "Proposta Técnica Comercial") is { } sub)
             Escrever(sub, "Proposta Comercial");
+    }
+
+    /// <summary>
+    /// O bloco do cliente na capa (empresa, A/C, cidade, e-mail e telefone)
+    /// sai todo com a fonte do nome da empresa (Arial, negrito): o e-mail e o
+    /// telefone vinham com a fonte do texto de exemplo do modelo.
+    /// </summary>
+    private void MesmaFonteDoCliente(Table capa)
+    {
+        var empresa = capa.Descendants<SdtElement>()
+            .FirstOrDefault(s => s.SdtProperties?.GetFirstChild<SdtAlias>()?.Val?.Value == "Empresa");
+        var molde = empresa?.Descendants<Run>().FirstOrDefault(r => r.Elements<Text>().Any(t => t.Text.Trim().Length > 0))?.RunProperties;
+        if (molde is null) return;
+
+        var alvos = new List<OpenXmlElement>();
+        foreach (var rotulo in new[] { "E-mail:", "Fone:" })
+            if (Celula(capa, rotulo)?.NextSibling<TableCell>() is { } valor) alvos.Add(valor);
+        alvos.AddRange(capa.Descendants<SdtElement>()
+            .Where(s => s.SdtProperties?.GetFirstChild<SdtAlias>()?.Val?.Value is "Comentários" or "Endereço da Empresa"));
+        foreach (var alvo in alvos)
+            foreach (var run in alvo.Descendants<Run>().Where(r => r.Elements<Text>().Any()))
+            {
+                run.RunProperties?.Remove();
+                run.PrependChild((RunProperties)molde.CloneNode(true));
+            }
     }
 
     /// <summary>Escreve o valor na célula seguinte à do rótulo.</summary>
@@ -291,10 +317,13 @@ internal sealed class PreenchimentoDaProposta
         if (celulas.Count < 2) return;
         var molde = celulas[^1];
 
+        // o 1º vendedor no primeiro espaço, o 2º (opcional) no segundo; o diretor fica no último
         var linhas = LinhasDoVendedor();
+        var linhas2 = _d.CartaoDoVendedor2 is { Count: > 0 } c2 ? c2.ToList() : new List<string>();
         for (var i = 0; i < celulas.Count - 1; i++)
         {
             if (i == 0 && linhas.Count > 0) ComoOMolde(celulas[i], molde, linhas);
+            else if (i == 1 && linhas2.Count > 0) ComoOMolde(celulas[i], molde, linhas2);
             else EscreverNaCelula(celulas[i], new[] { "" });
         }
     }
