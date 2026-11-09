@@ -162,7 +162,7 @@ public static class PricingExcel
         if (ws.FormulaDe("D50") is { } portal && portal.Contains("VLOOKUP(P4,listas!B3:C13,2)", StringComparison.Ordinal))
             ws.Formula("D50", portal.Replace("VLOOKUP(P4,listas!B3:C13,2)", "VLOOKUP(P4,listas!B3:C13,2,FALSE)", StringComparison.Ordinal));
 
-        PrecoAoCliente(pacote, ws, o, r);
+        PrecoAoCliente(pacote, ws, o, r, taxas);
 
         return pacote.Concluir();
     }
@@ -172,32 +172,57 @@ public static class PricingExcel
     ///
     /// O quadro PREÇO DE VENDA da planilha fica na moeda do custo (R$ no
     /// Brasil; a estrangeira nas BUs de fora). Em exportação / Chile / Peru a
-    /// linha 14 converte: Q14 = Q13 ÷ BD_pricing!C2, com o rótulo
-    /// "Valores em " &amp; BD_pricing!B2 (os botões de moeda da planilha, o
-    /// primeiro marcado). O modelo traz ali o USD e a taxa I36 (R$ por USD, da
-    /// aba Conversão): com custo em EUR o preço saía errado. Aqui a linha 1 dos
-    /// botões passa a ser a moeda do preço com a taxa efetiva da proposta
-    /// (moeda do custo por 1 da moeda do preço, já com a segurança).
+    /// linha 14 converte: Q14 = Q13 ÷ a taxa do botão de moeda marcado
+    /// (BD_pricing!A1 escolhe a linha; BD_pricing!C2:C5 trazem a taxa).
     ///
-    /// E a linha 21 do quadro (vazia no modelo) mostra sempre o preço ao
+    /// Como no modelo, a taxa vem do <b>quadro de conversão</b> da aba PRICING
+    /// (I36:I39, e as linhas VENDA I41:I44 = moeda do custo por 1 de cada
+    /// moeda): quem mexe no quadro muda o preço. O sistema só preenche o
+    /// quadro com a taxa da proposta e marca o botão da moeda do preço. O
+    /// modelo ligava os botões EUR/GBP/CLP direto às cruzadas em USD (I37:I39),
+    /// o que dava preço errado: aqui eles ficam ligados às linhas VENDA.
+    ///
+    /// A linha 21 do quadro (vazia no modelo) mostra sempre o preço ao
     /// cliente na moeda dele, no nível de impostos da proposta — também na
     /// venda nacional, que o quadro do modelo não converte.
     /// </summary>
-    private static void PrecoAoCliente(PacoteXlsm pacote, PacoteXlsm.Aba ws, CommercialOffer o, CalculoPricing.Resultado r)
+    private static void PrecoAoCliente(PacoteXlsm pacote, PacoteXlsm.Aba ws, CommercialOffer o, CalculoPricing.Resultado r, TaxasDeConversao taxas)
     {
         var custo = Cambio.MoedaDoCusto(o);
         var venda = Cambio.MoedaDoPreco(o);
         var converte = Cambio.Converte(o) && !Cambio.FaltaTaxa(o);
         var efetivo = converte ? Cambio.Efetivo(o) : 1m;
-
-        // a linha 1 dos botões de moeda: a moeda do preço e a taxa da proposta; os outros
-        // botões (EUR, GBP, CLP) dividiriam pela cruzada em USD da linha 37/39 e dariam um
-        // número errado — ficam #N/D (não disponível) para ninguém usar por engano
         var bd = pacote.AbaDe("BD_pricing");
-        bd.Numero("A1", 1);
-        bd.Texto("B2", (converte ? venda : custo).Codigo());
-        bd.Numero("C2", efetivo);
-        foreach (var celula in new[] { "C3", "C4", "C5" }) bd.Formula(celula, "NA()");
+
+        // a linha do quadro de conversão da moeda do preço: 1 = USD (PEN na HPU), 2 = EUR, 3 = GBP, 4 = CLP
+        var linha36 = string.Equals((o.Bu ?? "").Trim(), "HPU", StringComparison.OrdinalIgnoreCase) ? Moeda.Pen : Moeda.Usd;
+        int? botao = !converte ? null : venda == linha36 ? 1 : venda == Moeda.Eur ? 2 : venda == Moeda.Clp ? 4 : null;
+        if (botao is int n)
+        {
+            bd.Numero("A1", n);
+            for (var i = 0; i < 4; i++) bd.Formula($"C{2 + i}", $"PRICING!$I${41 + i}");
+            if (n == 1) ws.Numero("I36", Math.Round(efetivo, 10));
+            else
+            {
+                // a cruzada em USD (PEN) da moeda do preço; sem saber a moeda do custo por USD, a linha VENDA recebe a taxa direto
+                var custoPorLinha36 = custo == Moeda.Brl ? RealPor(o, taxas).Usd : CustoPorMoedaDaLinha36(o) ?? 0m;
+                if (custoPorLinha36 > 0m)
+                {
+                    ws.Numero("I36", Math.Round(custoPorLinha36, 10));
+                    ws.Numero($"I{35 + n}", Math.Round(efetivo / custoPorLinha36, 10));
+                }
+                else ws.Numero($"I{40 + n}", Math.Round(efetivo, 10));
+            }
+        }
+        else
+        {
+            // sem conversão (ou numa moeda que o quadro não tem): divide por 1, ou pela taxa da proposta
+            bd.Numero("A1", 1);
+            bd.Texto("B2", (converte ? venda : custo).Codigo());
+            bd.Numero("C2", efetivo);
+            foreach (var celula in new[] { "C3", "C4", "C5" }) bd.Formula(celula, "NA()");
+        }
+        const string taxaDoBotao = "VLOOKUP(BD_pricing!$A$1,BD_pricing!$A$2:$C$5,3,FALSE)";
 
         // o valor da proposta na moeda do custo, no nível de impostos que vai ao cliente
         var nivel = PricingDaProposta.NivelEfetivo(r, PricingDaProposta.NivelPedido(o));
@@ -216,14 +241,30 @@ public static class PricingExcel
 
         var br = new CultureInfo("pt-BR");
         var rotulo = converte
-            ? $"PREÇO AO CLIENTE EM {venda.Rotulo()} ({nivel.Rotulo.ToLowerInvariant()}) · 1 {venda.Rotulo()} = {efetivo.ToString("#,##0.######", br)} {custo.Rotulo()}" +
+            ? $"PREÇO AO CLIENTE EM {venda.Rotulo()} ({nivel.Rotulo.ToLowerInvariant()}) · taxa da proposta: 1 {venda.Rotulo()} = {efetivo.ToString("#,##0.######", br)} {custo.Rotulo()}" +
               (Cambio.Seguranca(o) > 0m ? $" (taxa {Cambio.Normalizada(o).ToString("#,##0.######", br)} − segurança {Cambio.Seguranca(o).ToString("0.##", br)}%)" : "") +
+              (botao is not null ? " · segue o quadro de conversão abaixo" : "") +
               $" · o quadro acima está em {custo.Rotulo()}"
             : Cambio.Converte(o)
                 ? $"PREÇO AO CLIENTE: falta a taxa de câmbio {custo.Rotulo()} → {venda.Rotulo()} na proposta (valor abaixo em {custo.Rotulo()})"
                 : $"PREÇO AO CLIENTE EM {custo.Rotulo()} ({nivel.Rotulo.ToLowerInvariant()})";
         ws.Texto("K21", rotulo);
-        ws.Formula("Q21", $"ROUND({valor}/BD_pricing!$C$2,2)");
+        ws.Formula("Q21", $"ROUND({valor}/{taxaDoBotao},2)");
+
+        // as moedas nos números: o modelo troca pela BU ("CLP" em tudo da HCHL, "BRL" na linha 21)
+        var naVenda = converte ? venda : custo;
+        ws.FormatoDeMoeda(FormatoDe(custo), "Q13");
+        ws.FormatoDeMoeda(FormatoDe(naVenda), "Q14", "Q21");
+        // as taxas com as casas que precisam (0,941354 não vira 0,94)
+        ws.FormatoDeMoeda(FormatoDe(custo, taxa: true), "I36", "I41", "I42", "I43", "I44");
+        ws.FormatoDeMoeda(FormatoDe(linha36, taxa: true), "I37", "I38", "I39");
+    }
+
+    /// <summary>O formato de número do Excel com a moeda: "R$ 1.234,56", "EUR 1.234,56", "CLP 1.234".</summary>
+    private static string FormatoDe(Moeda m, bool taxa = false)
+    {
+        var numero = taxa ? "#,##0.00####" : m == Moeda.Clp ? "#,##0" : "#,##0.00";
+        return m == Moeda.Brl ? $"\"R$\"\\ {numero}" : $"[${m.Codigo()}]\\ {numero}";
     }
 
     /// <summary>

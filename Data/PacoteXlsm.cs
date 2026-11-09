@@ -50,12 +50,96 @@ internal sealed class PacoteXlsm : IDisposable
         return alvo.StartsWith('/') ? alvo.TrimStart('/') : "xl/" + alvo;
     }
 
-    public Aba AbaDe(string nome) => new(Doc(CaminhoDaAba(nome)));
+    public Aba AbaDe(string nome) => new(this, Doc(CaminhoDaAba(nome)));
+
+    // ================= formatos de número =================
+
+    private readonly Dictionary<(int Estilo, string Formato), int> _estilosNovos = new();
+
+    /// <summary>
+    /// Troca o formato de número da célula (ex.: <c>[$EUR]\ #,##0.00</c>),
+    /// mantendo o resto do estilo dela (fonte, borda, cor): um estilo novo,
+    /// cópia do dela, só com o formato trocado.
+    /// </summary>
+    private void FormatarNumero(XElement celula, string formato)
+    {
+        var estilos = Doc("xl/styles.xml").Root!;
+        var fmts = estilos.Element(Ns + "numFmts");
+        if (fmts is null) { fmts = new XElement(Ns + "numFmts"); estilos.AddFirst(fmts); }
+        var id = fmts.Elements(Ns + "numFmt").FirstOrDefault(f => (string?)f.Attribute("formatCode") == formato)?.Attribute("numFmtId")?.Value;
+        if (id is null)
+        {
+            id = (fmts.Elements(Ns + "numFmt").Select(f => (int)f.Attribute("numFmtId")!).DefaultIfEmpty(163).Max() + 1).ToString(CultureInfo.InvariantCulture);
+            fmts.Add(new XElement(Ns + "numFmt", new XAttribute("numFmtId", id), new XAttribute("formatCode", formato)));
+            fmts.SetAttributeValue("count", fmts.Elements(Ns + "numFmt").Count());
+        }
+        var atual = (int?)celula.Attribute("s") ?? 0;
+        if (!_estilosNovos.TryGetValue((atual, formato), out var novo))
+        {
+            var xfs = estilos.Element(Ns + "cellXfs")!;
+            var copia = new XElement(xfs.Elements(Ns + "xf").ElementAt(atual));
+            copia.SetAttributeValue("numFmtId", id);
+            copia.SetAttributeValue("applyNumberFormat", "1");
+            xfs.Add(copia);
+            novo = xfs.Elements(Ns + "xf").Count() - 1;
+            xfs.SetAttributeValue("count", novo + 1);
+            _estilosNovos[(atual, formato)] = novo;
+        }
+        celula.SetAttributeValue("s", novo);
+    }
+
+    /// <summary>
+    /// A formatação condicional que troca o formato de número (a moeda) pela
+    /// BU deixa de valer nessas células: o modelo põe "CLP" em tudo da HCHL,
+    /// mesmo com o custo em EUR. A regra continua com as cores; só perde o
+    /// formato de número.
+    /// </summary>
+    private void TirarMoedaCondicional(XDocument aba, IReadOnlyCollection<string> celulas)
+    {
+        var estilos = Doc("xl/styles.xml").Root!;
+        var dxfs = estilos.Element(Ns + "dxfs");
+        if (dxfs is null) return;
+        foreach (var cf in aba.Root!.Elements(Ns + "conditionalFormatting").ToList())
+        {
+            var faixas = ((string?)cf.Attribute("sqref") ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (!celulas.Any(c => faixas.Any(f => Contem(f, c)))) continue;
+            foreach (var regra in cf.Elements(Ns + "cfRule").ToList())
+            {
+                if (regra.Attribute("dxfId") is not { } atr) continue;
+                var dxf = dxfs.Elements(Ns + "dxf").ElementAtOrDefault(int.Parse(atr.Value, CultureInfo.InvariantCulture));
+                if (dxf?.Element(Ns + "numFmt") is null) continue;
+                var semFormato = new XElement(dxf);
+                semFormato.Elements(Ns + "numFmt").Remove();
+                if (!semFormato.HasElements) { regra.Remove(); continue; }
+                dxfs.Add(semFormato);
+                dxfs.SetAttributeValue("count", dxfs.Elements(Ns + "dxf").Count());
+                atr.Value = (dxfs.Elements(Ns + "dxf").Count() - 1).ToString(CultureInfo.InvariantCulture);
+            }
+            if (!cf.Elements(Ns + "cfRule").Any()) cf.Remove();
+        }
+    }
+
+    private static bool Contem(string faixa, string celula)
+    {
+        var partes = faixa.Replace("$", "").Split(':');
+        var (c1, l1) = Aba.Dividir(partes[0]);
+        var (c2, l2) = partes.Length > 1 ? Aba.Dividir(partes[1]) : (c1, l1);
+        var (c, l) = Aba.Dividir(celula);
+        return Aba.Coluna(c) >= Aba.Coluna(c1) && Aba.Coluna(c) <= Aba.Coluna(c2) && l >= l1 && l <= l2;
+    }
 
     public sealed class Aba
     {
+        private readonly PacoteXlsm _pacote;
         private readonly XDocument _doc;
-        internal Aba(XDocument doc) => _doc = doc;
+        internal Aba(PacoteXlsm pacote, XDocument doc) { _pacote = pacote; _doc = doc; }
+
+        /// <summary>O formato de número da moeda nessas células (sem a troca condicional do modelo pela BU).</summary>
+        public void FormatoDeMoeda(string formato, params string[] celulas)
+        {
+            _pacote.TirarMoedaCondicional(_doc, celulas);
+            foreach (var c in celulas) _pacote.FormatarNumero(Celula(c), formato);
+        }
 
         public void Numero(string celula, double valor)
         {
@@ -119,14 +203,14 @@ internal sealed class PacoteXlsm : IDisposable
             return c;
         }
 
-        private static (string Coluna, int Linha) Dividir(string referencia)
+        internal static (string Coluna, int Linha) Dividir(string referencia)
         {
             var i = 0;
             while (i < referencia.Length && char.IsLetter(referencia[i])) i++;
             return (referencia[..i], int.Parse(referencia[i..], CultureInfo.InvariantCulture));
         }
 
-        private static int Coluna(string letras) => letras.Aggregate(0, (n, ch) => n * 26 + (char.ToUpperInvariant(ch) - 'A' + 1));
+        internal static int Coluna(string letras) => letras.Aggregate(0, (n, ch) => n * 26 + (char.ToUpperInvariant(ch) - 'A' + 1));
     }
 
     /// <summary>Grava tudo e devolve o arquivo pronto (a planilha recalcula ao abrir).</summary>
