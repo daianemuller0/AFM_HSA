@@ -15,7 +15,7 @@
         <h1>Cotação Intercompany</h1>
         <p class="subtitle">
             Escolha os itens de uma proposta (ou digite) e peça a cotação a outra unidade Howden / Chart, em português, inglês
-            ou espanhol. O e-mail sai pronto para o Outlook, com a planilha para eles preencherem; quando a resposta chegar,
+            ou espanhol. O e-mail ("RFQ – nº do CRM") abre pronto no Outlook, com a sua assinatura; quando a resposta chegar,
             digite o preço e o prazo de cada item e leve para a proposta como custo de cotação.
         </p>
     </div>
@@ -38,6 +38,9 @@
         </div>
 
         <div class="ic-campos">
+            <label>Nº do CRM (vai no assunto)
+                <input class="cell" value="@s.NumeroCrm" placeholder="nº da oportunidade" @onchange="e => s.NumeroCrm = e.Value?.ToString()?.Trim() ?? string.Empty" />
+            </label>
             <label>Proposta
                 <select class="cell" value="@s.PropostaId" @onchange="e => EscolherProposta(e.Value?.ToString() ?? string.Empty)">
                     <option value="">— sem proposta (itens digitados) —</option>
@@ -120,7 +123,7 @@
         <div class="email-assunto" style="margin-top:12px"><span>Assunto</span>@email.Assunto</div>
         <div class="email-acoes" style="margin-top:10px">
             <button class="btn-primary" @onclick="Salvar">Salvar</button>
-            <button class="btn-accent" disabled="@(s.Itens.Count == 0)" @onclick="AbrirNoOutlook">✉ Abrir e-mail no Outlook (planilha anexa)</button>
+            <button class="btn-accent" disabled="@(s.Itens.Count == 0)" @onclick="AbrirNoOutlook">✉ Abrir e-mail no Outlook</button>
             <button class="btn-ghost" disabled="@(s.Itens.Count == 0)" @onclick="Copiar">⧉ Copiar</button>
             <a class="btn-link" href="@EmailsDaProposta.Mailto(email)">mailto</a>
             <button class="btn-ghost" disabled="@(s.Itens.Count == 0)" @onclick="BaixarPlanilha">⬇ Planilha</button>
@@ -220,6 +223,7 @@
         _edit.PropostaId = o?.Id ?? "";
         _edit.Proposta = o is null ? "" : PropostaWord.Referencia(o);
         _edit.Cliente = o?.ClientName ?? "";
+        if ((o?.NumeroCrm ?? "").Trim() is { Length: > 0 } crm) _edit.NumeroCrm = crm;
         if ((o?.Moeda ?? "").Trim() is { Length: > 0 } moeda) _edit.Moeda = moeda.ToUpperInvariant();
         _daProposta = o is null ? new() : ItensDaProposta(o.Id);
         _edit.Itens.RemoveAll(i => i.ItemId.Length > 0);
@@ -274,23 +278,22 @@
         _edit.EnviadaEm = DateTime.Now.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
         Solicitacoes.Gravar(_edit);
         _todas = Solicitacoes.Todas();
-        var email = PedidoIntercompany.Email(_edit, _usuario);
-        var anexo = new AnexoDoEmail(PedidoIntercompany.NomeDaPlanilha(_edit), CustoPorItemExcel.TipoMime, PedidoIntercompany.Planilha(_edit, _usuario));
-        // direto no Outlook (como a macro); sem ele, o .eml para abrir
-        if (await Task.Run(() => Outlook.Abrir(email, new[] { anexo })) is null)
+        // direto no Outlook (como a macro), com a assinatura de quem envia; sem ele, o .eml com o nome no lugar
+        if (await Task.Run(() => Outlook.Abrir(PedidoIntercompany.Email(_edit, ""), Array.Empty<AnexoDoEmail>())) is null)
         {
-            _msg = $"Pedido {_edit.Codigo} aberto no Outlook, com a planilha anexa: confira e envie.";
+            _msg = $"Pedido {PedidoIntercompany.Assunto(_edit)} aberto no Outlook: confira e envie.";
             return;
         }
         await JS.InvokeVoidAsync("appDownload", PricingExcel.Limpo(_edit.Codigo) + ".eml", "message/rfc822",
-            Convert.ToBase64String(EmailsDaProposta.Eml(email, new[] { anexo })));
-        _msg = $"Pedido {_edit.Codigo} pronto: abra o arquivo baixado no Outlook e envie (a planilha vai anexa).";
+            Convert.ToBase64String(EmailsDaProposta.Eml(PedidoIntercompany.Email(_edit, _usuario), Array.Empty<AnexoDoEmail>())));
+        _msg = $"Pedido {PedidoIntercompany.Assunto(_edit)} pronto: abra o arquivo baixado no Outlook e envie.";
     }
 
     private async Task Copiar()
     {
         if (_edit is null) return;
-        var email = PedidoIntercompany.Email(_edit, _usuario);
+        // colado no Outlook, a assinatura já está lá: o e-mail vai sem o nome
+        var email = PedidoIntercompany.Email(_edit, "");
         var ok = await JS.InvokeAsync<bool>("appCopiarHtml", email.Html, email.Texto);
         if (ok) _msg = "E-mail copiado com a formatação."; else _erro = "O navegador não deixou copiar; use o arquivo do Outlook.";
     }

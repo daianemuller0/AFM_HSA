@@ -59,6 +59,9 @@ public class CommercialOffer
     /// valor de cada um (custo unitário × quantidade).
     /// </summary>
     public decimal FreteCusto { get; set; }
+
+    /// <summary>Nº do CRM da oportunidade: é o título da solicitação de cotação Intercompany ("RFQ – nº").</summary>
+    public string NumeroCrm { get; set; } = "";
     // Condições comerciais (editáveis)
     public string IntroText { get; set; } = "";
     public string TaxText { get; set; } = "";

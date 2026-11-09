@@ -38,6 +38,8 @@ public sealed class SolicitacaoIntercompany
     /// <summary>A referência da proposta (código-C revisão).</summary>
     public string Proposta { get; set; } = "";
     public string Cliente { get; set; } = "";
+    /// <summary>Nº do CRM: o assunto do e-mail é "RFQ – nº do CRM".</summary>
+    public string NumeroCrm { get; set; } = "";
     /// <summary>A unidade de fora para quem vai o pedido (ex.: Howden UK – Renfrew).</summary>
     public string Unidade { get; set; } = "";
     public string Para { get; set; } = "";
@@ -139,21 +141,33 @@ public static class PedidoIntercompany
     private static string Data(string iso) =>
         DateTime.TryParseExact(iso, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) ? d.ToString("dd/MM/yyyy") : "";
 
-    public static EmailDaProposta Email(SolicitacaoIntercompany s, string remetente)
-    {
-        var t = De(s.Idioma);
-        var assunto = string.Format(t.Assunto, s.Codigo, PropostaWord.Ou(s.Cliente, "—"));
-        var pedido = string.Format(t.Pedido, PropostaWord.Ou(s.Proposta, s.Codigo), PropostaWord.Ou(s.Cliente, "—"));
-        var informar = string.Format(t.Informar, s.Moeda);
-        var linhasExtras = new List<string>();
-        if (Data(s.RespostaAte) is { Length: > 0 } ate) linhasExtras.Add(string.Format(t.Prazo, ate));
-        if (s.Entrega.Trim().Length > 0) linhasExtras.Add(string.Format(t.Entrega, s.Entrega.Trim()));
-        if (s.Observacoes.Trim().Length > 0) linhasExtras.Add(string.Format(t.Obs, s.Observacoes.Trim()));
-        var colunas = t.Colunas.Take(7).ToArray();
+    /// <summary>O assunto: "RFQ – nº do CRM" (sem o CRM, o código da solicitação).</summary>
+    public static string Assunto(SolicitacaoIntercompany s) =>
+        "RFQ – " + PropostaWord.Ou(s.NumeroCrm, s.Codigo);
 
-        var sb = new StringBuilder("<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#1f2937;line-height:1.45\">");
-        sb.Append($"<p>{H(t.Saudacao)}</p><p>{H(pedido)}</p>");
-        sb.Append("<table cellpadding=\"0\" cellspacing=\"0\" style=\"border-collapse:collapse;margin:10px 0;font-size:12.5px\"><tr>");
+    private sealed record TextoDoPedido(string Saudacao, string Pedido, string Despedida);
+
+    private static TextoDoPedido TextoDe(string idioma) => IdiomasDaProposta.Normalizar(idioma) switch
+    {
+        IdiomasDaProposta.Ingles => new("Hello Dear,", "I need a quote for the items below:", "Best regards,"),
+        IdiomasDaProposta.Espanhol => new("Hola, estimado(a),", "Necesito una cotización para los ítems abajo:", "Saludos cordiales,"),
+        _ => new("Olá, prezado(a),", "Preciso de uma cotação para os itens abaixo:", "Atenciosamente,"),
+    };
+
+    /// <summary>
+    /// O e-mail no formato da equipe: saudação, o pedido, a tabela dos itens
+    /// (Item, Part Number, Description, Compressor model, Serial Number, TAG,
+    /// Qty) e a despedida. A assinatura é a do Outlook de quem envia; sem
+    /// Outlook (arquivo, mailto), <paramref name="assinatura"/> entra no lugar.
+    /// </summary>
+    public static EmailDaProposta Email(SolicitacaoIntercompany s, string assinatura)
+    {
+        var t = TextoDe(s.Idioma);
+        var colunas = De(s.Idioma).Colunas.Take(7).ToArray();
+
+        var sb = new StringBuilder("<div style=\"font-family:Calibri,Arial,Helvetica,sans-serif;font-size:14px;color:#1f2937;line-height:1.45\">");
+        sb.Append($"<p>{H(t.Saudacao)}</p><p>{H(t.Pedido)}</p>");
+        sb.Append("<table cellpadding=\"0\" cellspacing=\"0\" style=\"border-collapse:collapse;margin:10px 0;font-size:13px\"><tr>");
         foreach (var c in colunas)
             sb.Append($"<th style=\"background:#004785;color:#fff;padding:5px 10px;text-align:left;border:1px solid #004785\">{H(c)}</th>");
         sb.Append("</tr>");
@@ -163,27 +177,27 @@ public static class PedidoIntercompany
             var fundo = i % 2 == 0 ? "#ffffff" : "#f3f7fb";
             var celulas = new[] { (i + 1).ToString("D2"), it.PartNumber, it.Descricao, it.Modelo, it.SerialNumber, it.Tag, it.Quantidade.ToString() };
             sb.Append("<tr>");
-            foreach (var c in celulas)
-                sb.Append($"<td style=\"padding:5px 10px;border:1px solid #d6dee8;background:{fundo};vertical-align:top\">{H(c)}</td>");
+            for (var c = 0; c < celulas.Length; c++)
+                sb.Append($"<td style=\"padding:5px 10px;border:1px solid #d6dee8;background:{fundo};vertical-align:top;{(c == 6 ? "text-align:right;" : "")}\">{H(celulas[c])}</td>");
             sb.Append("</tr>");
         }
         sb.Append("</table>");
-        sb.Append($"<p>{H(informar)}</p>");
-        foreach (var l in linhasExtras) sb.Append($"<p>{H(l)}</p>");
-        sb.Append($"<p style=\"margin-top:18px\">{H(t.Despedida)}<br>{H(remetente)}<br>Howden South America · Chart Industries</p></div>");
+        sb.Append($"<p style=\"margin-top:18px\">{H(t.Despedida)}");
+        if (assinatura.Trim().Length > 0) sb.Append($"<br>{H(assinatura)}");
+        sb.Append("</p></div>");
 
         var texto = new StringBuilder();
-        texto.AppendLine(t.Saudacao).AppendLine().AppendLine(pedido).AppendLine();
+        texto.AppendLine(t.Saudacao).AppendLine().AppendLine(t.Pedido).AppendLine();
+        texto.AppendLine(string.Join(" | ", colunas));
         for (var i = 0; i < s.Itens.Count; i++)
         {
             var it = s.Itens[i];
-            texto.AppendLine($"{i + 1:D2}. {it.PartNumber} – {it.Descricao}{(it.Modelo.Length > 0 ? $" – {it.Modelo}" : "")}{(it.SerialNumber.Length > 0 ? $" – SN {it.SerialNumber}" : "")} – {colunas[6]} {it.Quantidade}");
+            texto.AppendLine(string.Join(" | ", new[] { (i + 1).ToString("D2"), it.PartNumber, it.Descricao, it.Modelo, it.SerialNumber, it.Tag, it.Quantidade.ToString() }));
         }
-        texto.AppendLine().AppendLine(informar);
-        foreach (var l in linhasExtras) texto.AppendLine(l);
-        texto.AppendLine().AppendLine(t.Despedida).AppendLine(remetente).AppendLine("Howden South America · Chart Industries");
+        texto.AppendLine().AppendLine(t.Despedida);
+        if (assinatura.Trim().Length > 0) texto.AppendLine(assinatura);
 
-        return new EmailDaProposta(s.Para, s.Cc, assunto, sb.ToString(), texto.ToString());
+        return new EmailDaProposta(s.Para, s.Cc, Assunto(s), sb.ToString(), texto.ToString());
     }
 
     /// <summary>A planilha do pedido, na língua dele: os itens e as colunas de preço, moeda e prazo para a unidade preencher.</summary>
