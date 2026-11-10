@@ -126,7 +126,8 @@ public static class PropostaWord
 
         using (var doc = WordprocessingDocument.Open(fluxo, true))
         {
-            new PreenchimentoDaProposta(doc, dados).Preencher();
+            var termos = TermosDasBusDeFora.Ler(Path.GetDirectoryName(Path.GetFullPath(caminhoDoModelo)) ?? ".");
+            new PreenchimentoDaProposta(doc, dados, termos).Preencher();
         }
         return fluxo.ToArray();
     }

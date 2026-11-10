@@ -54,6 +54,23 @@ public static class FaturamentoDaBu
         return null;
     }
 
+    /// <summary>O nome da Howden na faixa da capa: "Howden Chile" (HCHL), "Howden Peru" (HPU); null = o do modelo (Howden South America).</summary>
+    public static string? NomeNaCapa(string? bu)
+    {
+        var b = (bu ?? "").Trim();
+        if (b.StartsWith("HCHL", StringComparison.OrdinalIgnoreCase)) return "Howden Chile";
+        if (b.Equals("HPU", StringComparison.OrdinalIgnoreCase)) return "Howden Peru";
+        return null;
+    }
+
+    /// <summary>
+    /// A venda é para um país fora do Brasil, do Chile e do Peru (Colômbia,
+    /// Panamá, Rep. Dominicana, outro): nenhum imposto se soma ao preço.
+    /// </summary>
+    public static bool OutroPais(string? estado) =>
+        ListasDoPricing.PaisesExportacao.Any(p => Textos.Igual(p, estado))
+        && !new[] { "Brasil", "Chile", "Peru" }.Any(p => Textos.Igual(p, estado));
+
     /// <summary>As BUs com dados bancários e as moedas de conta de cada uma.</summary>
     public static readonly (string Bu, string Nome, Moeda[] Moedas)[] Bus =
     {

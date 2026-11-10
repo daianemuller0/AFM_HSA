@@ -25,10 +25,20 @@ internal sealed class PreenchimentoDaProposta
 
     /// <summary>pt, en ou es: o documento é preenchido em português e traduzido no fim (<see cref="Traduzir"/>).</summary>
     private readonly string _idioma;
+
+    /// <summary>Os Termos e Condições da HCHL / HPU (vazio = sem o arquivo).</summary>
+    private readonly IReadOnlyList<TermosDasBusDeFora.Bloco> _termos;
+
+    /// <summary>HCHL ou HPU: a proposta é da Howden Chile / Peru (líquido + IVA / IGV, termos no fim).</summary>
+    private bool DeFora => FaturamentoDaBu.ImpostoLocal(_o.Bu) is not null;
+
+    /// <summary>Venda para fora do Brasil, do Chile e do Peru: nenhum imposto se soma ao preço.</summary>
+    private bool OutroPais => FaturamentoDaBu.OutroPais(_o.Estado);
     private static readonly CultureInfo Br = new("pt-BR");
 
-    public PreenchimentoDaProposta(WordprocessingDocument doc, DadosDaPropostaWord dados)
+    public PreenchimentoDaProposta(WordprocessingDocument doc, DadosDaPropostaWord dados, IReadOnlyList<TermosDasBusDeFora.Bloco>? termos = null)
     {
+        _termos = termos ?? Array.Empty<TermosDasBusDeFora.Bloco>();
         _doc = doc;
         _d = dados;
         _o = dados.Oferta;
@@ -55,6 +65,7 @@ internal sealed class PreenchimentoDaProposta
         Revisoes();
         Introducao();
         Precos();
+        NotasComerciais();
         Impostos();
         Pagamento();
         Entrega();
@@ -62,6 +73,7 @@ internal sealed class PreenchimentoDaProposta
         Faturamento();
         SoAComercial();
         TirarAssessoria();
+        TermosNoFim();
         Indice();
         Traduzir();
         TirarRealce();
@@ -227,6 +239,11 @@ internal sealed class PreenchimentoDaProposta
         MesmaFonteDoCliente(capa);
         Rotulo(capa, "Preparada por:", _o.PreparedBy);
         // "Sua referência:" é um campo ligado (Palavras-chave), já escrito em CamposLigados
+
+        // a faixa azul: Howden Chile / Howden Peru (a HSA fica com Howden South America)
+        if (FaturamentoDaBu.NomeNaCapa(_o.Bu) is { } nome
+            && capa.Descendants<Paragraph>().FirstOrDefault(p => Texto(p).Trim() == "Howden South America") is { } faixa)
+            Escrever(faixa, nome);
 
         // só a comercial: o subtítulo perde o "Técnica"
         if (capa.Descendants<Paragraph>().FirstOrDefault(p => Texto(p).Trim() == "Proposta Técnica Comercial") is { } sub)
@@ -556,6 +573,28 @@ internal sealed class PreenchimentoDaProposta
         }
     }
 
+    /// <summary>
+    /// HCHL / HPU: as Notas Comerciais começam com duas notas a mais (preço só
+    /// comprando todos os itens; documentos de importação não inclusos). A HSA
+    /// fica como o modelo.
+    /// </summary>
+    private void NotasComerciais()
+    {
+        // as notas ficam numa tabela do modelo: procura em todos os parágrafos
+        if (!DeFora || _corpo.Descendants<Paragraph>().FirstOrDefault(p => Texto(p).Contains("Excluso de nosso fornecimento qualquer item", StringComparison.Ordinal)) is not { } primeira)
+            return;
+        foreach (var texto in new[]
+        {
+            "Os preços e condições considerados nesta oferta aplicam-se somente se forem comprados todos os itens aqui ofertados. Caso contrário, os preços e condições podem estar sujeitos a alterações.",
+            "Não está incluído no escopo qualquer documento associado para realizar a importação (certificado EUR1, catálogos, ficha técnica etc.). Caso necessário, solicitar junto com o pedido ou com a ordem de compra para ser incorporado ao pedido.",
+        })
+        {
+            var nota = (Paragraph)primeira.CloneNode(true);
+            Escrever(nota, texto);
+            primeira.InsertBeforeSelf(nota);
+        }
+    }
+
     private decimal Total => _d.Itens.Sum(i => i.TotalPrice);
 
     private string Dinheiro(decimal valorNaMoedaDoPreco) => Cambio.Dinheiro(_o, valorNaMoedaDoPreco);
@@ -586,7 +625,8 @@ internal sealed class PreenchimentoDaProposta
             var numero = Total.ToString(Moedas.Formato(Cambio.MoedaDoPreco(_o)), Br);
             if (_idioma == IdiomasDaProposta.Ingles) numero = TraducaoDaProposta.NumeroEmIngles(numero);
             EscreverNaCelula(celTotal[0], new[] { $"{rotulo} ({moeda})" });
-            EscreverNaCelula(celTotal[^1], new[] { numero, $"+ {local}" });
+            // para outro país (Colômbia, Panamá...) nada se soma ao preço
+            EscreverNaCelula(celTotal[^1], OutroPais ? new[] { numero } : new[] { numero, $"+ {local}" });
         }
         else if (celTotal.Count >= 2)
         {
@@ -727,7 +767,9 @@ internal sealed class PreenchimentoDaProposta
         Ref("Modelo do compressor", modelo);
         Ref("Serial Number", serial);
         Ref("TAG", tags);
-        Ref("Part Number", pn);
+        // o Part Number fica no escopo, na linha debaixo da descrição da peça (sem escopo, nas referências)
+        var pnNoEscopo = !servico && pn.Length > 0 && P("Xxxxxxxxxxxx") is not null;
+        if (!pnNoEscopo) Ref("Part Number", pn);
         if (planta is not null && _o.Plantas.Count > 1) Ref("Planta", PlantasDaProposta.Rotulo(planta));
         Ref("Aplicação", aplicacao);
         if (ultima.Length > 0 || original.Length > 0)
@@ -754,7 +796,16 @@ internal sealed class PreenchimentoDaProposta
             Tirar(P("Xxxxxxxxxxxx"));
         }
         else if (P("Xxxxxxxxxxxx") is { } pEscopo)
+        {
             Escrever(pEscopo, material.Length > 0 ? $"{peca} – material: {material}" : peca);
+            if (pnNoEscopo)
+            {
+                var linhaPn = (Paragraph)pEscopo.CloneNode(true);
+                Escrever(linhaPn, $"Part Number: {pn}");
+                pEscopo.InsertAfterSelf(linhaPn);
+                paragrafos.Insert(paragrafos.IndexOf(pEscopo) + 1, linhaPn);
+            }
+        }
         var rotor = !servico && Textos.Simples(peca).Contains("rotor");
         if (P("Pintura:") is { } pintura)
         {
@@ -869,7 +920,21 @@ internal sealed class PreenchimentoDaProposta
             Achar("ICMS: (12% - INDICAR"), Achar("ICMS: (17% - ES)"), Achar("IPI: 0%"), Achar("IPI: 9,75%"),
         };
 
-        if (FaturamentoDaBu.ImpostoLocal(_o.Bu) is { } local)
+        Paragraph?[] LeiBrasileira() => new[]
+        {
+            Achar("Fundamento Legal"), Achar("Nota sobre Legislação Tributária"),
+            Achar("A presente proposta comercial foi elaborada com base na legislação tributária"),
+            Achar("Dessa forma, a Howden South America se reserva o direito de revisar"),
+        };
+
+        if (OutroPais)
+        {
+            // venda para outro país (fora Brasil, Chile e Peru): nada se soma — valores netos
+            if (pis is not null) Escrever(pis, "Valores líquidos: Impostos e Retenções não inclusos.");
+            apagar.AddRange(new[] { cofins, icmsSp, ipiModelo, issItatiba, issSerra });
+            apagar.AddRange(LeiBrasileira());
+        }
+        else if (FaturamentoDaBu.ImpostoLocal(_o.Bu) is { } local)
         {
             // BU de fora: os impostos do Brasil não se aplicam; o IVA / IGV vai somado ao valor líquido
             if (pis is not null) Escrever(pis, _idioma switch
@@ -880,12 +945,7 @@ internal sealed class PreenchimentoDaProposta
             });
             apagar.AddRange(new[] { cofins, icmsSp, ipiModelo, issItatiba, issSerra });
             // a lei brasileira e a reforma tributária não valem para o Chile nem o Peru
-            apagar.AddRange(new[]
-            {
-                Achar("Fundamento Legal"), Achar("Nota sobre Legislação Tributária"),
-                Achar("A presente proposta comercial foi elaborada com base na legislação tributária"),
-                Achar("Dessa forma, a Howden South America se reserva o direito de revisar"),
-            });
+            apagar.AddRange(LeiBrasileira());
         }
         else if (r.SemImpostos)
         {
@@ -950,9 +1010,9 @@ internal sealed class PreenchimentoDaProposta
     {
         var tabela = Tabelas().FirstOrDefault(t => Texto(t).StartsWith("Valor Total Líquido", StringComparison.Ordinal));
         if (tabela is null) return;
-        if (FaturamentoDaBu.ImpostoLocal(_o.Bu) is not null)
+        if (FaturamentoDaBu.ImpostoLocal(_o.Bu) is not null || OutroPais)
         {
-            // HCHL / HPU: sem o detalhamento (o preço é o líquido + IVA / IGV)
+            // HCHL / HPU: sem o detalhamento (o preço é o líquido + IVA / IGV); outro país: nada se soma
             Achar("Detalhamento para adição dos Impostos")?.Remove();
             tabela.Remove();
             return;
@@ -1203,6 +1263,112 @@ internal sealed class PreenchimentoDaProposta
         }
     }
 
+    // ================= HCHL / HPU: os Termos e Condições no fim =================
+
+    /// <summary>Os títulos que saem do fim da proposta da HCHL / HPU (e do índice).</summary>
+    private static readonly string[] TitulosDepoisDoFaturamento = { "Notas", "Sistema de Gestão", "Informações Adicionais", "Anexos" };
+
+    /// <summary>
+    /// HCHL / HPU: embaixo dos dados bancários entram os Termos y Condiciones
+    /// Generales (<see cref="TermosDasBusDeFora"/>), e a proposta termina neles —
+    /// Notas, Sistema de Gestão, Informações Adicionais e Anexos saem.
+    /// </summary>
+    private void TermosNoFim()
+    {
+        // "Notas" é título 2 (HSA-Título 2), logo depois da conta bancária
+        var notas = Paragrafos().FirstOrDefault(p => Texto(p).Trim() == "Notas"
+            && (p.ParagraphProperties?.ParagraphStyleId?.Val?.Value ?? "").Contains("TTULO", StringComparison.OrdinalIgnoreCase));
+        if (!DeFora || _termos.Count == 0 || notas is null) return;
+        OpenXmlElement de = Anterior(notas) is { } numero ? numero : notas;
+        // a quebra de página que abria a seção: os termos seguem logo embaixo do banco
+        if (de.PreviousSibling() is Paragraph quebra && Texto(quebra).Trim().Length == 0
+            && quebra.Descendants<Break>().Any(b => b.Type?.Value == BreakValues.Page)
+            && quebra.ParagraphProperties?.SectionProperties is null)
+            quebra.Remove();
+
+        OpenXmlElement? ancora = null;
+        foreach (var e in _corpo.ChildElements.SkipWhile(e => e != de).ToList())
+        {
+            if (e is SectionProperties) { ancora ??= e; continue; }
+            if (e is Paragraph p && p.ParagraphProperties?.SectionProperties is not null)
+            {
+                // a quebra de seção fica (vazia): ela guarda o tamanho e as margens das páginas de cima
+                foreach (var filho in p.ChildElements.Where(c => c is not ParagraphProperties).ToList()) filho.Remove();
+                ancora ??= p;
+                continue;
+            }
+            e.Remove();
+        }
+
+        char anterior = ' ';
+        foreach (var b in _termos)
+        {
+            var p = ParagrafoDosTermos(b, anterior);
+            if (ancora is not null) ancora.InsertBeforeSelf(p); else _corpo.Append(p);
+            anterior = b.Tipo;
+        }
+    }
+
+    private static Paragraph ParagrafoDosTermos(TermosDasBusDeFora.Bloco b, char anterior)
+    {
+        const int Texto = 17, Secao = 18, Titulo = 22;   // meios-pontos
+        Run R(string t, bool negrito = false, int tamanho = Texto, string? cor = null)
+        {
+            var rp = new RunProperties();
+            if (negrito) { rp.Append(new Bold()); rp.Append(new BoldComplexScript()); }
+            if (cor is not null) rp.Append(new Color { Val = cor });
+            rp.Append(new FontSize { Val = tamanho.ToString(CultureInfo.InvariantCulture) });
+            rp.Append(new FontSizeComplexScript { Val = tamanho.ToString(CultureInfo.InvariantCulture) });
+            return new Run(rp, new Text(t) { Space = SpaceProcessingModeValues.Preserve });
+        }
+        Run Tab()
+        {
+            var r = R("");
+            r.RemoveAllChildren<Text>();
+            r.Append(new TabChar());
+            return r;
+        }
+        Paragraph P(int antes, int depois, int esquerda, int pendurado, bool juntoAoProximo, JustificationValues alinhar, params Run[] runs)
+        {
+            var pp = new ParagraphProperties();
+            if (juntoAoProximo) pp.Append(new KeepNext());
+            pp.Append(new SpacingBetweenLines { Before = antes.ToString(CultureInfo.InvariantCulture), After = depois.ToString(CultureInfo.InvariantCulture) });
+            if (esquerda > 0 || pendurado > 0)
+                pp.Append(new Indentation { Left = esquerda.ToString(CultureInfo.InvariantCulture), Hanging = pendurado > 0 ? pendurado.ToString(CultureInfo.InvariantCulture) : null });
+            pp.Append(new Justification { Val = alinhar });
+            var p = new Paragraph(pp);
+            foreach (var r in runs) p.Append(r);
+            return p;
+        }
+
+        switch (b.Tipo)
+        {
+            case 'T':
+                return P(anterior == ' ' ? 360 : 480, 160, 0, 0, true, JustificationValues.Left, R(b.Texto, true, Titulo, "1F4E79"));
+            case 'S':
+                return P(200, 80, 0, 0, true, JustificationValues.Left, R(b.Texto, true, Secao));
+            case 'D':
+                return P(0, 100, 567, 0, false, JustificationValues.Both, R(b.Termo + ": ", true), R(b.Texto));
+            case 'I':
+            {
+                var m = System.Text.RegularExpressions.Regex.Match(b.Texto, @"^(\([ivx]+\))\s+(.*)$");
+                return m.Success
+                    ? P(0, 100, 1134, 567, false, JustificationValues.Both, R(m.Groups[1].Value), Tab(), R(m.Groups[2].Value))
+                    : P(0, 100, 1134, 0, false, JustificationValues.Both, R(b.Texto));
+            }
+            case 'B':
+                return P(0, 60, 1134, 283, false, JustificationValues.Both, R("–"), Tab(), R(b.Texto));
+            default:
+            {
+                // cláusula "9.1 ...": o número em negrito, pendurado; parágrafo solto: recuado como o texto das cláusulas
+                var m = System.Text.RegularExpressions.Regex.Match(b.Texto, @"^(\d{1,2}\.\d{1,2}\.?)\s+(.*)$");
+                if (m.Success)
+                    return P(0, 100, 567, 567, false, JustificationValues.Both, R(m.Groups[1].Value, true), Tab(), R(m.Groups[2].Value));
+                return P(0, 100, anterior == 'T' ? 0 : 567, 0, false, JustificationValues.Both, R(b.Texto));
+            }
+        }
+    }
+
     /// <summary>Um título de seção (estilo HSA-Título 1) pelo texto exato.</summary>
     private Paragraph? Titulo1(string texto) => Paragrafos().FirstOrDefault(p =>
         Texto(p).Trim() == texto &&
@@ -1229,6 +1395,8 @@ internal sealed class PreenchimentoDaProposta
             {
                 var t = Texto(p).Trim();
                 if (TitulosTecnicos.Any(tt => t.StartsWith(tt, StringComparison.Ordinal))) p.Remove();
+                // HCHL / HPU: a proposta termina nos Termos e Condições
+                else if (DeFora && _termos.Count > 0 && TitulosDepoisDoFaturamento.Any(tt => t.StartsWith(tt, StringComparison.Ordinal))) p.Remove();
             }
         }
 

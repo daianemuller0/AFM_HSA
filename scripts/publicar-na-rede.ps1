@@ -73,6 +73,7 @@ $faltando = @(
     'wwwroot\app.css',
     'wwwroot\modelos\proposta-comercial.docx',
     'wwwroot\modelos\pricing.xlsm',
+    'wwwroot\modelos\termos-hchl-hpu-es.txt',
     'wwwroot\dados\municipios.csv',
     'Data\seed.json'
 ) | Where-Object { -not (Test-Path (Join-Path $pastaApp $_)) }
