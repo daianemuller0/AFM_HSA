@@ -89,14 +89,8 @@
                             <option value="">—</option><option value="item">por item</option><option value="pacote">no pacote (total)</option>
                         </select>
                     </td>
-                    <td class="right">
-                        @if (r.VendaPor == "pacote")
-                        {
-                            <input class="cell ref-af num" type="number" min="0" step="0.01" value="@(r.ValorPacote > 0 ? r.ValorPacote.ToString(System.Globalization.CultureInfo.InvariantCulture) : "")"
-                                   placeholder="@r.MoedaDoPreco.Rotulo()" @onchange="e => MudarPacote(r, e)" />
-                        }
-                        else { <span>—</span> }
-                    </td>
+                    <td class="right nowrap" title="O valor total líquido da proposta (gravado ao salvar a proposta)">@(r.ValorPacote > 0 ? Moedas.Dinheiro(r.MoedaDoPreco, r.ValorPacote) : "—")</td>
+                    <td class="right" title="A quantidade total de itens da proposta">@(r.QtdItensPacote > 0 ? r.QtdItensPacote.ToString("0.##") : "—")</td>
                     <td>
                         <select class="cell ref-sel" value="@r.BaseDoCusto" @onchange="e => MudarBase(r, e)">
                             <option value="">—</option><option value="@ReferenciaDeCustoRepository.Cotacao">cotação</option><option value="@ReferenciaDeCustoRepository.Estimado">estimado</option>
@@ -156,6 +150,7 @@
         new("Nº AF", r => r.NumeroAf),
         new("Vendido por", r => r.VendaPor),
         new("Valor do pacote", r => r.ValorPacote, true),
+        new("Qtd. itens do pacote", r => r.QtdItensPacote, true),
         new("Base do custo", r => r.BaseDoCusto),
     };
 
@@ -167,7 +162,7 @@
     private void MudarAf(ReferenciaDeCusto r, ChangeEventArgs e)
     {
         r.NumeroAf = (e.Value?.ToString() ?? "").Trim();
-        if (r.NumeroAf.Length == 0) { r.VendaPor = ""; r.ValorPacote = 0m; }
+        if (r.NumeroAf.Length == 0) r.VendaPor = "";
         else if (r.VendaPor.Length == 0) r.VendaPor = "item";
         Gravar(r);
     }
@@ -175,13 +170,6 @@
     private void MudarVendaPor(ReferenciaDeCusto r, ChangeEventArgs e)
     {
         r.VendaPor = e.Value?.ToString() ?? "";
-        if (r.VendaPor != "pacote") r.ValorPacote = 0m;
-        Gravar(r);
-    }
-
-    private void MudarPacote(ReferenciaDeCusto r, ChangeEventArgs e)
-    {
-        r.ValorPacote = ReferenciaDeCustoRepository.Numero(e.Value?.ToString()) ?? 0m;
         Gravar(r);
     }
 
@@ -279,7 +267,7 @@
             r.Proposta, r.Revisao, r.Cliente, r.Plantas, r.Estado, r.Intercompany, r.PartNumber, r.Quantidade.ToString("0.##"),
             r.PrecoUnitLiquido.ToString("0.00"), r.PrecoTotalLiquido.ToString("0.00"), r.DataComoData?.ToString("dd/MM/yyyy") ?? "",
             r.Valor.ToString("0.00"), r.Ta.ToString("0.00"), r.Descricao, r.NumeroAf, r.VendaPor,
-            r.ValorPacote > 0 ? r.ValorPacote.ToString("0.00") : "", r.BaseDoCusto, r.MoedaDoPreco.Codigo(), r.MoedaDoCusto.Codigo(),
+            r.ValorPacote > 0 ? r.ValorPacote.ToString("0.00") : "", r.QtdItensPacote > 0 ? r.QtdItensPacote.ToString("0.##") : "", r.BaseDoCusto, r.MoedaDoPreco.Codigo(), r.MoedaDoCusto.Codigo(),
         });
         var bytes = Planilha.Xlsx("Referências", ReferenciaDeCustoRepository.Colunas.Select(c => c.Nome).ToList(), linhas);
         await JS.InvokeVoidAsync("appDownload", "referencias_de_preco.xlsx",

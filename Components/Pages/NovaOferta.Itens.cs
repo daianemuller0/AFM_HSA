@@ -414,6 +414,8 @@ public partial class NovaOferta
         var noNivel = PricingDaProposta.ValorNoNivel(r, PricingDaProposta.NivelPedido(_o)) ?? r.ValorDaProposta;
         var paraLiquido = noNivel > 0m && r.ValorDaProposta > 0m ? r.ValorDaProposta / noNivel : 1m;
         var todasAsPlantas = string.Join("; ", _o.Plantas.Select(PlantasDaProposta.Rotulo).Where(t => t.Length > 0));
+        // o pacote: o total líquido que o cliente recebeu (todas as linhas, na moeda da proposta) e quantas peças
+        var (valorDoPacote, qtdDoPacote) = PacoteDaProposta(paraLiquido);
 
         foreach (var it in _items.Where(i => i != _itemDemais && i.Id.Length > 0))
         {
@@ -438,10 +440,12 @@ public partial class NovaOferta
                 PrecoUnitLiquido = unit, PrecoTotalLiquido = Math.Round(unit * it.Quantity, 2), Moeda = Cambio.MoedaDoPreco(_o).Codigo(),
             };
             nova.BaseDoCusto = it.BaseCusto;
-            // a venda (AF, por item ou pacote, valor do pacote) é marcada depois, nas Referências: fica a que já estava
+            nova.ValorPacote = valorDoPacote;
+            nova.QtdItensPacote = qtdDoPacote;
+            // a venda (AF, por item ou pacote) é marcada depois, nas Referências: fica a que já estava
             if (porId.TryGetValue(it.Id, out var antiga))
             {
-                nova.NumeroAf = antiga.NumeroAf; nova.VendaPor = antiga.VendaPor; nova.ValorPacote = antiga.ValorPacote;
+                nova.NumeroAf = antiga.NumeroAf; nova.VendaPor = antiga.VendaPor;
                 if (Igual(antiga, nova)) continue;   // sem mudança, a referência fica como estava
             }
             RefsCusto.Gravar(nova);
@@ -454,7 +458,29 @@ public partial class NovaOferta
         a.Valor == b.Valor && a.Ta == b.Ta && a.PartNumber == b.PartNumber && a.Modelo == b.Modelo && a.SerialNumber == b.SerialNumber
         && a.Origem == b.Origem && a.Proposta == b.Proposta && a.Revisao == b.Revisao && a.Cliente == b.Cliente && a.Plantas == b.Plantas
         && a.Estado == b.Estado && a.Intercompany == b.Intercompany && a.Quantidade == b.Quantidade && a.PrecoUnitLiquido == b.PrecoUnitLiquido
-        && a.Moeda == b.Moeda && a.Data == b.Data && a.Descricao == b.Descricao && a.BaseDoCusto == b.BaseDoCusto && a.MoedaDoCusto == b.MoedaDoCusto;
+        && a.Moeda == b.Moeda && a.Data == b.Data && a.Descricao == b.Descricao && a.BaseDoCusto == b.BaseDoCusto && a.MoedaDoCusto == b.MoedaDoCusto
+        && a.ValorPacote == b.ValorPacote && a.QtdItensPacote == b.QtdItensPacote;
+
+    /// <summary>
+    /// O pacote da proposta: o valor total líquido que o cliente recebe (todas
+    /// as linhas, com a de demais custos, na moeda da proposta) e a quantidade
+    /// total de peças (sem a linha de demais custos).
+    /// </summary>
+    private (decimal Valor, decimal Qtd) PacoteDaProposta(decimal paraLiquido)
+    {
+        var valor = _items.Where(i => i.Quantity > 0).Sum(i => Math.Round(i.UnitPrice * paraLiquido, 2) * i.Quantity);
+        return (Math.Round(valor, 2), QtdDestaProposta);
+    }
+
+    /// <summary>Destaca quando esta proposta tem bem menos ou bem mais itens que o pacote da referência (o preço muda).</summary>
+    private string ClasseDaQtd(ReferenciaDeCusto r, CommercialOfferItem it) =>
+        r.QtdItensPacote <= 0 || QtdComEste(it) == r.QtdItensPacote ? "it-ref-qtd" : "it-ref-qtd diferente";
+
+    /// <summary>As peças desta proposta, contando o item que está sendo adicionado (ainda fora da lista).</summary>
+    private decimal QtdComEste(CommercialOfferItem it) => QtdDestaProposta + (_items.Contains(it) ? 0m : it.Quantity);
+
+    /// <summary>A quantidade total de peças desta proposta (sem a linha de demais custos).</summary>
+    private decimal QtdDestaProposta => _items.Where(i => i != _itemDemais).Sum(i => (decimal)i.Quantity);
 
     /// <summary>A referência de preço de venda do part number: o último preço enviado (deste cliente primeiro).</summary>
     private ReferenciaDeCusto? RefPrecoDo(CommercialOfferItem it) =>

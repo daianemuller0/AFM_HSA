@@ -1513,3 +1513,9 @@ tr.linha-marcada td { background: #fff1f2; }
 .it-c-qtd { width: 40px; } .it-c-num { width: 26px; }
 .it-c-acoes { width: 52px; } .it-peca { min-width: 100px; }
 .it-in-ta { font-size: 0.76rem; padding-left: 2px; padding-right: 2px; }
+
+/* referência de preço: o pacote em que o preço foi dado (total e quantidade de itens) */
+.it-ref > .it-ref-pacote { grid-column: 1 / -1; font-size: 12px; color: var(--text, #334155); }
+.it-ref-pacote strong { white-space: nowrap; }
+.it-ref-qtd { color: var(--muted); }
+.it-ref-qtd.diferente { color: #b45309; font-weight: 700; }

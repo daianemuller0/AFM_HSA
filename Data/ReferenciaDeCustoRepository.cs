@@ -57,6 +57,8 @@ public sealed class ReferenciaDeCusto
     public string BaseDoCusto { get; set; } = "";
     /// <summary>A moeda do custo e do TA (o custo fica na moeda em que foi feito: EUR, USD...); vazio = R$ (as antigas).</summary>
     public string MoedaCusto { get; set; } = "";
+    /// <summary>A quantidade total de itens (peças) da proposta — o tamanho do pacote em que o preço foi dado.</summary>
+    public decimal QtdItensPacote { get; set; }
 
     public bool Vendido => NumeroAf.Trim().Length > 0;
 
@@ -79,7 +81,7 @@ public sealed class ReferenciaDeCustoRepository
         .ReadLatest(Entidade,
             "id, part_number, descricao, valor, ta, data, modelo, serial_number, origem, proposta_id, proposta, cliente, usuario, " +
             "revisao, plantas, estado, intercompany, quantidade, preco_unit_liquido, preco_total_liquido, moeda, " +
-            "numero_af, venda_por, valor_pacote, base_custo, moeda_custo",
+            "numero_af, venda_por, valor_pacote, base_custo, moeda_custo, qtd_itens_pacote",
             r => new ReferenciaDeCusto
             {
                 Id = Fmt.S(r, 0), PartNumber = Fmt.S(r, 1), Descricao = Fmt.S(r, 2), Valor = Fmt.Dec(Fmt.S(r, 3)),
@@ -89,7 +91,7 @@ public sealed class ReferenciaDeCustoRepository
                 Intercompany = Fmt.S(r, 16), Quantidade = Fmt.Dec(Fmt.S(r, 17)), PrecoUnitLiquido = Fmt.Dec(Fmt.S(r, 18)),
                 PrecoTotalLiquido = Fmt.Dec(Fmt.S(r, 19)), Moeda = Fmt.S(r, 20),
                 NumeroAf = Fmt.S(r, 21), VendaPor = Fmt.S(r, 22), ValorPacote = Fmt.Dec(Fmt.S(r, 23)), BaseDoCusto = Fmt.S(r, 24),
-                MoedaCusto = Fmt.S(r, 25),
+                MoedaCusto = Fmt.S(r, 25), QtdItensPacote = Fmt.Dec(Fmt.S(r, 26)),
             })
         .Select(SepararRevisao)
         .OrderByDescending(r => r.Data).ThenByDescending(r => r.Proposta)
@@ -153,7 +155,7 @@ public sealed class ReferenciaDeCustoRepository
             new("quantidade", N(r.Quantidade)), new("preco_unit_liquido", N(r.PrecoUnitLiquido)),
             new("preco_total_liquido", N(r.PrecoTotalLiquido)), new("moeda", r.Moeda),
             new("numero_af", r.NumeroAf), new("venda_por", r.VendaPor), new("valor_pacote", N(r.ValorPacote)), new("base_custo", r.BaseDoCusto),
-            new("moeda_custo", r.MoedaCusto),
+            new("moeda_custo", r.MoedaCusto), new("qtd_itens_pacote", N(r.QtdItensPacote)),
         };
     }
 
@@ -191,6 +193,7 @@ public sealed class ReferenciaDeCustoRepository
         ("Nº AF", new[] { "n af", "numero da af", "no af", "af", "n da af", "numero af" }),
         ("Vendido por", new[] { "vendido por", "venda por", "item ou total", "item/pacote", "por item ou total" }),
         ("Valor total do pacote", new[] { "valor total do pacote", "valor do pacote", "pacote" }),
+        ("Qtd. itens do pacote", new[] { "qtd itens do pacote", "quantidade de itens do pacote", "qtd total de itens", "quantidade total de itens", "itens do pacote" }),
         ("Base do custo", new[] { "base do custo", "cotacao ou estimado", "custo cotado ou estimado", "cotado/estimado" }),
         ("Moeda", new[] { "moeda", "moeda do preco", "moeda da venda" }),
         ("Moeda do custo", new[] { "moeda do custo", "moeda custo", "moeda do custo e ta" }),
@@ -238,6 +241,7 @@ public sealed class ReferenciaDeCustoRepository
                 MoedaCusto = Moedas.Ler(C(l, "Moeda do custo")).Codigo(),
                 Descricao = C(l, "Descrição"), Moeda = Moedas.Ler(C(l, "Moeda")).Codigo(),
                 NumeroAf = C(l, "Nº AF"), VendaPor = VendaPorDe(C(l, "Vendido por")), ValorPacote = Numero(C(l, "Valor total do pacote")) ?? 0m,
+                QtdItensPacote = Numero(C(l, "Qtd. itens do pacote")) ?? 0m,
                 BaseDoCusto = BaseDe(C(l, "Base do custo")),
                 Origem = OrigemPlanilha, Usuario = usuario,
             };
@@ -256,7 +260,7 @@ public sealed class ReferenciaDeCustoRepository
     /// <summary>O modelo da planilha de importação, com uma linha de exemplo.</summary>
     public static byte[] Modelo() => Planilha.Xlsx("Referências", Colunas.Select(c => c.Nome).ToList(), new[]
     {
-        (IReadOnlyList<string>)new[] { "HSA2026-0147", "2", "Vale", "São Luís", "MA", "HSA-SP", "HW-NAC-A", "3", "3853,22", "11559,66", "05/11/2026", "2100,00", "0", "Rolamento", "AF-12345", "pacote", "25000,00", "cotação", "BRL", "BRL" },
+        (IReadOnlyList<string>)new[] { "HSA2026-0147", "2", "Vale", "São Luís", "MA", "HSA-SP", "HW-NAC-A", "3", "3853,22", "11559,66", "05/11/2026", "2100,00", "0", "Rolamento", "AF-12345", "pacote", "25000,00", "8", "cotação", "BRL", "BRL" },
     });
 
     public const string Cotacao = "cotação";

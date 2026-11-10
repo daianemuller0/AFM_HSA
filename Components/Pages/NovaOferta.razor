@@ -2646,6 +2646,13 @@
                         <span class="it-ref-rot">Preço já enviado</span>
                         <strong>@Moedas.Dinheiro(refPreco.MoedaDoPreco, refPreco.PrecoUnitLiquido)</strong>
                         <span class="it-ref-de">@Fmt.Date(refPreco.Data) · @(Textos.Igual(refPreco.Cliente, _o.ClientName) ? "este cliente" : refPreco.Cliente) @SeloVenda(refPreco)</span>
+                        @if (refPreco.ValorPacote > 0m)
+                        {
+                            <span class="it-ref-pacote" title="O preço pode variar com o tamanho do pacote: o total que o cliente recebeu e quantos itens havia nele">
+                                Pacote: <strong>@Moedas.Dinheiro(refPreco.MoedaDoPreco, refPreco.ValorPacote)</strong>@(refPreco.QtdItensPacote > 0 ? $" · {refPreco.QtdItensPacote:0.##} {(refPreco.QtdItensPacote == 1 ? "item" : "itens")}" : "")
+                                <span class="@ClasseDaQtd(refPreco, it)">· nesta: @QtdComEste(it).ToString("0.##") @(QtdComEste(it) == 1 ? "item" : "itens")</span>
+                            </span>
+                        }
                         @if (metaEnviada is decimal me && it.PrecoMeta != me)
                         {
                             <button class="btn-link" @onclick="() => it.PrecoMeta = me">meta = este preço</button>
