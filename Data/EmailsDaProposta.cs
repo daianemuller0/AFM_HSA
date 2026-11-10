@@ -164,63 +164,87 @@ public static class EmailsDaProposta
 
     // ================= envio da proposta ao cliente =================
 
-    private sealed record TextosDoEnvio(string Assunto, string Saudacao, string SaudacaoSemNome, string Anexo, string Contatar, string Condicoes, string Despedida);
+    private sealed record TextosDoEnvio(string Proposta, string Saudacao, string Anexo, string Contatar, string Por,
+        string Condicoes, string Agradecimento);
 
+    /// <summary>O texto do envio na língua da proposta (o espanhol é o da equipe; o português e o inglês, a versão dele).</summary>
     private static TextosDoEnvio TextosDe(string idioma) => IdiomasDaProposta.Normalizar(idioma) switch
     {
-        IdiomasDaProposta.Ingles => new("HOWDEN - Commercial Proposal {0} - {1}", "Dear {0},", "Dear Sirs,",
-            "Please find attached our Commercial Proposal {0}, prepared for your evaluation.",
-            "To schedule a visit, or for technical and/or commercial matters, please contact:",
-            "The selling price presented in our proposal is conditional upon acceptance of Howden's standard “Conditions of Supply”, attached. Any different condition is subject to commercial renegotiation.",
-            "Best regards,"),
-        IdiomasDaProposta.Espanhol => new("HOWDEN - Oferta Comercial {0} - {1}", "Estimado/a {0},", "Estimados señores,",
-            "Adjuntamos nuestra Oferta Comercial {0}, elaborada para su evaluación.",
-            "Para agendar una visita, asuntos técnicos y/o comerciales, por favor contactar:",
-            "El precio de venta presentado en nuestra oferta está condicionado a la aceptación de las “Condiciones de Suministro” estándar de Howden, adjuntas. Cualquier condición diferente está sujeta a renegociación comercial.",
-            "Saludos cordiales,"),
-        _ => new("HOWDEN - Proposta Comercial {0} - {1}", "Prezado(a) {0},", "Prezados Senhores,",
-            "Segue em anexo nossa Proposta Comercial {0}, elaborada para sua avaliação.",
-            "Para agendamento de visita, assuntos técnicos e/ou comerciais, solicitamos contatar:",
-            "O preço de venda apresentado em nossa Oferta está condicionado ao aceite das “Condições de Fornecimento” padrão Howden, anexa. Qualquer condição diferente está sujeita à renegociação comercial.",
-            "Atenciosamente,"),
+        IdiomasDaProposta.Ingles => new("Commercial Proposal", "Dear Sir or Madam,",
+            "Please find attached our Commercial Proposal {0}, prepared for your review.",
+            "To schedule a visit or for any technical or commercial matter, please contact:",
+            "at",
+            "The selling price presented in our Offer is subject to acceptance of Howden's standard Terms and Conditions for the Sale of Goods, included in our proposal. Any different condition will be subject to commercial renegotiation.",
+            "Thank you for your attention. We remain at your disposal for any clarification you may need."),
+        IdiomasDaProposta.Espanhol => new("Propuesta Comercial", "Estimado,",
+            "Adjuntamos nuestra Propuesta Comercial {0}, preparada para su revisión.",
+            "Para programar una visita o para cualquier asunto técnico o comercial, póngase en contacto con:",
+            "por",
+            "El precio de venta presentado en nuestra Oferta está sujeto a la aceptación de los Términos y Condiciones de Venta de Bienes, estándar de Howden, incluidos en nuestra propuesta. Cualquier condición diferente estará sujeta a renegociación comercial.",
+            "Gracias por su atención. Quedamos a su disposición para cualquier aclaración que necesite."),
+        _ => new("Proposta Comercial", "Prezado(a),",
+            "Segue anexa nossa Proposta Comercial {0}, preparada para sua análise.",
+            "Para agendar uma visita ou para qualquer assunto técnico ou comercial, entre em contato com:",
+            "pelo telefone",
+            "O preço de venda apresentado em nossa Oferta está sujeito à aceitação dos Termos e Condições de Venda de Bens, padrão da Howden, incluídos em nossa proposta. Qualquer condição diferente estará sujeita a renegociação comercial.",
+            "Agradecemos a atenção. Ficamos à disposição para qualquer esclarecimento que necessite."),
     };
 
-    public static string AssuntoDaProposta(CommercialOffer o) =>
-        string.Format(TextosDe(o.Idioma).Assunto, PropostaWord.Referencia(o), PropostaWord.Ou(o.ClientName, "")).TrimEnd(' ', '-');
+    /// <summary>
+    /// "HOWDEN - Propuesta Comercial - Cliente – Cidade - HSAJOM.AFM.000457-C0 | referência do cliente":
+    /// sem cidade ou sem a referência do cliente, a parte sai.
+    /// </summary>
+    public static string AssuntoDaProposta(CommercialOffer o)
+    {
+        var cliente = string.Join(" – ", new[] { o.ClientName, o.City }.Select(x => (x ?? "").Trim()).Where(x => x.Length > 0));
+        var partes = new[] { "HOWDEN", TextosDe(o.Idioma).Proposta, cliente, PropostaWord.Referencia(o) }.Where(x => x.Length > 0);
+        var suaRef = (o.SuaReferencia ?? "").Trim();
+        return string.Join(" - ", partes) + (suaRef.Length > 0 ? " | " + suaRef : "");
+    }
 
-    /// <param name="cartao">as linhas do contato Howden (o vendedor da proposta)</param>
-    public static EmailDaProposta Proposta(CommercialOffer o, IReadOnlyList<string> cartao, string para, string cc, string remetente)
+    /// <summary>"José Ovídio Moura por +55 11 96858 2183 - jose.moura@chartindustries.com" (o primeiro telefone).</summary>
+    public static string LinhaDeContato(string nome, ContatoHowden? c, string idioma)
+    {
+        var n = (c?.Nome ?? nome ?? "").Trim();
+        if (n.Length == 0) return "";
+        var fone = c?.Telefones.Select(t => t.Trim()).FirstOrDefault(t => t.Length > 0) ?? "";
+        var email = (c?.Email ?? "").Trim();
+        var linha = fone.Length > 0 ? $"{n} {TextosDe(idioma).Por} {fone}" : n;
+        return email.Length > 0 ? $"{linha} - {email}" : linha;
+    }
+
+    /// <param name="contatos">uma linha por vendedor da proposta (<see cref="LinhaDeContato"/>)</param>
+    /// <param name="remetente">"" quando o Outlook põe a assinatura de quem envia (no .eml, o nome de quem envia)</param>
+    public static EmailDaProposta Proposta(CommercialOffer o, IReadOnlyList<string> contatos, string para, string cc, string remetente)
     {
         var t = TextosDe(o.Idioma);
-        var nome = (o.AttentionTo ?? "").Trim();
-        var saudacao = nome.Length > 0 ? string.Format(t.Saudacao, nome) : t.SaudacaoSemNome;
         var anexo = string.Format(t.Anexo, PropostaWord.Referencia(o));
+        var linhas = contatos.Where(c => c.Trim().Length > 0).ToList();
 
         var sb = new StringBuilder();
         sb.Append(Abrir());
-        sb.Append($"<p>{H(saudacao)}</p>");
+        sb.Append($"<p>{H(t.Saudacao)}</p>");
         sb.Append($"<p>{H(anexo)}</p>");
-        if (cartao.Count > 0)
+        if (linhas.Count > 0)
         {
             sb.Append($"<p>{H(t.Contatar)}</p>");
-            sb.Append("<p style=\"margin-left:12px;border-left:3px solid #004785;padding-left:10px\">");
-            sb.Append(string.Join("<br>", cartao.Select((l, i) => i == 0 ? $"<b>{H(l)}</b>" : H(l))));
-            sb.Append("</p>");
+            sb.Append("<p>" + string.Join("<br>", linhas.Select(H)) + "</p>");
         }
         sb.Append($"<p>{H(t.Condicoes)}</p>");
-        sb.Append($"<p style=\"margin-top:18px\">{H(t.Despedida)}" + (remetente.Trim().Length > 0 ? $"<br>{H(remetente)}<br>Howden South America · Chart Industries" : "") + "</p>");
+        sb.Append($"<p>{H(t.Agradecimento)}</p>");
+        if (remetente.Trim().Length > 0) sb.Append($"<p>{H(remetente)}<br>Howden | Chart Industries</p>");
         sb.Append(Fechar());
 
         var texto = new StringBuilder();
-        texto.AppendLine(saudacao).AppendLine().AppendLine(anexo).AppendLine();
-        if (cartao.Count > 0)
+        texto.AppendLine(t.Saudacao).AppendLine().AppendLine(anexo).AppendLine();
+        if (linhas.Count > 0)
         {
-            texto.AppendLine(t.Contatar);
-            foreach (var l in cartao) texto.AppendLine("  " + l);
+            texto.AppendLine(t.Contatar).AppendLine();
+            foreach (var l in linhas) texto.AppendLine(l);
             texto.AppendLine();
         }
-        texto.AppendLine(t.Condicoes).AppendLine().AppendLine(t.Despedida);
-        if (remetente.Trim().Length > 0) texto.AppendLine(remetente).AppendLine("Howden South America · Chart Industries");
+        texto.AppendLine(t.Condicoes).AppendLine().AppendLine(t.Agradecimento);
+        if (remetente.Trim().Length > 0) texto.AppendLine().AppendLine(remetente).AppendLine("Howden | Chart Industries");
 
         return new EmailDaProposta(para, cc, AssuntoDaProposta(o), sb.ToString(), texto.ToString());
     }

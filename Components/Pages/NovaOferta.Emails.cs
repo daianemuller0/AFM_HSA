@@ -101,9 +101,12 @@ public partial class NovaOferta
 
     private EmailDaProposta EmailAoCliente(string assinatura)
     {
-        var cartao = ContatosHowden.Do(_o.Vendedor) is { } c ? ContatosHowden.Cartao(c)
-            : (_o.Vendedor ?? "").Trim().Length > 0 ? new List<string> { _o.Vendedor!.Trim() } : new List<string>();
-        return EmailsDaProposta.Proposta(_o, cartao, PropPara, PropCc, assinatura);
+        // os vendedores da proposta: nome, o primeiro telefone e o e-mail
+        var contatos = new[] { _o.Vendedor, _o.Vendedor2 }
+            .Where(v => (v ?? "").Trim().Length > 0)
+            .Select(v => EmailsDaProposta.LinhaDeContato(v!, ContatosHowden.Do(v), _o.Idioma))
+            .Where(l => l.Length > 0).Distinct().ToList();
+        return EmailsDaProposta.Proposta(_o, contatos, PropPara, PropCc, assinatura);
     }
 
     /// <summary>A aprovação como rascunho do Outlook, com o pricing (P_…xlsm) anexo.</summary>
