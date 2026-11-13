@@ -261,12 +261,36 @@ public static class PricingExcel
         // taxa) só em exportação, Chile e Peru — senão é a venda com PIS e COFINS, na moeda do custo.
         var naVenda = converte ? venda : custo;
         var linha14Converte = Textos.Igual(o.Destino, "Exportação") || Textos.Igual(o.Estado, "Peru") || Textos.Igual(o.Estado, "Chile");
-        ws.FormatoDeMoeda(FormatoDe(custo), "Q13", "Q15", "R15", "S15", "Q16", "R16", "S16");
-        ws.FormatoDeMoeda(FormatoDe(linha14Converte ? naVenda : custo), "Q14");
+        if (converte) QuadroNaMoedaDaVenda(pacote, ws, taxaDoBotao);
+        var noQuadro = converte ? naVenda : custo;
+        ws.FormatoDeMoeda(FormatoDe(noQuadro), "Q13", "Q15", "R15", "S15", "Q16", "R16", "S16");
+        ws.FormatoDeMoeda(FormatoDe(converte || !linha14Converte ? noQuadro : custo), "Q14");
         ws.FormatoDeMoeda(FormatoDe(naVenda), "Q21");
+        if (converte) pacote.AbaDe("EMAILS AUTOMÁTICOS").FormatoDeMoeda(FormatoDe(naVenda), "H43", "H44", "H45", "H46");
         // as taxas com as casas que precisam (0,941354 não vira 0,94)
         ws.FormatoDeMoeda(FormatoDe(custo, taxa: true), "I36", "I41", "I42", "I43", "I44");
         ws.FormatoDeMoeda(FormatoDe(linha36, taxa: true), "I37", "I38", "I39");
+    }
+
+    /// <summary>
+    /// Preço em moeda diferente da do custo (HSA vendendo em USD ou EUR; HCHL
+    /// com custo em EUR vendendo em USD): o quadro PREÇO DE VENDA inteiro sai
+    /// na moeda da venda — sem misturar R$ e USD. As linhas 13 a 16 dividem
+    /// pela taxa do quadro de conversão (a mesma do botão de moeda, I36…); o
+    /// que usa o quadro para contas em R$ (o fator da coluna T e o Back to
+    /// Back de S83) multiplica de volta. A macro trabalha em E52 / P27, fora
+    /// do quadro. A aba EMAILS AUTOMÁTICOS copia o quadro: sai na moeda da venda.
+    /// </summary>
+    private static void QuadroNaMoedaDaVenda(PacoteXlsm pacote, PacoteXlsm.Aba ws, string taxa)
+    {
+        const string ConverteNaPlanilha = "OR(Destino=\"Exportação\",Estado=\"Peru\",Estado=\"Chile\")";
+        if (ws.FormulaDe("Q13") is { Length: > 0 } q13) ws.Formula("Q13", $"({q13})/{taxa}");
+        ws.Formula("Q14", $"IF({ConverteNaPlanilha},$Q$13,$S$75/{taxa})");
+        ws.Formula("Q15", $"IF({ConverteNaPlanilha},\"-\",$S$76/{taxa})");
+        ws.Formula("Q16", $"IF({ConverteNaPlanilha},\"-\",$S$77/{taxa})");
+        ws.Formula("T13", $"Q13*{taxa}/($E$34-IF($J$5=\"Exportação com Back to Back\",$E$25,0))");
+        for (var l = 14; l <= 16; l++) ws.Formula($"T{l}", $"Q{l}*{taxa}/$E$34");
+        ws.Formula("S83", $"Q13*{taxa}/(1-SUM(D61:D62))/N83");
     }
 
     /// <summary>O formato de número do Excel com a moeda: "R$ 1.234,56", "EUR 1.234,56", "CLP 1.234".</summary>
