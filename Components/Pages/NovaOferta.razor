@@ -1060,12 +1060,22 @@
             }
             else
             {
-                <label id="f-margem">Preço de venda: venda líquida (@Rc)
+                <label id="f-margem">Preço de venda (@Rc) — @PricingDaProposta.NivelDe(_o.PrecoMetaNivel).Rotulo.ToLowerInvariant()
                     <input class="cell num" type="number" min="0" step="0.01" placeholder="quanto o cliente aceita"
                            value="@(_o.PrecoMeta > 0 ? _o.PrecoMeta.ToString(CultureInfo.InvariantCulture) : "")"
                            @onchange="e => _o.PrecoMeta = Numero(e) is decimal v && v > 0 ? v : 0" />
-                    <small class="pricing-dica">sem impostos, em @Rc (a moeda do custo)</small>
+                    <small class="pricing-dica">em @Rc (a moeda do custo)@(_o.PrecoMetaNivel != "liquido" && _o.PrecoMeta > 0 ? $" · venda líquida {Cu(pr.VendaLiquida)}" : "")</small>
                 </label>
+                <div class="pricing-nivel-meta">
+                    <span>Esse preço é:</span>
+                    <div class="seg" role="group" aria-label="Com que impostos o preço digitado está">
+                        @foreach (var n in NiveisDoPrecoForcado(pr))
+                        {
+                            var codigo = n.Codigo;
+                            <button class="@(PricingDaProposta.NivelDe(_o.PrecoMetaNivel).Codigo == codigo ? "on" : "")" @onclick="() => _o.PrecoMetaNivel = codigo">@RotuloCurto(n)</button>
+                        }
+                    </div>
+                </div>
             }
         </div>
 
@@ -1795,6 +1805,18 @@
     private string _autoUf = "", _autoMercado = "", _autoAno = "";
     private decimal _autoRisco = CalculoPricing.RiscoPadrao, _autoMargem = ListasDoPricing.MargemPadraoDo("AFM");
     private decimal _autoPm = CalculoPricing.ProtectedMarginPadrao;
+
+    /// <summary>Os níveis de imposto em que dá para forçar o preço nesta proposta (exportação e BUs de fora: só o líquido).</summary>
+    private static IEnumerable<PricingDaProposta.NivelDeImposto> NiveisDoPrecoForcado(CalculoPricing.Resultado r) =>
+        PricingDaProposta.Niveis.Where(n => n.Codigo == "liquido" || PricingDaProposta.ValorNoNivel(r, n.Codigo) is not null);
+
+    private static string RotuloCurto(PricingDaProposta.NivelDeImposto n) => n.Codigo switch
+    {
+        "liquido" => "líquido",
+        "pis_cofins" => "c/ PIS e COFINS",
+        "pis_cofins_icms" => "c/ PIS, COFINS e ICMS",
+        _ => "c/ PIS, COFINS, ICMS e IPI",
+    };
 
     private bool _verMemoria, _verPricing;
     private static readonly string[] MoedasImportacao = { "EUR", "USD", "GBP", "OUTRA" };

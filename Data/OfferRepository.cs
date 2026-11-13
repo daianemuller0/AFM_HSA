@@ -32,7 +32,7 @@ public class OfferRepository
         "pricing_custo, pricing_markup, pricing_venda_liquida, pricing_margem, pricing_preco_impostos, " +
         "tipo_outras_garantias, outras_garantias, pricing_custos, moeda_venda, cambio_taxa, cambio_direcao, " +
         "cambio_seguranca, total_reais, contato_email, contato_telefone, sua_referencia, incoterm, incoterm_local, " +
-        "plantas, equipamentos_proposta, impostos_no_preco, vendedor, idioma, frete_custo, numero_crm, moeda_custo, vendedor2, cambio_conferido, total_liquido, protected_margin",
+        "plantas, equipamentos_proposta, impostos_no_preco, vendedor, idioma, frete_custo, numero_crm, moeda_custo, vendedor2, cambio_conferido, total_liquido, protected_margin, preco_meta_nivel",
         r => new CommercialOffer
         {
             Id = Fmt.S(r, 0), OfferCode = Fmt.S(r, 1), ClientUnitId = Fmt.S(r, 2), EquipmentId = Fmt.S(r, 3),
@@ -72,6 +72,7 @@ public class OfferRepository
             ImpostosNoPreco = Fmt.S(r, 73) is { Length: > 0 } ip ? ip : "liquido",
             Vendedor = Fmt.S(r, 74), Idioma = Fmt.S(r, 75) is { Length: > 0 } id ? id : "pt", FreteCusto = Fmt.Dec(Fmt.S(r, 76)), NumeroCrm = Fmt.S(r, 77), MoedaCusto = Fmt.S(r, 78), Vendedor2 = Fmt.S(r, 79), CambioConferido = Fmt.S(r, 80), TotalLiquido = Fmt.Dec(Fmt.S(r, 81)),
             ProtectedMargin = Fmt.S(r, 82) is { Length: > 0 } pm ? Fmt.Dec(pm) : null,
+            PrecoMetaNivel = Fmt.S(r, 83) is { Length: > 0 } pn ? pn : "liquido",
         }, orderBy: "created_at DESC");
 
     public CommercialOffer? Get(string id) => All().FirstOrDefault(o => o.Id == id);
@@ -106,7 +107,7 @@ public class OfferRepository
         new("plantas", JsonSerializer.Serialize(o.Plantas)),
         new("equipamentos_proposta", JsonSerializer.Serialize(o.EquipamentosDaProposta)),
         new("impostos_no_preco", o.ImpostosNoPreco),
-        new("vendedor", o.Vendedor), new("idioma", o.Idioma), new("frete_custo", D(o.FreteCusto)), new("numero_crm", o.NumeroCrm), new("moeda_custo", o.MoedaCusto), new("vendedor2", o.Vendedor2), new("cambio_conferido", o.CambioConferido), new("total_liquido", D(o.TotalLiquido)), new("protected_margin", o.ProtectedMargin is decimal pm ? D(pm) : ""),
+        new("vendedor", o.Vendedor), new("idioma", o.Idioma), new("frete_custo", D(o.FreteCusto)), new("numero_crm", o.NumeroCrm), new("moeda_custo", o.MoedaCusto), new("vendedor2", o.Vendedor2), new("cambio_conferido", o.CambioConferido), new("total_liquido", D(o.TotalLiquido)), new("protected_margin", o.ProtectedMargin is decimal pm ? D(pm) : ""), new("preco_meta_nivel", o.PrecoMetaNivel),
         new("risco_adicional", D(o.RiscoAdicional)), new("margem_negociacao", D(o.MargemNegociacao)),
         new("pricing_modo", o.PricingModo), new("margem_alvo", D(o.MargemAlvo)), new("preco_meta", D(o.PrecoMeta)),
         new("pricing_custo", D(o.PricingCusto)), new("pricing_markup", D(o.PricingMarkup)),

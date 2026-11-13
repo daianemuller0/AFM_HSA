@@ -139,8 +139,14 @@ public class CommercialOffer
     /// <summary>"margem" (calcula o preço pela margem alvo) ou "preco" (a margem sai do preço-meta).</summary>
     public string PricingModo { get; set; } = "margem";
     public decimal MargemAlvo { get; set; } = ListasDoPricing.MargemPadraoDo("AFM");
-    /// <summary>Venda líquida (sem impostos) que o cliente aceita, no modo "preco".</summary>
+    /// <summary>O preço que o cliente aceita, no modo "preco", no nível de imposto <see cref="PrecoMetaNivel"/>.</summary>
     public decimal PrecoMeta { get; set; }
+    /// <summary>
+    /// "A partir do preço": com que impostos o preço digitado está (liquido,
+    /// pis_cofins, pis_cofins_icms, todos — <see cref="PricingDaProposta.Niveis"/>).
+    /// O pricing acha a venda líquida que chega nele e calcula os outros níveis.
+    /// </summary>
+    public string PrecoMetaNivel { get; set; } = "liquido";
     // Resultado do pricing no momento em que a proposta foi salva (para consulta).
     public decimal PricingCusto { get; set; }
     public decimal PricingMarkup { get; set; }

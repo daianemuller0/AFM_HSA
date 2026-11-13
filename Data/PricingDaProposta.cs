@@ -99,11 +99,43 @@ public static class PricingDaProposta
     {
         var e = EntradaDe(o, itensComprados, itensImportados, aliquotaIpi);
         var r = o.PricingModo == "preco"
-            ? CalculoPricing.PeloPreco(e, o.PrecoMeta)
+            ? PeloPrecoNoNivel(e, o.PrecoMeta, o.PrecoMetaNivel)
             : CalculoPricing.PelaMargem(e, o.MargemAlvo);
         if (e.Rep1 == "IPT Colômbia >EUR 1,25MM" || e.Rep2 == "IPT Colômbia >EUR 1,25MM")
             r.Avisos.Add("IPT Colômbia >EUR 1,25MM: a comissão tem teto de EUR 250K (K24 da planilha) — confira se passou.");
         return r;
+    }
+
+    /// <summary>
+    /// "A partir do preço" com o preço digitado num nível de imposto: acha a
+    /// venda líquida (P27) que, pela mesma conta do pricing, chega nesse valor
+    /// no nível pedido — e daí saem os outros níveis. O líquido vai direto.
+    /// Nível que não existe nesta proposta (exportação, Back to Back…): o
+    /// preço vale como líquido, com aviso.
+    /// </summary>
+    public static CalculoPricing.Resultado PeloPrecoNoNivel(CalculoPricing.Entrada e, decimal preco, string? nivel)
+    {
+        var codigo = NivelDe(nivel).Codigo;
+        var direto = CalculoPricing.PeloPreco(e, preco);
+        if (codigo == "liquido" || preco <= 0m) return direto;
+        decimal? No(decimal vl) => ValorNoNivel(CalculoPricing.PeloPreco(e, vl), codigo);
+        if (No(preco) is null)
+        {
+            direto.Avisos.Add($"O preço foi digitado {NivelDe(codigo).Rotulo.ToLowerInvariant()}, mas esta proposta não tem esse nível de imposto: valeu como venda líquida.");
+            return direto;
+        }
+        // a conta é (quase) linear na venda líquida: secante até bater no centavo
+        decimal x0 = preco * 0.9m, x1 = preco;
+        decimal f0 = No(x0)!.Value - preco, f1 = No(x1)!.Value - preco;
+        for (var i = 0; i < 30 && Math.Abs(f1) > 0.001m && f1 != f0; i++)
+        {
+            var x2 = x1 - f1 * (x1 - x0) / (f1 - f0);
+            if (x2 <= 0m) x2 = x1 / 2m;
+            (x0, f0) = (x1, f1);
+            x1 = x2;
+            f1 = (No(x1) ?? preco) - preco;
+        }
+        return CalculoPricing.PeloPreco(e, Math.Round(x1, 6));
     }
 
     /// <summary>
