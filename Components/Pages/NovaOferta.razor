@@ -250,34 +250,59 @@
         <label id="f-telefone">Telefone do contato <input class="cell" placeholder="+55 …" @bind="_o.ContatoTelefone" /></label>
         <label id="f-suaref">Sua referência (do cliente) <input class="cell" placeholder="o número que o cliente deu" @bind="_o.SuaReferencia" /></label>
         <label id="f-projeto">Projeto <input class="cell" @bind="_o.Project" /></label>
-        <label id="f-vendedor">Vendedor (contato na proposta)
-            <select class="cell" @bind="_o.Vendedor">
-                <option value="">— o da unidade —</option>
-                @foreach (var c in ContatosHowden.Todos) { <option value="@c.Nome">@c.Nome · @c.Cargo@(c.Area.Length > 0 ? " · " + c.Area : "")</option> }
-                @if (!string.IsNullOrWhiteSpace(_o.Vendedor) && ContatosHowden.Do(_o.Vendedor) is null)
-                {
-                    <option value="@_o.Vendedor">@_o.Vendedor</option>
-                }
-            </select>
+        @{ var equipe = ContatosHowden.Todos; }
+        <div class="campo" id="f-vendedor">Vendedor (contato na proposta)
+            <span class="com-mais">
+                <select class="cell" @bind="_o.Vendedor">
+                    <option value="">— o da unidade —</option>
+                    @foreach (var c in equipe) { <option value="@c.Nome">@c.Nome · @c.Cargo@(c.Area.Length > 0 ? " · " + c.Area : "")</option> }
+                    @if (!string.IsNullOrWhiteSpace(_o.Vendedor) && ContatosHowden.Do(_o.Vendedor) is null)
+                    {
+                        <option value="@_o.Vendedor">@_o.Vendedor</option>
+                    }
+                </select>
+                <button class="btn-mais" title="Incluir um vendedor que não está na lista (fica na base para todos)" @onclick='() => AbrirNovoVendedor("1")'>+</button>
+            </span>
             @if (ContatosHowden.Do(_o.Vendedor) is { } cv)
             {
                 <small class="pricing-dica">@string.Join(" · ", cv.Telefones) · @cv.Email</small>
             }
-        </label>
-        <label id="f-vendedor2">2º vendedor (opcional)
-            <select class="cell" @bind="_o.Vendedor2">
-                <option value="">— nenhum —</option>
-                @foreach (var c in ContatosHowden.Todos.Where(c => !Textos.Igual(c.Nome, _o.Vendedor))) { <option value="@c.Nome">@c.Nome · @c.Cargo@(c.Area.Length > 0 ? " · " + c.Area : "")</option> }
-                @if (!string.IsNullOrWhiteSpace(_o.Vendedor2) && ContatosHowden.Do(_o.Vendedor2) is null)
-                {
-                    <option value="@_o.Vendedor2">@_o.Vendedor2</option>
-                }
-            </select>
+        </div>
+        <div class="campo" id="f-vendedor2">2º vendedor (opcional)
+            <span class="com-mais">
+                <select class="cell" @bind="_o.Vendedor2">
+                    <option value="">— nenhum —</option>
+                    @foreach (var c in equipe.Where(c => !Textos.Igual(c.Nome, _o.Vendedor))) { <option value="@c.Nome">@c.Nome · @c.Cargo@(c.Area.Length > 0 ? " · " + c.Area : "")</option> }
+                    @if (!string.IsNullOrWhiteSpace(_o.Vendedor2) && ContatosHowden.Do(_o.Vendedor2) is null)
+                    {
+                        <option value="@_o.Vendedor2">@_o.Vendedor2</option>
+                    }
+                </select>
+                <button class="btn-mais" title="Incluir um vendedor que não está na lista (fica na base para todos)" @onclick='() => AbrirNovoVendedor("2")'>+</button>
+            </span>
             @if (ContatosHowden.Do(_o.Vendedor2) is { } cv2)
             {
                 <small class="pricing-dica">@string.Join(" · ", cv2.Telefones) · @cv2.Email</small>
             }
-        </label>
+        </div>
+        @if (_novoVendedorPara is not null)
+        {
+            <div class="novo-vendedor">
+                <div class="novo-vendedor-tit">Novo vendedor@(_novoVendedorPara == "2" ? " (2º vendedor)" : "") <span class="nota">sai na capa do Word e no e-mail ao cliente · fica na lista para todos</span></div>
+                <div class="novo-vendedor-campos">
+                    <label>Nome *<input class="cell" placeholder="Nome e sobrenome" @bind="_nvNome" @bind:event="oninput" /></label>
+                    <label>Cargo<input class="cell" placeholder="ex.: Key Account Manager" @bind="_nvCargo" /></label>
+                    <label>Área / mercado<input class="cell" placeholder="ex.: Mining / Cement" @bind="_nvArea" /></label>
+                    <label>Telefone(s)<input class="cell" placeholder="+55 11 9…  (mais de um: separe com /)" @bind="_nvFone" /></label>
+                    <label>E-mail<input class="cell" type="email" placeholder="nome@chartindustries.com" @bind="_nvEmail" /></label>
+                </div>
+                @if (_erroVendedor is not null) { <div class="imp-pendencia">@_erroVendedor</div> }
+                <div class="toolbar" style="margin:6px 0 0">
+                    <button class="btn-primary" @onclick="IncluirVendedor">Incluir na base</button>
+                    <button class="btn-link" @onclick="() => _novoVendedorPara = null">cancelar</button>
+                </div>
+            </div>
+        }
         <label id="f-idioma">Idioma da proposta
             <select class="cell" @bind="_o.Idioma">
                 @foreach (var (cod, nome) in IdiomasDaProposta.Opcoes) { <option value="@cod">@nome</option> }

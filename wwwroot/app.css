@@ -1596,3 +1596,9 @@ a.btn-logout:hover { border-color: var(--primary); color: var(--primary); backgr
 .custo-adic-total strong { font-size: 18px; color: var(--secondary); }
 .custos-padrao td { vertical-align: middle; }
 .custo-padrao-valor { width: 120px; }
+
+/* vendedor novo (o "+" ao lado do vendedor) */
+.novo-vendedor { grid-column: 1 / -1; border: 1px dashed #9db8d6; background: #f8fbff; border-radius: 10px; padding: 10px 12px; }
+.novo-vendedor-tit { font-weight: 700; font-size: 13px; margin-bottom: 8px; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.novo-vendedor-campos { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px 12px; }
+.novo-vendedor-campos label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; font-weight: 600; color: var(--muted); }

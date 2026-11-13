@@ -254,10 +254,16 @@ public static class PricingExcel
         ws.Texto("K21", rotulo);
         ws.Formula("Q21", $"ROUND({valor}/{taxaDoBotao},2)");
 
-        // as moedas nos números: o modelo troca pela BU ("CLP" em tudo da HCHL, "BRL" na linha 21)
+        // as moedas nos números do quadro PREÇO DE VENDA. O modelo traz a linha 15 fixa em EUR e a 16
+        // em GBP (resto do quadro antigo, uma moeda por linha) e só põe R$ quando não há ICMS (M75):
+        // numa venda nacional com ICMS saíam "EUR" e "GBP" em valores que são em R$. Aqui cada linha
+        // leva a moeda do valor dela: 13, 15 e 16 são sempre na moeda do custo; a 14 converte (Q13 ÷
+        // taxa) só em exportação, Chile e Peru — senão é a venda com PIS e COFINS, na moeda do custo.
         var naVenda = converte ? venda : custo;
-        ws.FormatoDeMoeda(FormatoDe(custo), "Q13");
-        ws.FormatoDeMoeda(FormatoDe(naVenda), "Q14", "Q21");
+        var linha14Converte = Textos.Igual(o.Destino, "Exportação") || Textos.Igual(o.Estado, "Peru") || Textos.Igual(o.Estado, "Chile");
+        ws.FormatoDeMoeda(FormatoDe(custo), "Q13", "Q15", "R15", "S15", "Q16", "R16", "S16");
+        ws.FormatoDeMoeda(FormatoDe(linha14Converte ? naVenda : custo), "Q14");
+        ws.FormatoDeMoeda(FormatoDe(naVenda), "Q21");
         // as taxas com as casas que precisam (0,941354 não vira 0,94)
         ws.FormatoDeMoeda(FormatoDe(custo, taxa: true), "I36", "I41", "I42", "I43", "I44");
         ws.FormatoDeMoeda(FormatoDe(linha36, taxa: true), "I37", "I38", "I39");

@@ -47,6 +47,46 @@ public partial class NovaOferta
         catch (Exception) { /* a lista é ajuda: não impede a proposta de salvar */ }
     }
 
+    // ================= vendedor novo (o "+" ao lado do vendedor) =================
+
+    /// <summary>"1" = vendedor, "2" = 2º vendedor; null = fechado.</summary>
+    private string? _novoVendedorPara;
+    private string _nvNome = "", _nvCargo = "", _nvArea = "", _nvFone = "", _nvEmail = "";
+    private string? _erroVendedor;
+
+    private void AbrirNovoVendedor(string qual)
+    {
+        _novoVendedorPara = qual;
+        _nvNome = _nvCargo = _nvArea = _nvFone = _nvEmail = "";
+        _erroVendedor = null;
+    }
+
+    private void IncluirVendedor()
+    {
+        _erroVendedor = null;
+        var nome = _nvNome.Trim();
+        if (nome.Length == 0) { _erroVendedor = "Escreva o nome do vendedor."; return; }
+        var email = _nvEmail.Trim();
+        if (email.Length > 0 && !email.Contains('@')) { _erroVendedor = "O e-mail não parece certo."; return; }
+        if (ContatosHowden.Do(nome) is { } jaTem && Textos.Igual(jaTem.Nome, nome) && _nvCargo.Trim().Length == 0 && _nvFone.Trim().Length == 0 && email.Length == 0)
+        {
+            // já está na lista e nada novo foi digitado: só escolhe
+            Escolher(jaTem.Nome);
+            return;
+        }
+        var fones = _nvFone.Split(new[] { '/', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        try { ContatosHowden.Incluir(new ContatoHowden(nome, _nvCargo.Trim(), _nvArea.Trim(), fones, email)); }
+        catch (Exception ex) { _erroVendedor = "Não deu para gravar na base: " + ex.Message; return; }
+        Escolher(nome);
+        _msg = $"{nome} incluído na lista de vendedores.";
+
+        void Escolher(string n)
+        {
+            if (_novoVendedorPara == "2") _o.Vendedor2 = n; else _o.Vendedor = n;
+            _novoVendedorPara = null;
+        }
+    }
+
     // ================= equipamento (= modelo) =================
 
     /// <summary>"VX 2025.00.00" — com o serial só quando a proposta tem dois equipamentos do mesmo modelo.</summary>

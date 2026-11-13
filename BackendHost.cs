@@ -132,6 +132,8 @@ public static class BackendHost
         builder.Services.AddScoped<LocState>();
 
         var app = builder.Build();
+        // os vendedores incluídos pelo "+" na proposta ficam na base, para todos
+        ContatosHowden.UsarBase(new ContatosHowdenRepository(app.Services.GetRequiredService<ParquetStore>()));
 
         // Popula o seed na primeira execução (hoje sem entidades — base nasce vazia).
         using (var scope = app.Services.CreateScope())

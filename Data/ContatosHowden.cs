@@ -6,11 +6,56 @@ public sealed record ContatoHowden(string Nome, string Cargo, string Area, strin
 /// <summary>
 /// A equipe comercial que assina a proposta: o vendedor escolhido na etapa
 /// "Cliente e condições" é o contato que sai na capa do Word, ao lado do
-/// diretor (nome, cargo, área, telefones e e-mail). Lista passada pela equipe.
+/// diretor (nome, cargo, área, telefones e e-mail). Lista passada pela equipe,
+/// mais os incluídos pelo "+" na proposta (gravados na base, para todos —
+/// <see cref="ContatosHowdenRepository"/>).
 /// </summary>
 public static class ContatosHowden
 {
-    public static readonly ContatoHowden[] Todos =
+    /// <summary>A equipe fixa e, depois, os incluídos na base (lidos de novo a cada 20 s: outro computador pode ter incluído).</summary>
+    public static ContatoHowden[] Todos
+    {
+        get
+        {
+            var incluidos = Incluidos();
+            return incluidos.Count == 0 ? DaEquipe
+                : DaEquipe.Concat(incluidos.Where(i => !DaEquipe.Any(d => Textos.Igual(d.Nome, i.Nome)))).ToArray();
+        }
+    }
+
+    private static ContatosHowdenRepository? _repo;
+    private static List<ContatoHowden> _cache = new();
+    private static DateTime _lidoEm = DateTime.MinValue;
+    private static readonly object _trava = new();
+
+    /// <summary>Liga a lista à base (no início do programa).</summary>
+    public static void UsarBase(ContatosHowdenRepository repo) { lock (_trava) { _repo = repo; _lidoEm = DateTime.MinValue; } }
+
+    private static List<ContatoHowden> Incluidos()
+    {
+        lock (_trava)
+        {
+            if (_repo is null) return _cache;
+            if (DateTime.UtcNow - _lidoEm > TimeSpan.FromSeconds(20))
+            {
+                try { _cache = _repo.Todos(); } catch (Exception) { /* sem a base, fica a equipe fixa */ }
+                _lidoEm = DateTime.UtcNow;
+            }
+            return _cache;
+        }
+    }
+
+    /// <summary>Inclui um contato na base (ou atualiza o de mesmo nome).</summary>
+    public static void Incluir(ContatoHowden c)
+    {
+        lock (_trava)
+        {
+            _repo?.Gravar(c);
+            _lidoEm = DateTime.MinValue;
+        }
+    }
+
+    private static readonly ContatoHowden[] DaEquipe =
     {
         new("Rafael Ribeiro de Toledo", "Sales Manager", "Industrial",
             new[] { "+56 9 8285 9721 (Chile)", "+55 11 99450 7548 (Brazil)" }, "rafael.toledo@chartindustries.com"),
@@ -62,4 +107,23 @@ public static class ContatosHowden
     public static List<string> Cartao(ContatoHowden c) =>
         new[] { c.Nome, c.Cargo, c.Area }.Concat(c.Telefones).Append(c.Email)
             .Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s.Trim()).ToList();
+}
+
+/// <summary>Os contatos incluídos pela equipe na proposta (entidade "contatos_howden").</summary>
+public sealed class ContatosHowdenRepository
+{
+    private const string Entidade = "contatos_howden";
+    private readonly ParquetStore _s;
+    public ContatosHowdenRepository(ParquetStore s) => _s = s;
+
+    public List<ContatoHowden> Todos() => _s.ReadLatest(Entidade, "id, nome, cargo, area, telefones, email",
+            r => new ContatoHowden(Fmt.S(r, 1), Fmt.S(r, 2), Fmt.S(r, 3),
+                Fmt.S(r, 4).Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries), Fmt.S(r, 5)))
+        .Where(c => c.Nome.Trim().Length > 0).OrderBy(c => c.Nome).ToList();
+
+    public void Gravar(ContatoHowden c) => _s.WriteRow(Entidade, new KeyValuePair<string, object?>[]
+    {
+        new("id", Textos.Simples(c.Nome)), new("nome", c.Nome.Trim()), new("cargo", c.Cargo.Trim()), new("area", c.Area.Trim()),
+        new("telefones", string.Join(" | ", c.Telefones.Select(t => t.Trim()).Where(t => t.Length > 0))), new("email", c.Email.Trim()),
+    });
 }
