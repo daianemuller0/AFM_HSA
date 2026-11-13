@@ -435,8 +435,14 @@ public partial class NovaOferta : IDisposable
         IrParaEtapa(2);
     }
 
+    /// <summary>O risco padrão antigo (5%, até a mudança para 3,70%): revisão e cópia passam para o padrão atual.</summary>
+    private const decimal RiscoPadraoAntigo = 0.05m;
+
     private void ComoNovaDoDia()
     {
+        // revisão / cópia de proposta com o padrão antigo de risco: vai para o padrão atual (valor digitado à mão fica)
+        if (_o.RiscoAdicional == RiscoPadraoAntigo)
+            _o.RiscoAdicional = _autoRisco = CalculoPricing.RiscoPadraoDo(_o.SegmentoMargem, _o.Product);
         _o.Status = "Rascunho";
         _o.SuaReferencia = "";
         _o.OurReference = "";
