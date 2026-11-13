@@ -1036,7 +1036,7 @@
             <label>Protected Margin (%)
                 <input class="cell num" type="number" min="0" step="0.01" value="@Pct100(_o.ProtectedMargin ?? 0m)"
                        @onchange="e => _o.ProtectedMargin = Fracao(e, _o.ProtectedMargin ?? 0m)" />
-                <small class="pricing-dica">padrão @Pct(CalculoPricing.ProtectedMarginDo(_o.Product))@(CalculoPricing.ProtectedMarginDo(_o.Product) == 0m ? " (VAX/JOY)" : "") · em cada linha de custo</small>
+                <small class="pricing-dica">padrão @Pct(CalculoPricing.ProtectedMarginPadrao) · VAX e JOY: 0% · em cada linha de custo</small>
             </label>
             <label>Margem de negociação (%)
                 <input class="cell num" type="number" min="0" step="0.01" value="@Pct100(_o.MargemNegociacao)"

@@ -42,11 +42,10 @@ public static class CalculoPricing
     public const decimal RiscoPadrao = 0.037m;
 
     /// <summary>
-    /// Protected Margin (F14:F33, a coluna "variação" de cada linha de custo):
-    /// 2%, e 0% para VAX e JOY (os ventiladores axiais configurados).
+    /// Protected Margin (F14:F33, a coluna "variação" de cada linha de custo): 2%.
+    /// Para VAX e JOY é 0%: quem faz a proposta tira à mão.
     /// </summary>
     public const decimal ProtectedMarginPadrao = 0.02m;
-    public static readonly string[] ProdutosVaxJoy = { "PAXIAL4 - Axials Configured Fans" };
 
     public const decimal Pis = 0.0165m;      // D61
     public const decimal Cofins = 0.076m;    // D62
@@ -111,9 +110,8 @@ public static class CalculoPricing
 
     public static decimal RiscoPadraoDo(string segmento, string product) => RiscoPadrao;
 
-    /// <summary>A Protected Margin padrão do produto: 0% para VAX e JOY, 2% para o resto.</summary>
-    public static decimal ProtectedMarginDo(string? product) =>
-        ProdutosVaxJoy.Any(p => Eq(product, p)) ? 0m : ProtectedMarginPadrao;
+    /// <summary>A Protected Margin padrão: 2% (VAX e JOY = 0%, tirado à mão na proposta).</summary>
+    public static decimal ProtectedMarginDo(string? product) => ProtectedMarginPadrao;
 
     /// <summary>O que a proposta manda para o cálculo.</summary>
     public sealed record Entrada(
