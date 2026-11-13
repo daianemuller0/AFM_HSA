@@ -61,6 +61,11 @@ public class CommercialOffer
     public string CambioConferido { get; set; } = "";
     /// <summary>O total líquido (sem impostos) na moeda da proposta; 0 = proposta gravada antes deste campo.</summary>
     public decimal TotalLiquido { get; set; }
+    /// <summary>
+    /// Protected Margin (F14:F33): a variação de cada linha de custo que não
+    /// tem uma própria. null = proposta gravada antes dela (conta 0%).
+    /// </summary>
+    public decimal? ProtectedMargin { get; set; } = CalculoPricing.ProtectedMarginPadrao;
 
     /// <summary>Em que língua a proposta sai: "pt", "en" ou "es".</summary>
     public string Idioma { get; set; } = "pt";

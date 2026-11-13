@@ -89,7 +89,8 @@ public static class PricingExcel
         {
             var doCodigo = e.Custos.Where(c => c.Codigo == l.Codigo).ToList();
             ws.Numero($"E{l.Linha}", Math.Round(doCodigo.Sum(c => c.Valor), 2));
-            ws.Numero($"F{l.Linha}", doCodigo.Select(c => c.Variacao).FirstOrDefault());
+            // a linha sem custo fica com a Protected Margin da proposta (o modelo traz 2% em todas)
+            ws.Numero($"F{l.Linha}", doCodigo.Count > 0 ? doCodigo[0].Variacao : o.ProtectedMargin ?? 0m);
         }
 
         // ---------- risco, negociação e markup (a margem pedida chega pelo markup) ----------

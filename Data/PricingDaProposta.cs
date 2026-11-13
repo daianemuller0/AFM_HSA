@@ -54,8 +54,9 @@ public static class PricingDaProposta
             var manual = o.CustosPricing.FirstOrDefault(c => c.Codigo == l.Codigo);
             var valor = (manual?.Valor ?? 0m)
                       + (l.Codigo == "COMPRADOS" ? itensComprados : l.Codigo == "IMPORTADOS" ? itensImportados : 0m);
-            var variacao = manual?.Variacao ?? 0m;
-            if (valor != 0m || variacao != 0m) lista.Add(new CalculoPricing.Custo(l.Codigo, valor, variacao));
+            // a variação digitada na linha; sem ela, a Protected Margin da proposta (F14:F33)
+            var variacao = manual is { Variacao: not 0m } ? manual.Variacao : o.ProtectedMargin ?? 0m;
+            if (valor != 0m || manual is { Variacao: not 0m }) lista.Add(new CalculoPricing.Custo(l.Codigo, valor, variacao));
         }
         return lista;
     }

@@ -1031,7 +1031,12 @@
             <label>Risco/Contingência (%)
                 <input class="cell num" type="number" min="0" step="0.01" value="@Pct100(_o.RiscoAdicional)"
                        @onchange="e => _o.RiscoAdicional = Fracao(e, _o.RiscoAdicional)" />
-                <small class="pricing-dica">padrão @Pct(riscoPadrao)@(riscoPadrao == CalculoPricing.RiscoReduzido ? " (NB com este produto)" : "")</small>
+                <small class="pricing-dica">padrão @Pct(riscoPadrao)</small>
+            </label>
+            <label>Protected Margin (%)
+                <input class="cell num" type="number" min="0" step="0.01" value="@Pct100(_o.ProtectedMargin ?? 0m)"
+                       @onchange="e => _o.ProtectedMargin = Fracao(e, _o.ProtectedMargin ?? 0m)" />
+                <small class="pricing-dica">padrão @Pct(CalculoPricing.ProtectedMarginDo(_o.Product))@(CalculoPricing.ProtectedMarginDo(_o.Product) == 0m ? " (VAX/JOY)" : "") · em cada linha de custo</small>
             </label>
             <label>Margem de negociação (%)
                 <input class="cell num" type="number" min="0" step="0.01" value="@Pct100(_o.MargemNegociacao)"
@@ -1179,7 +1184,7 @@
             <table class="grid custo-tabela">
                 <thead>
                     <tr><th>Descrição</th><th class="right">Itens da proposta (@Rc)</th><th class="right">Valores (@Rc)</th>
-                        <th class="right">Risco (%)</th><th class="right">Custo com variação (@Rc)</th><th class="right">Partic.</th></tr>
+                        <th class="right" title="Protected Margin: a da proposta, ou a digitada na linha">Protected Margin (%)</th><th class="right">Custo com variação (@Rc)</th><th class="right">Partic.</th></tr>
                 </thead>
                 <tbody>
                     @foreach (var l in CalculoPricing.LinhasDeCusto)
@@ -1188,7 +1193,7 @@
                         var manual = CustoManual(cod);
                         decimal? itens = cod == "COMPRADOS" ? custos.Nacionais : cod == "IMPORTADOS" ? custos.Importados : null;
                         var valor = (manual?.Valor ?? 0m) + (itens ?? 0m);
-                        var comVar = valor * (1m + (manual?.Variacao ?? 0m));
+                        var comVar = valor * (1m + (manual is { Variacao: not 0m } ? manual.Variacao : _o.ProtectedMargin ?? 0m));
                         <tr class="@(valor != 0m ? "custo-com-valor" : "")">
                             <td>@l.Nome
                                 @if (l.MaoDeObra) { <span class="selo-mo" title="entra na parte MO de Reforma/Service">MO</span> }
@@ -1198,7 +1203,7 @@
                             <td class="right nowrap">@(itens is decimal iv ? Cu(iv) : "")</td>
                             <td class="right"><input class="cell num custo-cel" type="number" step="0.01" placeholder="@(itens is null ? "0" : "+ adicional")"
                                        value="@(manual is { Valor: not 0m } ? Num(manual.Valor) : "")" @onchange="e => MudarCusto(cod, e, false)" /></td>
-                            <td class="right"><input class="cell num risco-cel" type="number" step="0.1" placeholder="0"
+                            <td class="right"><input class="cell num risco-cel" type="number" step="0.1" placeholder="@Num((_o.ProtectedMargin ?? 0m) * 100m)"
                                        value="@(manual is { Variacao: not 0m } ? Num(manual.Variacao * 100m) : "")" @onchange="e => MudarCusto(cod, e, true)" /></td>
                             <td class="right nowrap">@(valor != 0m ? Cu(comVar) : "")</td>
                             <td class="right">@(pr.CustoTotal > 0 && valor != 0m ? Pct(valor / pr.CustoTotal) : "")</td>
@@ -1789,6 +1794,7 @@
     // último valor preenchido automaticamente: só é trocado se o usuário não mexeu nele
     private string _autoUf = "", _autoMercado = "", _autoAno = "";
     private decimal _autoRisco = CalculoPricing.RiscoPadrao, _autoMargem = ListasDoPricing.MargemPadraoDo("AFM");
+    private decimal _autoPm = CalculoPricing.ProtectedMarginPadrao;
 
     private bool _verMemoria, _verPricing;
     private static readonly string[] MoedasImportacao = { "EUR", "USD", "GBP", "OUTRA" };
@@ -1833,6 +1839,7 @@
     {
         _o.RiscoAdicional = AutoDec(_o.RiscoAdicional, ref _autoRisco, CalculoPricing.RiscoPadraoDo(_o.SegmentoMargem, _o.Product));
         _o.MargemAlvo = AutoDec(_o.MargemAlvo, ref _autoMargem, ListasDoPricing.MargemPadraoDo(_o.SegmentoMargem));
+        if (_o.ProtectedMargin is decimal pm) _o.ProtectedMargin = AutoDec(pm, ref _autoPm, CalculoPricing.ProtectedMarginDo(_o.Product));
     }
 
     private static decimal AutoDec(decimal atual, ref decimal ultimoAuto, decimal novo)

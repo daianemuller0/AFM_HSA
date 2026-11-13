@@ -92,6 +92,7 @@ public static class EmailsDaProposta
             ("Comissão:", Num(r.Comissoes * 100m), "%"),
             ("Garantia:", Num(CalculoPricing.GarantiaDoProjeto * 100m), "%"),
             ("Risco:", Num(o.RiscoAdicional * 100m), "%"),
+            ("Protected Margin:", Num((o.ProtectedMargin ?? 0m) * 100m), "%"),
             ("Prazo de entrega:", PropostaWord.Ou(d.PrazoDias, "—"), "Dias"),
             d.Cambio is { Length: > 0 } cambio
                 ? ("Câmbio:", cambio, "")

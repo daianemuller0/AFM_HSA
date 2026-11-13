@@ -363,7 +363,8 @@ public partial class NovaOferta : IDisposable
         }
         _autoRisco = CalculoPricing.RiscoPadraoDo(_o.SegmentoMargem, _o.Product);
         _autoMargem = ListasDoPricing.MargemPadraoDo(_o.SegmentoMargem);
-        _o.RiscoAdicional = _autoRisco; _o.MargemAlvo = _autoMargem;
+        _autoPm = CalculoPricing.ProtectedMarginDo(_o.Product);
+        _o.RiscoAdicional = _autoRisco; _o.MargemAlvo = _autoMargem; _o.ProtectedMargin = _autoPm;
         _autoUf = ""; _autoMercado = "";
 
         _baseSalva = Foto();
@@ -413,6 +414,7 @@ public partial class NovaOferta : IDisposable
         _taxaDoDia = false; _wordGerado = false; _erro = null; _msg = null;
         _autoRisco = CalculoPricing.RiscoPadraoDo(_o.SegmentoMargem, _o.Product);
         _autoMargem = ListasDoPricing.MargemPadraoDo(_o.SegmentoMargem);
+        _autoPm = CalculoPricing.ProtectedMarginDo(_o.Product);
         _autoUf = ""; _autoMercado = ""; _autoAno = _o.Ano;
         AtualizarPrecos();
         _baseSalva = manterId ? Foto() : "";
@@ -445,6 +447,8 @@ public partial class NovaOferta : IDisposable
         // revisão / cópia de proposta com o padrão antigo de risco: vai para o padrão atual (valor digitado à mão fica)
         if (_o.RiscoAdicional == RiscoPadraoAntigo)
             _o.RiscoAdicional = _autoRisco = CalculoPricing.RiscoPadraoDo(_o.SegmentoMargem, _o.Product);
+        // proposta de antes da Protected Margin: a revisão / cópia já entra com ela
+        _o.ProtectedMargin ??= _autoPm = CalculoPricing.ProtectedMarginDo(_o.Product);
         _o.Status = "Rascunho";
         _o.SuaReferencia = "";
         _o.OurReference = "";

@@ -38,11 +38,15 @@ public static class CalculoPricing
     public const decimal PmSach = 0.01m;
     public const decimal GarantiaDoProjeto = 0.02m;       // D49
 
-    /// <summary>Risco/Contingência (D37): 3,70%, ou 2% para NB com estes produtos.</summary>
+    /// <summary>Risco/Contingência (D37): 3,70% (13/11/26 - LS).</summary>
     public const decimal RiscoPadrao = 0.037m;
-    public const decimal RiscoReduzido = 0.02m;
-    public static readonly string[] ProdutosComRiscoReduzido =
-        { "PAXIAL4 - Axials Configured Fans", "PCOMP7 - Screw Bareshaft", "POTH1 - Ventsim Software" };
+
+    /// <summary>
+    /// Protected Margin (F14:F33, a coluna "variação" de cada linha de custo):
+    /// 2%, e 0% para VAX e JOY (os ventiladores axiais configurados).
+    /// </summary>
+    public const decimal ProtectedMarginPadrao = 0.02m;
+    public static readonly string[] ProdutosVaxJoy = { "PAXIAL4 - Axials Configured Fans" };
 
     public const decimal Pis = 0.0165m;      // D61
     public const decimal Cofins = 0.076m;    // D62
@@ -105,8 +109,11 @@ public static class CalculoPricing
     private static bool Eq(string? a, string b) =>
         string.Equals((a ?? "").Trim(), b, StringComparison.OrdinalIgnoreCase);
 
-    public static decimal RiscoPadraoDo(string segmento, string product) =>
-        Eq(segmento, "NB") && ProdutosComRiscoReduzido.Any(p => Eq(product, p)) ? RiscoReduzido : RiscoPadrao;
+    public static decimal RiscoPadraoDo(string segmento, string product) => RiscoPadrao;
+
+    /// <summary>A Protected Margin padrão do produto: 0% para VAX e JOY, 2% para o resto.</summary>
+    public static decimal ProtectedMarginDo(string? product) =>
+        ProdutosVaxJoy.Any(p => Eq(product, p)) ? 0m : ProtectedMarginPadrao;
 
     /// <summary>O que a proposta manda para o cálculo.</summary>
     public sealed record Entrada(
