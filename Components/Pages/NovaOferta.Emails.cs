@@ -191,7 +191,7 @@ public partial class NovaOferta
         var modelo = Path.Combine(Ambiente.ContentRootPath, PricingExcel.CaminhoDoModelo);
         if (!File.Exists(modelo)) return null;
         var c = Custos;
-        var entrada = PricingDaProposta.EntradaDe(_o, c.Nacionais, c.Importados, PricingDaProposta.IpiDosItens(c.ComCusto.Select(x => (x.It, x.Unit))));
+        var entrada = PricingDaProposta.EntradaDe(_o, c.Nacionais, c.Importados, PricingDaProposta.IpiDosItens(c.ComCusto.Select(x => (x.It, x.Unit))), c.Base);
         return PricingExcel.Gerar(_o, entrada, PricingAtual(c), Conversao.Ler(), modelo);
     }
 }

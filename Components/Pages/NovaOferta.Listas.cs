@@ -27,6 +27,8 @@ public partial class NovaOferta
         {
             var modelo = ModeloDoItem(it).Trim();
             novos.Add((ListasCompartilhadasRepository.Modelo, "", modelo, ""));
+            if (it.Importado && it.OrigemImportacao.Trim().Length > 0)
+                novos.Add((ListasCompartilhadasRepository.OrigemImportacao, "", it.OrigemImportacao.Trim(), ""));
             if (it.PartNumber.Trim().Length > 0)
                 novos.Add((ListasCompartilhadasRepository.PartNumber, IntelligenceService.NormPn(it.PartNumber), it.PartNumber.Trim(), DescricaoSemPn(it)));
             if (modelo.Length > 0)

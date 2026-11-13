@@ -83,6 +83,10 @@ public static class CalculoPricing
         new(26, "ENGENHARIA", "ENGENHARIA/INSPEÇÕES", true),
         new(27, "ASSESSORIA", "ASSESSORIA TÉCNICA", true),
         new(28, "ENG_SERVICOS", "ENG DE SERVIÇOS", false),
+        // as linhas 29 a 31 vêm "-" no modelo: recebem os custos adicionais da proposta
+        new(29, "EMBALAGEM", "EMBALAGENS", false),
+        new(30, "EXPORTACAO", "EXPORTAÇÃO", false),
+        new(31, "OUTROS", "OUTROS", false),
         new(32, "IMPREVISTOS", "IMPREVISTOS", false),
         new(33, "PROTECTED", "PROTECTED MARGIN", false),
     };

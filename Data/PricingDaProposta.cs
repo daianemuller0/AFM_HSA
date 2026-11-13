@@ -46,14 +46,18 @@ public static class PricingDaProposta
     /// e, por cima, o custo dos itens — nacionalizados em PROD. COMPRADOS e
     /// importados em PROD. IMPORTADOS.
     /// </summary>
-    public static List<CalculoPricing.Custo> CustosDa(CommercialOffer o, decimal itensComprados, decimal itensImportados)
+    /// <param name="custoDosItens">o custo puro dos itens (sem frete e TA), base do "% do custo dos itens"; null = o gravado na proposta</param>
+    public static List<CalculoPricing.Custo> CustosDa(CommercialOffer o, decimal itensComprados, decimal itensImportados, decimal? custoDosItens = null)
     {
+        var baseAdicionais = custoDosItens ?? (o.BaseCustosAdicionais > 0m ? o.BaseCustosAdicionais : itensComprados + itensImportados);
         var lista = new List<CalculoPricing.Custo>();
         foreach (var l in CalculoPricing.LinhasDeCusto)
         {
             var manual = o.CustosPricing.FirstOrDefault(c => c.Codigo == l.Codigo);
             var valor = (manual?.Valor ?? 0m)
-                      + (l.Codigo == "COMPRADOS" ? itensComprados : l.Codigo == "IMPORTADOS" ? itensImportados : 0m);
+                      + (l.Codigo == "COMPRADOS" ? itensComprados : l.Codigo == "IMPORTADOS" ? itensImportados : 0m)
+                      // embalagens, engenharia, exportação e outros (padrão da aba Dados ou o digitado na proposta)
+                      + CustosAdicionaisDaProposta.NaLinha(o, l.Codigo, baseAdicionais);
             // a variação digitada na linha; sem ela, a Protected Margin da proposta (F14:F33)
             var variacao = manual is { Variacao: not 0m } ? manual.Variacao : o.ProtectedMargin ?? 0m;
             if (valor != 0m || manual is { Variacao: not 0m }) lista.Add(new CalculoPricing.Custo(l.Codigo, valor, variacao));
@@ -69,8 +73,8 @@ public static class PricingDaProposta
     }
 
     public static CalculoPricing.Entrada EntradaDe(CommercialOffer o, decimal itensComprados, decimal itensImportados,
-        decimal? aliquotaIpi = null) => new(
-        Custos: CustosDa(o, itensComprados, itensImportados),
+        decimal? aliquotaIpi = null, decimal? custoDosItens = null) => new(
+        Custos: CustosDa(o, itensComprados, itensImportados, custoDosItens),
         Segmento: (o.SegmentoMargem ?? "").Trim(),
         Product: o.Product ?? "",
         RiscoAdicional: o.RiscoAdicional,
@@ -95,9 +99,9 @@ public static class PricingDaProposta
 
     /// <summary>O pricing da proposta, pelo modo escolhido (margem pedida ou preço de venda).</summary>
     public static CalculoPricing.Resultado Da(CommercialOffer o, decimal itensComprados, decimal itensImportados,
-        decimal? aliquotaIpi = null)
+        decimal? aliquotaIpi = null, decimal? custoDosItens = null)
     {
-        var e = EntradaDe(o, itensComprados, itensImportados, aliquotaIpi);
+        var e = EntradaDe(o, itensComprados, itensImportados, aliquotaIpi, custoDosItens);
         var r = o.PricingModo == "preco"
             ? PeloPrecoNoNivel(e, o.PrecoMeta, o.PrecoMetaNivel)
             : CalculoPricing.PelaMargem(e, o.MargemAlvo);

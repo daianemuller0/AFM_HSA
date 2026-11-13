@@ -51,6 +51,10 @@
         <p class="subtitle prop-sub" title="@ClienteEProjeto">@ClienteEProjeto</p>
     </div>
     <div class="page-actions">
+        <button class="btn-ghost btn-notas @(NotasEmDestaque.Any(n => n.Nivel == NotaDaProposta.Critica) ? "tem-critica" : NotasEmDestaque.Count > 0 ? "tem-atencao" : "")"
+                title="Notas da proposta: o que o próximo precisa saber" @onclick="() => { _verNotas = !_verNotas; _msgNotas = null; }">
+            <span>📝 Notas</span>@if (NotasAbertas > 0) { <span class="notas-cont">@NotasAbertas</span> }
+        </button>
         <button class="btn-ghost" @onclick="IrParaPropostas">☰ Propostas</button>
         <button class="btn-ghost" @onclick="NovaEmBranco">+ Nova</button>
         @if (_o.Id.Length > 0)
@@ -60,6 +64,73 @@
         }
     </div>
 </div>
+
+@* as notas de atenção e as críticas ficam no topo, para ninguém deixar de ver *@
+@foreach (var n in NotasEmDestaque.Take(3))
+{
+    var nota = n;
+    var nv = NivelDaNota(n.Nivel);
+    <div class="nota-faixa nota-@n.Nivel" role="alert">
+        <span class="nota-faixa-ico">@nv.Icone</span>
+        <span class="nota-faixa-rot">Nota @nv.Nome.ToLowerInvariant()</span>
+        <span class="nota-faixa-txt">@n.Texto</span>
+        <span class="nota-faixa-de">@n.Autor · @DataDaNota(n.Data)</span>
+        <button class="btn-link" title="Marcar como resolvida (some daqui e fica no histórico das notas)" @onclick="() => ResolverNota(nota)">✓ resolvida</button>
+    </div>
+}
+@if (NotasEmDestaque.Count > 3)
+{
+    <button class="btn-link nota-faixa-mais" @onclick="() => _verNotas = true">+ @(NotasEmDestaque.Count - 3) nota(s) — ver todas</button>
+}
+
+@if (_verNotas)
+{
+    <div class="panel notas-painel">
+        <div class="notas-cab">
+            <strong>📝 Notas da proposta</strong>
+            <span class="nota">o próximo que abrir a proposta vê · passam para a próxima revisão · gravadas na hora</span>
+            <span style="flex:1"></span>
+            <button class="btn-link" @onclick="() => _verNotas = false">fechar</button>
+        </div>
+        <div class="notas-nova">
+            <textarea class="cell" rows="2" placeholder="Ex.: o preço estourou o orçamento do cliente — negociar o frete antes da próxima revisão"
+                      @bind="_notaTexto" @bind:event="oninput"></textarea>
+            <div class="notas-niveis">
+                <span class="nota">Tipo:</span>
+                @foreach (var (nivel, icone, nome) in NiveisDeNota)
+                {
+                    var nv = nivel;
+                    <button class="nota-nivel nivel-@nivel @(_notaNivel == nivel ? "on" : "")" @onclick="() => _notaNivel = nv">@icone @nome</button>
+                }
+                <span style="flex:1"></span>
+                <button class="btn-primary" @onclick="AdicionarNota">+ Adicionar nota</button>
+            </div>
+        </div>
+        @if (_msgNotas is not null) { <div class="nota notas-msg">@_msgNotas</div> }
+        @if (_o.Notas.Count == 0)
+        {
+            <div class="nota">Nenhuma nota ainda.</div>
+        }
+        @foreach (var n in _o.Notas.OrderBy(x => x.Resolvida))
+        {
+            var nota = n;
+            var nv = NivelDaNota(n.Nivel);
+            <div class="nota-card nota-@n.Nivel @(n.Resolvida ? "resolvida" : "")">
+                <div class="nota-card-cab">
+                    <span class="nota-card-rot">@nv.Icone @nv.Nome@(n.Resolvida ? " · resolvida" : "")</span>
+                    <span class="nota-card-de">@n.Autor · @DataDaNota(n.Data)</span>
+                    <span style="flex:1"></span>
+                    <button class="btn-link" @onclick="() => ResolverNota(nota)">@(n.Resolvida ? "↺ reabrir" : "✓ resolvida")</button>
+                    @if (PodeApagarNota(n))
+                    {
+                        <button class="btn-link perigo" title="Apagar a nota" @onclick="() => ApagarNota(nota)">✕</button>
+                    }
+                </div>
+                <div class="nota-card-txt">@n.Texto</div>
+            </div>
+        }
+    </div>
+}
 
 @if (_depoisDeConfirmar is not null)
 {
@@ -904,12 +975,13 @@
         }
     </div>
 
+        <datalist id="dl-origens">@foreach (var o in OrigensConhecidas()) { <option value="@o" /> }</datalist>
         @if (_items.Any(Imp))
         {
             var imp = Importacoes;
             <div class="bloco-importacao panel" id="f-importacao" style="margin-bottom:14px">
                 <div class="bloco-importacao-titulo">Importação
-                    <span>@_items.Count(Imp) item(ns) importado(s) · planilha de custos de importação de @ParamImportacao.VersaoPlanilha</span>
+                    <span>@_items.Count(Imp) item(ns) importado(s) · @Plural(imp.Grupos.Count, "origem", "origens") · planilha de custos de importação de @ParamImportacao.VersaoPlanilha</span>
                 </div>
                 <div class="imp-linha">
                     <div class="imp-modo">
@@ -917,7 +989,7 @@
                         <label class="imp-opcao @(_o.ImportacaoModo == "total" ? "on" : "")">
                             <input type="radio" name="impmodo" checked="@(_o.ImportacaoModo == "total")"
                                    @onchange='() => _o.ImportacaoModo = "total"' />
-                            <span><strong>Total</strong><small>soma tudo numa importação só</small></span>
+                            <span><strong>Total</strong><small>uma importação por origem</small></span>
                         </label>
                         <label class="imp-opcao @(_o.ImportacaoModo == "item" ? "on" : "")">
                             <input type="radio" name="impmodo" checked="@(_o.ImportacaoModo == "item")"
@@ -925,29 +997,49 @@
                             <span><strong>Item</strong><small>uma importação para cada item</small></span>
                         </label>
                     </div>
-                    <label class="imp-campo">Moeda
-                        <select class="cell" @bind="_o.Moeda">
-                            @foreach (var m in MoedasImportacao) { <option value="@m">@m</option> }
-                        </select>
-                    </label>
-                    <label class="imp-campo">Taxa cambial (R$ por @_o.Moeda) *
-                        <input class="cell num" type="number" min="0" step="0.0001" placeholder="ex.: 6,5"
-                               value="@(_o.TaxaCambio > 0 ? _o.TaxaCambio.ToString(CultureInfo.InvariantCulture) : "")"
-                               @onchange="MudarTaxa" />
-                    </label>
+                </div>
+
+                @* uma linha por origem: cada uma é uma importação, com a moeda e a taxa dela *@
+                <div class="tabela-rolante">
+                <table class="grid imp-origens">
+                    <thead>
+                        <tr><th>Origem (BU de fora)</th><th class="right">Itens</th><th class="right">Mercadoria</th>
+                            <th>Moeda</th><th title="R$ por 1 da moeda">Taxa (R$)</th><th class="right">Por total</th><th class="right">Por item</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var g in imp.Grupos)
+                        {
+                            var origem = g.Origem;
+                            <tr class="@(g.Pendencias.Count > 0 ? "imp-origem-pend" : "")">
+                                <td><strong class="@(origem.Length == 0 ? "custo-indisp" : "")">🌍 @NomeDaOrigem(origem)</strong>
+                                    @if (origem.Length == 0 && imp.Grupos.Count > 1) { <span class="sub-cel">informe a BU de origem nos itens</span> }</td>
+                                <td class="right">@g.Itens</td>
+                                <td class="right nowrap">@(g.ValorMoeda > 0 ? Me(g.Moeda, g.ValorMoeda) : "—")</td>
+                                <td><select class="cell imp-moeda" value="@g.Moeda" @onchange="e => MudarMoedaDaOrigem(origem, e)">
+                                        @foreach (var m in MoedasImportacao) { <option value="@m">@m</option> }
+                                    </select></td>
+                                <td><input class="cell num imp-taxa" type="number" min="0" step="0.0001" placeholder="ex.: 6,5"
+                                           value="@(g.Taxa > 0 ? g.Taxa.ToString(CultureInfo.InvariantCulture) : "")"
+                                           @onchange="e => MudarTaxaDaOrigem(origem, e)" /></td>
+                                <td class="right nowrap @(_o.ImportacaoModo == "total" ? "imp-escolhido" : "")">@(g.CustoPorTotal is decimal ct ? Fmt.Brl(ct) : "—")</td>
+                                <td class="right nowrap @(_o.ImportacaoModo == "item" ? "imp-escolhido" : "")">@(g.CustoPorItem is decimal ci ? Fmt.Brl(ci) : "—")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
                 </div>
 
                 @if (imp.Pendencias.Count > 0)
                 {
                     <div class="imp-pendencia">Para calcular: @string.Join(" · ", imp.Pendencias)</div>
                 }
-                else
+                @if (imp.PorTotal.Count > 0)
                 {
                     <div class="imp-resumo">
                         <div class="@(_o.ImportacaoModo == "total" ? "escolhido" : "")">
                             <span>Por total</span>
                             <strong>@Fmt.Brl(imp.TotalPorTotal)</strong>
-                            <small>1 importação de @Me(imp.ValorMoedaTotal)</small>
+                            <small>@Plural(imp.PorTotal.Count, "importação", "importações") (uma por origem)</small>
                         </div>
                         <div class="@(_o.ImportacaoModo == "item" ? "escolhido" : "")">
                             <span>Por item</span>
@@ -1012,7 +1104,7 @@
     <span class="nota">a planilha de pricing preenchida e o custo de cada item com o preço e o TA</span>
 </div>
         var custos = custosLado;
-        var entrada = PricingDaProposta.EntradaDe(_o, custos.Nacionais, custos.Importados);
+        var entrada = PricingDaProposta.EntradaDe(_o, custos.Nacionais, custos.Importados, custoDosItens: custos.Base);
         var pr = prLado;
         var pendencias = PricingDaProposta.Pendencias(_o);
         var riscoPadrao = CalculoPricing.RiscoPadraoDo(_o.SegmentoMargem, _o.Product);
@@ -1021,6 +1113,41 @@
         var converte = Cambio.Converte(_o);
         var comFianca = Textos.Igual(_o.FiancaSeguro, "Sim");
         var demais = DemaisCustos(custos, pr);
+    @* embalagens, engenharia, exportação e outros: o padrão da aba Dados, que dá para trocar aqui *@
+    <div class="panel custos-adic" id="f-custos-adic" style="margin-bottom:14px">
+        <div class="dash-title">Custos adicionais
+            <span class="custos-adic-sub">entram no custo do pricing · padrão em Dados e Importação → Custos padrão · digite para trocar nesta proposta</span>
+        </div>
+        @if (_o.CustosAdicionais.Count == 0)
+        {
+            <div class="nota">Esta proposta é de antes dos custos adicionais (o preço dela não tem embalagens, engenharia, exportação e outros).
+                <button class="btn-link" @onclick="CustosAdicionaisPadrao">usar os custos padrão</button></div>
+        }
+        else
+        {
+            var baseItens = CustoDosItensParaAdicionais(custosLado);
+            <div class="custos-adic-grade">
+                @foreach (var c in _o.CustosAdicionais)
+                {
+                    var ca = c;
+                    var valor = CustosAdicionaisDaProposta.Valor(_o, c, baseItens);
+                    var trocado = c.Valor is not null;
+                    <div class="custo-adic @(trocado ? "trocado" : "")">
+                        <span class="custo-adic-nome">@CustosAdicionaisDaProposta.NomeDe(c.Codigo) (@Rc)</span>
+                        <input class="cell num" type="number" min="0" step="0.01" aria-label="@CustosAdicionaisDaProposta.NomeDe(c.Codigo)"
+                               value="@valor.ToString(CultureInfo.InvariantCulture)" @onchange="e => MudarCustoAdicional(ca, e, baseItens)" />
+                        <small>@(trocado ? $"trocado nesta proposta · {DescricaoDoPadrao(c, baseItens)}" : DescricaoDoPadrao(c, baseItens))</small>
+                        @if (trocado) { <button class="btn-link" @onclick="() => ca.Valor = null">↺ voltar ao padrão</button> }
+                    </div>
+                }
+                <div class="custo-adic custo-adic-total">
+                    <span class="custo-adic-nome">Total</span>
+                    <strong>@Cu(_o.CustosAdicionais.Sum(c => CustosAdicionaisDaProposta.Valor(_o, c, baseItens)))</strong>
+                </div>
+            </div>
+        }
+    </div>
+
     <div class="panel pricing" style="margin-bottom:14px">
         <div class="dash-title">Pricing
             <span style="margin-left:8px;font-size:12px;font-weight:600;color:var(--muted)">
@@ -1201,7 +1328,9 @@
                     {
                         var cod = l.Codigo;
                         var manual = CustoManual(cod);
-                        decimal? itens = cod == "COMPRADOS" ? custos.Nacionais : cod == "IMPORTADOS" ? custos.Importados : null;
+                        var adicional = CustosAdicionaisDaProposta.NaLinha(_o, cod, custos.Base);
+                        decimal? itens = cod == "COMPRADOS" ? custos.Nacionais : cod == "IMPORTADOS" ? custos.Importados
+                            : adicional != 0m ? adicional : null;
                         var valor = (manual?.Valor ?? 0m) + (itens ?? 0m);
                         var comVar = valor * (1m + (manual is { Variacao: not 0m } ? manual.Variacao : _o.ProtectedMargin ?? 0m));
                         <tr class="@(valor != 0m ? "custo-com-valor" : "")">
@@ -1209,6 +1338,7 @@
                                 @if (l.MaoDeObra) { <span class="selo-mo" title="entra na parte MO de Reforma/Service">MO</span> }
                                 @if (cod == "COMPRADOS") { <span class="sub-cel">recebe os itens nacionalizados</span> }
                                 @if (cod == "IMPORTADOS") { <span class="sub-cel">recebe os itens importados (custo da importação)</span> }
+                                @if (adicional != 0m) { <span class="sub-cel">recebe @CustosAdicionaisDaProposta.NomeDe(cod) (custos adicionais)</span> }
                             </td>
                             <td class="right nowrap">@(itens is decimal iv ? Cu(iv) : "")</td>
                             <td class="right"><input class="cell num custo-cel" type="number" step="0.01" placeholder="@(itens is null ? "0" : "+ adicional")"
@@ -1880,8 +2010,9 @@
         Numero(e) is decimal v && v >= 0 && v < 100 ? v / 100m : atual;
 
     /// <summary>Custo dos itens que entram no pricing: importação (unitário no modo escolhido) ou Valor BR do nacionalizado.</summary>
+    /// <param name="Base">o custo puro dos itens (sem frete e sem TA): a base do "% do custo dos itens" dos custos adicionais</param>
     private record CustoDosItens(decimal Total, decimal Importados, decimal Nacionais,
-        List<(CommercialOfferItem It, decimal Unit)> ComCusto, List<CommercialOfferItem> SemCusto);
+        List<(CommercialOfferItem It, decimal Unit)> ComCusto, List<CommercialOfferItem> SemCusto, decimal Base = 0m);
 
     private CustoDosItens Custos
     {
@@ -1896,7 +2027,7 @@
             var frete = Rateio().Unitario;
             var com = new List<(CommercialOfferItem, decimal)>();
             var sem = new List<CommercialOfferItem>();
-            decimal importados = 0, nacionais = 0;
+            decimal importados = 0, nacionais = 0, puro = 0;
             foreach (var it in _items)
             {
                 decimal? unit = null;
@@ -1910,20 +2041,21 @@
                 }
                 if (unit is decimal c && c > 0)
                 {
+                    puro += c * it.Quantity;
                     c += frete.GetValueOrDefault(it) + it.CustoTa;   // o frete (pelo peso) e o TA do preço meta entram no custo do item
                     com.Add((it, c));
                     if (Imp(it)) importados += c * it.Quantity; else nacionais += c * it.Quantity;   // de fora: produto comprado
                 }
                 else sem.Add(it);
             }
-            return new CustoDosItens(importados + nacionais, importados, nacionais, com, sem);
+            return new CustoDosItens(importados + nacionais, importados, nacionais, com, sem, puro);
         }
     }
 
     /// <summary>O pricing da proposta como está na tela (custos dos itens + tabela de custo).</summary>
     /// <summary>O pricing da proposta como está na tela; o IPI vem da NCM dos itens (compressor: 0%).</summary>
     private CalculoPricing.Resultado PricingAtual(CustoDosItens c) =>
-        PricingDaProposta.Da(_o, c.Nacionais, c.Importados, PricingDaProposta.IpiDosItens(c.ComCusto.Select(x => (x.It, x.Unit))));
+        PricingDaProposta.Da(_o, c.Nacionais, c.Importados, PricingDaProposta.IpiDosItens(c.ComCusto.Select(x => (x.It, x.Unit))), c.Base);
 
 
 
@@ -2127,56 +2259,77 @@
             : "<small class=\"pricing-dica\">sem comissão no pricing</small>");
     }
 
-    /// <summary>Valor na moeda estrangeira, para a tela (ex.: "EUR 5.000,00").</summary>
-    private string Me(decimal v) => $"{_o.Moeda} {v.ToString("N2", PtBr)}";
+    /// <summary>Valor numa moeda estrangeira, para a tela (ex.: "EUR 5.000,00").</summary>
+    private static string Me(string moeda, decimal v) => $"{moeda} {v.ToString("N2", PtBr)}";
 
     /// <summary>
-    /// Resultado das importações da proposta. Calcula os dois modos sempre, para
-    /// a tela mostrar qual sai mais barato; o modo escolhido é o que vai para os itens.
+    /// Resultado das importações da proposta (uma por origem). Calcula os dois
+    /// modos sempre, para a tela mostrar qual sai mais barato; o modo escolhido
+    /// é o que vai para os itens. Uma origem com pendência não impede as outras.
     /// </summary>
     private record ResultadoImportacao(
         List<string> Pendencias,
-        List<(string Rotulo, CalculoImportacao Calc)> PorTotal, decimal ValorMoedaTotal,
+        List<(string Rotulo, CalculoImportacao Calc)> PorTotal,
         List<(string Rotulo, CalculoImportacao Calc)> PorItem,
         Dictionary<CommercialOfferItem, decimal> UnitarioPorTotal,
-        Dictionary<CommercialOfferItem, decimal> UnitarioPorItem)
+        Dictionary<CommercialOfferItem, decimal> UnitarioPorItem,
+        List<GrupoDeImportacao> Grupos)
     {
         public decimal TotalPorTotal => PorTotal.Sum(x => x.Calc.CustoTotal);
         public decimal TotalPorItem => PorItem.Sum(x => x.Calc.CustoTotal);
+        public bool Completa => Pendencias.Count == 0;
     }
 
     /// <summary>
-    /// As importações da proposta, nos dois modos (a tela mostra qual sai mais
-    /// barato): "por total" é UMA importação com todos os itens, com rateio pelo
-    /// valor; "por item" é uma importação por linha. Com mais de um item, por
-    /// item sai sempre mais caro — os custos fixos de cada importação se repetem.
+    /// As importações da proposta: uma por origem (BU de fora), cada uma na
+    /// moeda e na taxa dela. "Por total" é UMA importação por origem, com
+    /// rateio pelo valor; "por item" é uma importação por linha. Por item sai
+    /// mais caro: os custos fixos de cada importação se repetem.
     /// </summary>
     private ResultadoImportacao Importacoes
     {
         get
         {
-            var importados = _items.Where(Imp).ToList();
             var pend = new List<string>();
-            if (_o.TaxaCambio <= 0) pend.Add("informe a taxa cambial");
-            var semPreco = importados.Count(i => i.ValorMoeda <= 0);
-            if (semPreco > 0) pend.Add($"preço em {_o.Moeda} em {semPreco} item(ns)");
-            var vazio = new ResultadoImportacao(pend, new(), 0, new(), new(), new());
-            if (pend.Count > 0) return vazio;
-
-            var totalMoeda = importados.Sum(i => i.ValorMoeda * i.Quantity);
-            var calcTotal = CustoImportacao.Calcular(totalMoeda, _o.TaxaCambio, ParamImportacao);
-            var porTotal = new List<(string, CalculoImportacao)> { ("Importação total", calcTotal) };
-            var unitTotal = importados.ToDictionary(i => i, i => Math.Round(calcTotal.CustoTotal * i.ValorMoeda / totalMoeda, 2));
-
+            var porTotal = new List<(string, CalculoImportacao)>();
             var porItem = new List<(string, CalculoImportacao)>();
+            var unitTotal = new Dictionary<CommercialOfferItem, decimal>();
             var unitItem = new Dictionary<CommercialOfferItem, decimal>();
-            foreach (var i in importados)
+            var grupos = new List<GrupoDeImportacao>();
+            var origens = OrigensDosImportados;
+            foreach (var origem in origens)
             {
-                var c = CustoImportacao.Calcular(i.ValorMoeda * i.Quantity, _o.TaxaCambio, ParamImportacao);
-                porItem.Add((i.PartNumber.Length > 0 ? i.PartNumber : i.Description, c));
-                unitItem[i] = Math.Round(c.CustoTotal / i.Quantity, 2);
+                var itens = _items.Where(i => Imp(i) && string.Equals(OrigemDe(i), origem, StringComparison.OrdinalIgnoreCase)).ToList();
+                var moeda = MoedaDe(origem);
+                var taxa = TaxaDe(origem);
+                var nome = NomeDaOrigem(origem);
+                var pendGrupo = new List<string>();
+                if (taxa <= 0) pendGrupo.Add($"taxa cambial (R$ por {moeda})");
+                var semPreco = itens.Count(i => i.ValorMoeda <= 0);
+                if (semPreco > 0) pendGrupo.Add($"preço em {moeda} em {semPreco} item(ns)");
+                var valorMoeda = itens.Sum(i => i.ValorMoeda * i.Quantity);
+                decimal? custoTotal = null, custoItem = null;
+                if (pendGrupo.Count == 0)
+                {
+                    var rotulo = origens.Count > 1 ? nome : "Importação total";
+                    var calc = CustoImportacao.Calcular(valorMoeda, taxa, ParamImportacao);
+                    porTotal.Add((rotulo, calc));
+                    foreach (var i in itens) unitTotal[i] = Math.Round(calc.CustoTotal * i.ValorMoeda / valorMoeda, 2);
+                    custoTotal = calc.CustoTotal;
+                    custoItem = 0m;
+                    foreach (var i in itens)
+                    {
+                        var c = CustoImportacao.Calcular(i.ValorMoeda * i.Quantity, taxa, ParamImportacao);
+                        var peca = i.PartNumber.Length > 0 ? i.PartNumber : i.Description;
+                        porItem.Add((origens.Count > 1 ? $"{peca} ({nome})" : peca, c));
+                        unitItem[i] = Math.Round(c.CustoTotal / i.Quantity, 2);
+                        custoItem += c.CustoTotal;
+                    }
+                }
+                else pend.AddRange(pendGrupo.Select(p => origens.Count > 1 || origem.Length > 0 ? $"{nome}: {p}" : p));
+                grupos.Add(new GrupoDeImportacao(origem, moeda, taxa, itens.Count, valorMoeda, pendGrupo, custoTotal, custoItem));
             }
-            return new ResultadoImportacao(pend, porTotal, importados.Sum(i => i.ValorMoeda * i.Quantity), porItem, unitTotal, unitItem);
+            return new ResultadoImportacao(pend, porTotal, porItem, unitTotal, unitItem, grupos);
         }
     }
 
@@ -2188,10 +2341,6 @@
         var mapa = _o.ImportacaoModo == "item" ? imp.UnitarioPorItem : imp.UnitarioPorTotal;
         return mapa.TryGetValue(it, out var v) ? v : null;
     }
-
-
-
-    private void MudarTaxa(ChangeEventArgs e) => _o.TaxaCambio = Numero(e) is decimal v && v > 0 ? v : 0;
 
     private static decimal? Numero(ChangeEventArgs e) =>
         decimal.TryParse((e.Value?.ToString() ?? "").Replace(",", "."), NumberStyles.Any, CultureInfo.InvariantCulture, out var v)
@@ -2208,6 +2357,7 @@
         {
             var nome = (await AuthState).User.Identity?.Name;
             if (!string.IsNullOrWhiteSpace(nome)) _usuario = nome.Trim();
+            _ehAdm = Acessos.EhAdm((await AuthState).User);
         }
         _units = Units.All();
         LerCondicoes();
@@ -2559,14 +2709,18 @@
                 }
                 @if (Imp(it))
                 {
-                    <label>Preço do fornecedor (@_o.Moeda, unit.)
+                    <label>BU de origem
+                        <input class="cell" list="dl-origens" value="@it.OrigemImportacao" placeholder="de onde vem (ex.: Howden Burton Corblin (France))"
+                               @onchange="e => MudarOrigemDe(it, e)" />
+                    </label>
+                    <label>Preço do fornecedor (@MoedaDe(OrigemDe(it)), unit.)
                         <input class="cell num" type="number" min="0" step="0.01" placeholder="preço unit."
                                value="@(it.ValorMoeda > 0 ? it.ValorMoeda.ToString(CultureInfo.InvariantCulture) : "")"
                                @onchange="e => MudarValorMoedaDe(it, e)" />
                     </label>
                     @if (novo || CustoImportadoDo(it) is null)
                     {
-                        <small class="it-nota custo-indisp">@(novo ? "o custo em R$ é calculado ao incluir" : it.ValorMoeda <= 0 ? $"informe o preço em {_o.Moeda}" : "complete a importação abaixo")</small>
+                        <small class="it-nota custo-indisp">@(novo ? "o custo em R$ é calculado ao incluir" : it.ValorMoeda <= 0 ? $"informe o preço em {MoedaDe(OrigemDe(it))}" : "complete a importação abaixo")</small>
                     }
                 }
                 else if (!DeFora)
@@ -2728,7 +2882,7 @@
     private string OrigemCurta(CommercialOfferItem it)
     {
         if (DeFora) return CustoDeFora(it) is > 0 ? "preço de fora " : "sem custo ";
-        if (it.Importado) return "importado ";
+        if (it.Importado) return OrigemDe(it).Length > 0 ? $"importado · {OrigemDe(it)} " : "importado ";
         if (it.CustoManual is > 0) return "digitado ";
         var r = RefDoItem(it);
         return r.Nacionalizado && r.Custo is > 0 ? "Nacionalização " : "sem custo ";

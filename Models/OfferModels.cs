@@ -147,6 +147,25 @@ public class CommercialOffer
     /// O pricing acha a venda líquida que chega nele e calcula os outros níveis.
     /// </summary>
     public string PrecoMetaNivel { get; set; } = "liquido";
+
+    /// <summary>
+    /// As importações da proposta, uma por origem (BU de fora): a moeda e a
+    /// taxa de cada uma. A origem vazia é a importação antiga, de
+    /// <see cref="Moeda"/> e <see cref="TaxaCambio"/>.
+    /// </summary>
+    public List<ImportacaoDaOrigem> Importacoes { get; set; } = new();
+
+    /// <summary>As notas da proposta (o preço estourou, cuidado com…), para quem abrir depois.</summary>
+    public List<NotaDaProposta> Notas { get; set; } = new();
+
+    /// <summary>
+    /// Embalagens, engenharia, exportação e outros: o padrão da aba Dados no
+    /// dia em que a proposta nasceu e o valor trocado nela (vazio = proposta
+    /// de antes destes custos).
+    /// </summary>
+    public List<CustoAdicional> CustosAdicionais { get; set; } = new();
+    /// <summary>O custo puro dos itens (sem frete e TA) ao salvar: a base do "% do custo dos itens" fora da tela (Word, detalhe).</summary>
+    public decimal BaseCustosAdicionais { get; set; }
     // Resultado do pricing no momento em que a proposta foi salva (para consulta).
     public decimal PricingCusto { get; set; }
     public decimal PricingMarkup { get; set; }
@@ -179,6 +198,43 @@ public class CommercialOffer
 }
 
 /// <summary>Uma planta da proposta: da base (<see cref="UnitId"/>) ou digitada (sem UnitId).</summary>
+/// <summary>Uma importação da proposta: a origem (BU de fora) e a moeda e a taxa dela.</summary>
+public class ImportacaoDaOrigem
+{
+    public string Origem { get; set; } = "";
+    public string Moeda { get; set; } = "EUR";
+    /// <summary>R$ por 1 da moeda.</summary>
+    public decimal Taxa { get; set; }
+}
+
+/// <summary>Uma nota da proposta: informativa, de atenção ou crítica.</summary>
+public class NotaDaProposta
+{
+    public const string Info = "info", Atencao = "atencao", Critica = "critica";
+    public string Id { get; set; } = Guid.NewGuid().ToString("N")[..12];
+    public string Texto { get; set; } = "";
+    public string Nivel { get; set; } = Info;
+    public string Autor { get; set; } = "";
+    /// <summary>yyyy-MM-dd HH:mm</summary>
+    public string Data { get; set; } = "";
+    public bool Resolvida { get; set; }
+}
+
+/// <summary>
+/// Um custo adicional da proposta (embalagens, engenharia, exportação,
+/// outros): o padrão (valor fixo em R$ ou % do custo dos itens) e o valor
+/// digitado na proposta, que manda quando existe.
+/// </summary>
+public class CustoAdicional
+{
+    public const string Fixo = "valor", Percentual = "percentual";
+    public string Codigo { get; set; } = "";
+    public string Tipo { get; set; } = Fixo;
+    public decimal Padrao { get; set; }
+    /// <summary>O valor trocado na proposta (na moeda do custo); null = o padrão.</summary>
+    public decimal? Valor { get; set; }
+}
+
 public class PlantaDaProposta
 {
     /// <summary>Chave dentro da proposta ("p-1a2b3c4d"): os equipamentos apontam para ela.</summary>
@@ -289,8 +345,10 @@ public class CommercialOfferItem
 
     /// <summary>Item importado: o custo vem da planilha de importação.</summary>
     public bool Importado { get; set; }
-    /// <summary>Preço unitário cotado lá fora, na moeda da proposta.</summary>
+    /// <summary>Preço unitário cotado lá fora, na moeda da importação da origem dele.</summary>
     public decimal ValorMoeda { get; set; }
+    /// <summary>A BU de fora de onde o item vem (ex.: Howden Burton Corblin (France)): cada origem é uma importação.</summary>
+    public string OrigemImportacao { get; set; } = "";
     /// <summary>Custo unitário em R$ da importação (por item, ou rateio do total); null = não calculado.</summary>
     public decimal? CustoImportacao { get; set; }
 }

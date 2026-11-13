@@ -339,18 +339,32 @@
     }
 
     /// <summary>
-    /// A resposta volta para a proposta: cada item cotado vira importado, com o
-    /// preço cotado (na moeda da importação dela), o prazo e a marca "cotação".
+    /// A resposta volta para a proposta: cada item cotado vira importado da
+    /// unidade da cotação (a BU de origem), com o preço cotado na moeda da
+    /// cotação, o prazo e a marca "cotação". A importação dessa origem nasce
+    /// com a moeda da cotação.
     /// </summary>
     private void AplicarNaProposta()
     {
         if (_edit is null || !Validar()) return;
         var o = Ofertas.Get(_edit.PropostaId);
         if (o is null) { _erro = "A proposta não foi encontrada."; return; }
-        if (!string.Equals((o.Moeda ?? "").Trim(), _edit.Moeda, StringComparison.OrdinalIgnoreCase))
+        var origem = (_edit.Unidade ?? "").Trim();
+        // sem unidade: a importação antiga da proposta (uma moeda só), como antes
+        var importacao = origem.Length == 0 ? null
+            : o.Importacoes.FirstOrDefault(i => string.Equals(i.Origem.Trim(), origem, StringComparison.OrdinalIgnoreCase));
+        var moedaDaImportacao = origem.Length == 0 ? (o.Moeda ?? "").Trim() : importacao?.Moeda ?? _edit.Moeda;
+        if (!string.Equals(moedaDaImportacao, _edit.Moeda, StringComparison.OrdinalIgnoreCase))
         {
-            _erro = $"A importação da proposta está em {o.Moeda} e a cotação em {_edit.Moeda}: troque a moeda de uma das duas para levar os preços.";
+            _erro = $"A importação de {(origem.Length > 0 ? origem : "a proposta")} está em {moedaDaImportacao} e a cotação em {_edit.Moeda}: troque a moeda de uma das duas para levar os preços.";
             return;
+        }
+        if (origem.Length > 0 && importacao is null)
+        {
+            var taxa = o.Importacoes.Where(i => i.Moeda == _edit.Moeda && i.Taxa > 0m).Select(i => i.Taxa).FirstOrDefault();
+            if (taxa == 0m && string.Equals(o.Moeda, _edit.Moeda, StringComparison.OrdinalIgnoreCase)) taxa = o.TaxaCambio;
+            o.Importacoes.Add(new ImportacaoDaOrigem { Origem = origem, Moeda = _edit.Moeda, Taxa = taxa });
+            Ofertas.Save(o);
         }
         var itens = Ofertas.ItemsFor(o.Id).ToDictionary(i => i.Id);
         var levados = 0;
@@ -358,6 +372,7 @@
         {
             if (!itens.TryGetValue(c.ItemId, out var it)) continue;
             it.Importado = true;
+            it.OrigemImportacao = origem;
             it.ValorMoeda = c.PrecoCotado;
             it.CustoManual = null;
             it.BaseCusto = ReferenciaDeCustoRepository.Cotacao;

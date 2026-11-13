@@ -97,6 +97,20 @@ public sealed class CotacaoIntercompanyRepository
 /// O pedido de cotação Intercompany nas três línguas: o e-mail e a planilha
 /// que vai anexa (para a unidade preencher preço e prazo e devolver).
 /// </summary>
+/// <summary>As importações por origem da proposta.</summary>
+public static class ImportacoesDaProposta
+{
+    /// <summary>A moeda mais provável da origem (dá para trocar): Europa → EUR, Reino Unido → GBP, o resto → USD.</summary>
+    public static string MoedaProvavel(string? origem)
+    {
+        var t = Textos.Simples(origem);
+        if (t.Length == 0) return "EUR";
+        if (new[] { " uk", "uk ", "renfrew", "glasgow", "reino unido", "england", "inglaterra", "scotland", "escocia" }.Any(t.Contains) || t == "uk") return "GBP";
+        if (new[] { "franc", "germ", "alema", "netherl", "holand", "thomassen", "ital", "espan", "spain", "czech", "tcheq", "europ", "burton", "turbo", "portugal", "belg", "polon", "poland" }.Any(t.Contains)) return "EUR";
+        return "USD";
+    }
+}
+
 public static class PedidoIntercompany
 {
     /// <summary>As unidades de fora mais pedidas (a lista da tela; dá para digitar outra).</summary>

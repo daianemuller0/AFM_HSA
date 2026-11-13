@@ -51,7 +51,7 @@ public partial class NovaOferta
     /// </summary>
     private decimal? CustoDeFora(CommercialOfferItem it) =>
         it.CustoManual is > 0 ? it.CustoManual
-        : it.Importado && it.ValorMoeda > 0m && Moedas.Ler(_o.Moeda) == MoedaCusto ? it.ValorMoeda : null;
+        : it.Importado && it.ValorMoeda > 0m && Moedas.Ler(MoedaDe(OrigemDe(it))) == MoedaCusto ? it.ValorMoeda : null;
 
     private void MudarBu(ChangeEventArgs e)
     {
@@ -635,7 +635,7 @@ public partial class NovaOferta
             if (!File.Exists(modelo)) { _erro = $"A planilha de pricing não está em {PricingExcel.CaminhoDoModelo}."; return; }
             var c = Custos;
             var ipi = PricingDaProposta.IpiDosItens(c.ComCusto.Select(x => (x.It, x.Unit)));
-            var entrada = PricingDaProposta.EntradaDe(_o, c.Nacionais, c.Importados, ipi);
+            var entrada = PricingDaProposta.EntradaDe(_o, c.Nacionais, c.Importados, ipi, c.Base);
             var r = PricingAtual(c);
             var bytes = PricingExcel.Gerar(_o, entrada, r, Conversao.Ler(), modelo);
             await JS.InvokeVoidAsync("appDownload", PricingExcel.NomeDoArquivo(_o), PricingExcel.TipoMime, Convert.ToBase64String(bytes));
@@ -665,7 +665,7 @@ public partial class NovaOferta
                 var rf = RefDoItem(it);
                 var origem = demais ? "tabela do pricing"
                     : DeFora ? "preço de fora"
-                    : it.Importado ? (_o.ImportacaoModo == "item" ? "importado (por item)" : "importado (por total)")
+                    : it.Importado ? (_o.ImportacaoModo == "item" ? "importado (por item)" : "importado (por total)") + (OrigemDe(it).Length > 0 ? $" · {OrigemDe(it)}" : "")
                     : it.CustoManual is > 0 ? "digitado"
                     : rf.Nacionalizado && rf.Custo is > 0 ? "Nacionalização" : "sem custo";
                 linhas.Add(new CustoDoItemNaPlanilha(

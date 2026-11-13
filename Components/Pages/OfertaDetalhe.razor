@@ -39,6 +39,23 @@ else
         <div class="alert-error no-print">@_erroWord</div>
     }
 
+    @if (_o.Notas.Count > 0)
+    {
+        <div class="panel no-print" style="margin-bottom:16px">
+            <div class="dash-title">📝 Notas <span style="margin-left:8px;font-size:12px;font-weight:600;color:var(--muted)">para escrever ou resolver, abra em ✎ Editar</span></div>
+            @foreach (var n in _o.Notas.OrderBy(x => x.Resolvida))
+            {
+                <div class="nota-card nota-@n.Nivel @(n.Resolvida ? "resolvida" : "")">
+                    <div class="nota-card-cab">
+                        <span class="nota-card-rot">@(n.Nivel == NotaDaProposta.Critica ? "⛔ Crítica" : n.Nivel == NotaDaProposta.Atencao ? "⚠️ Atenção" : "ℹ️ Informativa")@(n.Resolvida ? " · resolvida" : "")</span>
+                        <span class="nota-card-de">@n.Autor · @n.Data</span>
+                    </div>
+                    <div class="nota-card-txt">@n.Texto</div>
+                </div>
+            }
+        </div>
+    }
+
     @* Cabeçalho completo: controle comercial interno — não sai na impressão para o cliente *@
     <div class="panel no-print" style="margin-bottom:16px">
         <div class="dash-title">Cabeçalho <span style="margin-left:8px;font-size:12px;font-weight:600;color:var(--muted)">uso interno · não aparece no documento impresso</span></div>
@@ -146,6 +163,8 @@ else
         ("Market Segments", _o.MarketSegments), ("Data do Pricing", Fmt.Date(_o.OfferDate)),
         ("Importação", _o.ImportacaoModo switch { "total" => "Por total", "item" => "Por item", _ => "" }),
         ("Moeda / taxa da importação", _o.TaxaCambio > 0 ? $"{_o.Moeda} · R$ {_o.TaxaCambio.ToString("0.####", new System.Globalization.CultureInfo("pt-BR"))}" : ""),
+        ("Importações por origem", string.Join(" · ", _o.Importacoes.Where(i => i.Origem.Trim().Length > 0)
+            .Select(i => $"{i.Origem.Trim()}: {i.Moeda}" + (i.Taxa > 0 ? $" a R$ {i.Taxa.ToString("0.####", new System.Globalization.CultureInfo("pt-BR"))}" : "")))),
         ("Custo em", Cambio.MoedaDoCusto(_o).Rotulo() + (Cambio.CompraDeFora(_o.Bu) ? $" (BU {_o.Bu}: preço de fora, sem importação)" : "")),
         ("Preço ao cliente em", !Cambio.Converte(_o) ? Cambio.MoedaDoPreco(_o).Rotulo()
             : $"{Cambio.MoedaDoPreco(_o).Rotulo()} · 1 {Cambio.MoedaDoPreco(_o).Rotulo()} = {Cambio.MoedaDoCusto(_o).Rotulo()} {Cambio.Normalizada(_o).ToString("N4", new System.Globalization.CultureInfo("pt-BR"))}"

@@ -87,6 +87,8 @@ public static class PricingExcel
         // ---------- cálculo de custo (E14:F33): os itens entram em PROD. COMPRADOS / IMPORTADOS ----------
         foreach (var l in CalculoPricing.LinhasDeCusto)
         {
+            // as linhas 29 a 31 ("-" no modelo) são embalagens, exportação e outros
+            if (l.Linha is >= 29 and <= 31) ws.Texto($"B{l.Linha}", l.Nome);
             var doCodigo = e.Custos.Where(c => c.Codigo == l.Codigo).ToList();
             ws.Numero($"E{l.Linha}", Math.Round(doCodigo.Sum(c => c.Valor), 2));
             // a linha sem custo fica com a Protected Margin da proposta (o modelo traz 2% em todas)

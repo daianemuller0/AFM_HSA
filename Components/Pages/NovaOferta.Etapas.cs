@@ -192,7 +192,7 @@ public partial class NovaOferta : IDisposable
     // =====================================================================
 
     /// <summary>O retrato do que está na tela, para saber se há o que gravar.</summary>
-    private string Foto() => JsonSerializer.Serialize(new { o = _o, i = _items });
+    private string Foto() => JsonSerializer.Serialize(new { o = _o, i = _items }, SemNotas);
 
     private string _baseSalva = "";
 
@@ -232,10 +232,12 @@ public partial class NovaOferta : IDisposable
             // o item "Serviços e demais custos" já está na tabela de custo do pricing: não leva custo próprio
             it.CustoUnitario = it == _itemDemais ? null : CustoDoItem(it);
         }
-        if (!_items.Any(i => i.Importado)) { _o.ImportacaoModo = ""; _o.TaxaCambio = 0; }
+        if (!_items.Any(i => i.Importado)) { _o.ImportacaoModo = ""; _o.TaxaCambio = 0; _o.Importacoes.Clear(); }
+        else LimparImportacoes();
 
         // retrato do pricing no momento de salvar (consulta na tela da oferta), na moeda do custo
         var custos = Custos;
+        _o.BaseCustosAdicionais = Math.Round(custos.Base, 2);
         var pr = PricingAtual(custos);
         var temPricing = pr.CustoTotal > 0 && pr.VendaLiquida > 0;
         _o.PricingCusto = temPricing ? Math.Round(pr.CustoTotal, 2) : 0;
@@ -365,6 +367,7 @@ public partial class NovaOferta : IDisposable
         _autoMargem = ListasDoPricing.MargemPadraoDo(_o.SegmentoMargem);
         _autoPm = CalculoPricing.ProtectedMarginDo(_o.Product);
         _o.RiscoAdicional = _autoRisco; _o.MargemAlvo = _autoMargem; _o.ProtectedMargin = _autoPm;
+        CustosAdicionaisPadrao();
         _autoUf = ""; _autoMercado = "";
 
         _baseSalva = Foto();
@@ -433,6 +436,7 @@ public partial class NovaOferta : IDisposable
         _o.OfferCode = NumeroSugerido();
         _o.Revisao = "0";
         ComoNovaDoDia();
+        _o.Notas = new();   // as notas são da negociação daquela proposta (a revisão leva; a cópia não)
         _origem = "copia";
         ZerarCronometro();
         _msg = $"Cópia da {o.OfferCode}: confira o cliente, as condições e os preços.";
@@ -449,6 +453,8 @@ public partial class NovaOferta : IDisposable
             _o.RiscoAdicional = _autoRisco = CalculoPricing.RiscoPadraoDo(_o.SegmentoMargem, _o.Product);
         // proposta de antes da Protected Margin: a revisão / cópia já entra com ela
         _o.ProtectedMargin ??= _autoPm = CalculoPricing.ProtectedMarginDo(_o.Product);
+        // e com os custos adicionais (embalagens, engenharia, exportação, outros) padrão
+        if (_o.CustosAdicionais.Count == 0) CustosAdicionaisPadrao();
         _o.Status = "Rascunho";
         _o.SuaReferencia = "";
         _o.OurReference = "";

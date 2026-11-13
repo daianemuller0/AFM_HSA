@@ -23,6 +23,8 @@ public sealed class ListasCompartilhadasRepository
     public const string Serial = "serial";
     public const string Tag = "tag";
     public const string UnidadeIntercompany = "unidade_ic";
+    /// <summary>A BU de fora de onde vem um item importado.</summary>
+    public const string OrigemImportacao = "origem_imp";
 
     private const string Entidade = "listas_compartilhadas";
     private readonly ParquetStore _store;

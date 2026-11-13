@@ -62,7 +62,7 @@ else
                     {
                         <td><input type="checkbox" checked="@_marcadas.Contains(o.Id)" @onchange="e => Marcar(o.Id, e)" /></td>
                     }
-                    <td>@o.OfferCode</td>
+                    <td class="nowrap">@o.OfferCode @SeloDeNota(o)</td>
                     <td>@PropostaWord.Ou(o.Revisao, "0")</td>
                     <td>@o.ClientName</td>
                     <td class="nowrap">@Fmt.Date(o.OfferDate)</td>
@@ -135,4 +135,14 @@ else
         _confirmar = false;
         _all = OffersRepo.All();
     }
+
+    /// <summary>A nota aberta mais grave da proposta, na lista: ⛔ crítica, ⚠ atenção (o texto aparece ao passar o mouse).</summary>
+    private static RenderFragment SeloDeNota(CommercialOffer o) => __builder =>
+    {
+        var abertas = o.Notas.Where(n => !n.Resolvida).ToList();
+        var nota = abertas.FirstOrDefault(n => n.Nivel == NotaDaProposta.Critica) ?? abertas.FirstOrDefault(n => n.Nivel == NotaDaProposta.Atencao);
+        if (nota is null) return;
+        var critica = nota.Nivel == NotaDaProposta.Critica;
+        <span class="selo-nota @(critica ? "critica" : "atencao")" title="@($"{(critica ? "Nota crítica" : "Atenção")}: {nota.Texto} — {nota.Autor}")">@(critica ? "⛔ nota crítica" : "⚠ atenção")</span>
+    };
 }
