@@ -1,0 +1,83 @@
+@page "/minha-senha"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject AuthenticationStateProvider Auth
+@inject AppUserRepository Usuarios
+
+@* Cada um troca a própria senha (a tela é livre para qualquer login; o
+   administrador continua podendo definir a senha de qualquer um em
+   Dados e Importação → Logins e acessos). *@
+
+<div class="page-head">
+    <div><h1>Alterar minha senha</h1><p class="subtitle">@_nome@(_email.Length > 0 ? $" · {_email}" : "")</p></div>
+</div>
+
+<div class="panel senha-painel">
+    @if (_equipe)
+    {
+        <p>Você entrou com o <strong>login geral da equipe</strong>. A senha dele fica no arquivo de configuração do programa e não muda por aqui.</p>
+        <p class="nota">Para ter uma senha só sua, peça ao administrador um login próprio (Dados e Importação → Logins e acessos).</p>
+    }
+    else if (_semCadastro)
+    {
+        <p>Não encontrei o seu login no cadastro. Saia e entre de novo; se continuar, fale com o administrador.</p>
+    }
+    else
+    {
+        <label>Senha atual
+            <input class="cell" type="password" autocomplete="current-password" @bind="_atual" />
+        </label>
+        <label>Nova senha
+            <input class="cell" type="password" autocomplete="new-password" placeholder="mínimo 6 caracteres" @bind="_nova" />
+        </label>
+        <label>Repita a nova senha
+            <input class="cell" type="password" autocomplete="new-password" @bind="_repetida" />
+        </label>
+
+        @if (_erro is not null) { <div class="alert-error">@_erro</div> }
+        @if (_ok) { <div class="alert-ok">Senha alterada. Use a nova senha no próximo login.</div> }
+
+        <div class="toolbar">
+            <button class="btn-primary" @onclick="Salvar">Salvar nova senha</button>
+            <a class="btn-link" href="/">voltar</a>
+        </div>
+    }
+</div>
+
+@code {
+    private string _id = "", _nome = "", _email = "";
+    private bool _equipe, _semCadastro, _ok;
+    private string _atual = "", _nova = "", _repetida = "";
+    private string? _erro;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = (await Auth.GetAuthenticationStateAsync()).User;
+        _id = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "";
+        _nome = user.Identity?.Name ?? "";
+        _equipe = _id == "equipe";
+        if (!_equipe)
+        {
+            var u = Usuarios.All().FirstOrDefault(x => x.Id == _id);
+            _semCadastro = u is null;
+            _email = u?.Email ?? "";
+        }
+    }
+
+    private void Salvar()
+    {
+        _erro = null; _ok = false;
+        var u = Usuarios.All().FirstOrDefault(x => x.Id == _id);
+        if (u is null) { _semCadastro = true; return; }
+        if (!Acessos.SenhaConfere(u.Password, _atual)) _erro = "A senha atual não confere.";
+        else if (_nova.Length < 6) _erro = "A nova senha precisa de pelo menos 6 caracteres.";
+        else if (_nova != _repetida) _erro = "A nova senha e a repetição estão diferentes.";
+        else if (_nova == _atual) _erro = "A nova senha é igual à atual.";
+        if (_erro is not null) return;
+
+        u.Password = Acessos.HashDaSenha(_nova);
+        Usuarios.Save(u);
+        _atual = _nova = _repetida = "";
+        _ok = true;
+    }
+}
