@@ -1119,26 +1119,8 @@
                 }
             </div>
         }
-}
 
-@if (_etapa == 4)
-{
-<div class="arquivos-preco">
-    <button class="btn-ghost" disabled="@_gerandoExcel" title="A planilha de pricing da equipe (R_HSAXYZ0000-0.xlsm) preenchida com esta proposta: macros, fórmulas e abas intactas" @onclick="GerarPricingExcel">⬇ Pricing (Excel)</button>
-    <button class="btn-ghost" disabled="@_gerandoExcel" title="Custo de cada item, o TA (quando há) marcado e o preço" @onclick="GerarCustoPorItem">⬇ Custo por item (Excel)</button>
-    <span class="nota">a planilha de pricing preenchida e o custo de cada item com o preço e o TA</span>
-</div>
-        var custos = custosLado;
-        var entrada = PricingDaProposta.EntradaDe(_o, custos.Nacionais, custos.Importados, custoDosItens: custos.Base);
-        var pr = prLado;
-        var pendencias = PricingDaProposta.Pendencias(_o);
-        var riscoPadrao = CalculoPricing.RiscoPadraoDo(_o.SegmentoMargem, _o.Product);
-        var margemPadrao = ListasDoPricing.MargemPadraoDo(_o.SegmentoMargem);
-        var moedaVenda = Cambio.MoedaDoPreco(_o);
-        var converte = Cambio.Converte(_o);
-        var comFianca = Textos.Igual(_o.FiancaSeguro, "Sim");
-        var demais = DemaisCustos(custos, pr);
-    @* embalagens, engenharia, exportação e outros: o padrão da aba Dados, que dá para trocar aqui *@
+    @* embalagens, engenharia, exportação e outros (na etapa Itens, junto do custo dos itens): o padrão da aba Dados, que dá para trocar aqui *@
     <div class="panel custos-adic" id="f-custos-adic" style="margin-bottom:14px">
         <div class="dash-title">Custos adicionais
             <span class="custos-adic-sub">entram no custo do pricing · padrão em Dados e Importação → Custos padrão · digite para trocar nesta proposta</span>
@@ -1173,6 +1155,25 @@
         }
     </div>
 
+}
+
+@if (_etapa == 4)
+{
+<div class="arquivos-preco">
+    <button class="btn-ghost" disabled="@_gerandoExcel" title="A planilha de pricing da equipe (R_HSAXYZ0000-0.xlsm) preenchida com esta proposta: macros, fórmulas e abas intactas" @onclick="GerarPricingExcel">⬇ Pricing (Excel)</button>
+    <button class="btn-ghost" disabled="@_gerandoExcel" title="Custo de cada item, o TA (quando há) marcado e o preço" @onclick="GerarCustoPorItem">⬇ Custo por item (Excel)</button>
+    <span class="nota">a planilha de pricing preenchida e o custo de cada item com o preço e o TA</span>
+</div>
+        var custos = custosLado;
+        var entrada = PricingDaProposta.EntradaDe(_o, custos.Nacionais, custos.Importados, custoDosItens: custos.Base);
+        var pr = prLado;
+        var pendencias = PricingDaProposta.Pendencias(_o);
+        var riscoPadrao = CalculoPricing.RiscoPadraoDo(_o.SegmentoMargem, _o.Product);
+        var margemPadrao = ListasDoPricing.MargemPadraoDo(_o.SegmentoMargem);
+        var moedaVenda = Cambio.MoedaDoPreco(_o);
+        var converte = Cambio.Converte(_o);
+        var comFianca = Textos.Igual(_o.FiancaSeguro, "Sim");
+        var demais = DemaisCustos(custos, pr);
     <div class="panel pricing" style="margin-bottom:14px">
         <div class="dash-title">Pricing
             <span style="margin-left:8px;font-size:12px;font-weight:600;color:var(--muted)">
