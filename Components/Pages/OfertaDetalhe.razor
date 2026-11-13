@@ -161,7 +161,7 @@ else
     private IEnumerable<(string, string)> Pricing => _o is null ? Array.Empty<(string, string)>() : new (string, string)[]
     {
         ("Montar preço", _o.PricingModo == "preco" ? $"a partir do preço ({Cu(_o.PrecoMeta)})" : $"a partir da margem ({Pct(_o.MargemAlvo)})"),
-        ("Risco adicional", Pct(_o.RiscoAdicional)), ("Margem de negociação", Pct(_o.MargemNegociacao)),
+        ("Risco/Contingência", Pct(_o.RiscoAdicional)), ("Margem de negociação", Pct(_o.MargemNegociacao)),
         ("Fiança / garantias", Textos.Igual(_o.FiancaSeguro, "Sim")
             ? $"{(_o.TipoGarantia.Length > 0 ? _o.TipoGarantia : "tipo não escolhido")} · " +
               $"{_o.EventosFianca.Count(ev => ev.Percentual > 0)} evento(s) de pagamento" +

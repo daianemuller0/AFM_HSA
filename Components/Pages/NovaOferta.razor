@@ -1028,7 +1028,7 @@
             </span>
         </div>
         <div class="pricing-campos">
-            <label>Risco adicional (%)
+            <label>Risco/Contingência (%)
                 <input class="cell num" type="number" min="0" step="0.01" value="@Pct100(_o.RiscoAdicional)"
                        @onchange="e => _o.RiscoAdicional = Fracao(e, _o.RiscoAdicional)" />
                 <small class="pricing-dica">padrão @Pct(riscoPadrao)@(riscoPadrao == CalculoPricing.RiscoReduzido ? " (NB com este produto)" : "")</small>
@@ -1388,7 +1388,7 @@
                     <tbody>
                         <tr><td><strong>Custo total</strong></td><td class="cel-ref">E34</td><td class="right nowrap">@Cu(pr.CustoTotal)</td><td class="right">—</td></tr>
                         <tr><td>Risco de variação de preços</td><td class="cel-ref">E36</td><td class="right nowrap">@Cu(pr.RiscoDeVariacao)</td><td class="right">—</td></tr>
-                        <tr><td>Risco adicional</td><td class="cel-ref">D37 · E37</td><td class="right nowrap">@Cu(pr.RiscoAdicional)</td><td class="right">@Pct(_o.RiscoAdicional)</td></tr>
+                        <tr><td>Risco/Contingência</td><td class="cel-ref">D37 · E37</td><td class="right nowrap">@Cu(pr.RiscoAdicional)</td><td class="right">@Pct(_o.RiscoAdicional)</td></tr>
                         <tr><td>Total de risco</td><td class="cel-ref">E38</td><td class="right nowrap">@Cu(pr.Risco)</td><td class="right">@(pr.CustoComVariacao > 0 ? Pct(pr.Risco / pr.CustoComVariacao) : "—")</td></tr>
                         <tr><td><strong>Custo total com riscos</strong></td><td class="cel-ref">E39</td><td class="right nowrap">@Cu(pr.CustoComRiscos)</td><td class="right">—</td></tr>
                         <tr><td>Markup</td><td class="cel-ref">E41</td><td class="right nowrap">@pr.Markup.ToString("N4", PtBr)</td><td class="right">—</td></tr>

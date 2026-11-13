@@ -38,8 +38,8 @@ public static class CalculoPricing
     public const decimal PmSach = 0.01m;
     public const decimal GarantiaDoProjeto = 0.02m;       // D49
 
-    /// <summary>Risco adicional (D37): 5%, ou 2% para NB com estes produtos.</summary>
-    public const decimal RiscoPadrao = 0.05m;
+    /// <summary>Risco/Contingência (D37): 3,70%, ou 2% para NB com estes produtos.</summary>
+    public const decimal RiscoPadrao = 0.037m;
     public const decimal RiscoReduzido = 0.02m;
     public static readonly string[] ProdutosComRiscoReduzido =
         { "PAXIAL4 - Axials Configured Fans", "PCOMP7 - Screw Bareshaft", "POTH1 - Ventsim Software" };

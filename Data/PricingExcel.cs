@@ -41,7 +41,7 @@ public static class PricingExcel
         ("J8", "Prazo de Entrega (dias)"), ("J9", "Cliente com"), ("J10", "Contém produto IC?"),
         ("P3", "Fiança/Seguro Garantia"), ("P4", "Portal"), ("P5", "Rep 1"), ("P6", "Rep 2"),
         ("P7", "Categories"), ("P8", "Product"), ("P9", "Market Segments"),
-        ("E14:F33", "Cálculo de custo (valor e risco)"), ("D37", "Risco adicional"), ("E41", "Markup"),
+        ("E14:F33", "Cálculo de custo (valor e risco)"), ("D37", "Risco/Contingência"), ("E41", "Markup"),
         ("D47", "Margem de negociação"), ("D64", "IPI (pela NCM dos itens)"),
         ("R46, N49:O58", "Seguro garantia / carta fiança"), ("R61, N64:R67", "Outras garantias"),
         ("I36:I39", "Moedas (R$ por USD e cruzadas)"),
