@@ -53,7 +53,7 @@ else
             {
                 <th style="width:28px"><input type="checkbox" title="Selecionar todas" checked="@(_marcadas.Count == _all.Count)" @onchange="MarcarTodas" /></th>
             }
-            <th>Código</th><th>Rev.</th><th>Cliente</th><th>Data</th><th>Status</th><th class="right">Valor</th><th></th></tr></thead>
+            <th>Código</th><th>Rev.</th><th>Cliente</th><th>Data</th><th>Status</th><th class="right" title="Sem impostos, na moeda da proposta">Valor total líquido</th><th></th></tr></thead>
         <tbody>
             @foreach (var o in _all)
             {
@@ -67,7 +67,7 @@ else
                     <td>@o.ClientName</td>
                     <td class="nowrap">@Fmt.Date(o.OfferDate)</td>
                     <td><span class="badge score-badge">@o.Status</span></td>
-                    <td class="right nowrap">@(Cambio.Converte(o) ? Cambio.Dinheiro(o, o.TotalAmount) : Fmt.Brl0(o.TotalAmount))</td>
+                    <td class="right nowrap" title="@(o.TotalLiquido > 0m ? "Sem impostos" : "Gravada antes do total líquido: o valor no nível de impostos da proposta (salve de novo para atualizar)")">@Cambio.Dinheiro(o, o.TotalLiquido > 0m ? o.TotalLiquido : o.TotalAmount)</td>
                     <td class="nowrap">
                         <a class="btn-link" href="@($"/ofertas/{o.Id}")">abrir</a> · <a class="btn-link" href="@($"/gerar-proposta/{o.Id}")">editar</a>
                         @if (_adm)

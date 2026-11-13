@@ -59,6 +59,8 @@ public class CommercialOffer
     /// contrário (moedas, sentido e valor): mudou qualquer um, vale de novo o aviso.
     /// </summary>
     public string CambioConferido { get; set; } = "";
+    /// <summary>O total líquido (sem impostos) na moeda da proposta; 0 = proposta gravada antes deste campo.</summary>
+    public decimal TotalLiquido { get; set; }
 
     /// <summary>Em que língua a proposta sai: "pt", "en" ou "es".</summary>
     public string Idioma { get; set; } = "pt";

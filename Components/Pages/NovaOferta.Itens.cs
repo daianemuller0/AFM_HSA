@@ -410,9 +410,7 @@ public partial class NovaOferta
             ? d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : DateTime.Today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
         // o preço do item está no nível de impostos escolhido: a referência guarda o líquido
-        var r = PricingAtual(Custos);
-        var noNivel = PricingDaProposta.ValorNoNivel(r, PricingDaProposta.NivelPedido(_o)) ?? r.ValorDaProposta;
-        var paraLiquido = noNivel > 0m && r.ValorDaProposta > 0m ? r.ValorDaProposta / noNivel : 1m;
+        var paraLiquido = ParaLiquido(PricingAtual(Custos));
         var todasAsPlantas = string.Join("; ", _o.Plantas.Select(PlantasDaProposta.Rotulo).Where(t => t.Length > 0));
         // o pacote: o total líquido que o cliente recebeu (todas as linhas, na moeda da proposta) e quantas peças
         var (valorDoPacote, qtdDoPacote) = PacoteDaProposta(paraLiquido);
@@ -478,6 +476,16 @@ public partial class NovaOferta
 
     /// <summary>As peças desta proposta, contando o item que está sendo adicionado (ainda fora da lista).</summary>
     private decimal QtdComEste(CommercialOfferItem it) => QtdDestaProposta + (_items.Contains(it) ? 0m : it.Quantity);
+
+    /// <summary>
+    /// O fator que leva o preço do nível de impostos escolhido (o que vai ao
+    /// cliente) ao líquido: 1 quando os preços já são sem impostos.
+    /// </summary>
+    private decimal ParaLiquido(CalculoPricing.Resultado r)
+    {
+        var noNivel = PricingDaProposta.ValorNoNivel(r, PricingDaProposta.NivelPedido(_o)) ?? r.ValorDaProposta;
+        return noNivel > 0m && r.ValorDaProposta > 0m ? r.ValorDaProposta / noNivel : 1m;
+    }
 
     /// <summary>A quantidade total de peças desta proposta (sem a linha de demais custos).</summary>
     private decimal QtdDestaProposta => _items.Where(i => i != _itemDemais).Sum(i => (decimal)i.Quantity);

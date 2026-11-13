@@ -262,6 +262,8 @@ public partial class NovaOferta : IDisposable
         if (string.IsNullOrWhiteSpace(_o.Status)) _o.Status = "Rascunho";
         foreach (var it in _items) it.TotalPrice = it.Quantity * it.UnitPrice;
         _o.TotalAmount = Total;
+        // o total sem impostos, na moeda da proposta (a lista de propostas mostra este)
+        _o.TotalLiquido = Math.Round(Total * ParaLiquido(PricingAtual(Custos)), 2);
         // a carteira soma em R$: nas BUs de fora, pela aba Conversão
         var taxasConv = Conversao.Ler();
         _o.TotalReais = Math.Round(Cambio.EmReais(_o, Total, taxasConv)
