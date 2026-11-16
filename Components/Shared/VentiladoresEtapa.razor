@@ -1,4 +1,5 @@
 @using System.Globalization
+@inject TabelaDeCustos Tabela
 @* A etapa dos itens quando a proposta é de ventiladores centrífugos: uma aba por
    item, como as abas "ITEM" da planilha C_HSAXYZ0000-0.xlsm. O total de cada aba,
    dividido pela quantidade, vira o custo unitário do item no pricing. *@
@@ -14,6 +15,17 @@
         }
     </div>
 
+    @{ var (tabOk, tabTexto) = Tabela.Situacao(); }
+    <div class="vc-tabela-custos @(tabOk ? "ok" : "falta")">
+        <span>@(tabOk ? "📊 Tabela de custos:" : "⚠ Tabela de custos:") @tabTexto</span>
+        @if (tabOk) { <span class="vc-sub">· pasta @Tabela.Pasta</span> }
+        else { <span class="vc-sub">· os valores ficam os padrão da planilha (dá para digitar)</span> }
+        @if (tabOk && Atual is not null)
+        {
+            <button class="btn-link" title="Busca de novo na tabela o valor de cada linha com material ou recurso (os digitados à mão nas outras linhas ficam)" @onclick="AtualizarPelaTabela">↻ atualizar os valores desta aba pela tabela</button>
+        }
+    </div>
+    @if (_avisoTabela.Length > 0) { <div class="nota" style="margin-top:6px">@_avisoTabela</div> }
     @if (_outros.Count > 0)
     {
         <div class="nota vc-aviso">
@@ -192,12 +204,14 @@
                                         {
                                             <select class="cell vc-mat" value="@l.Material" @onchange="e => MudarRecurso(l, e)">
                                                 <option value="">—</option>
-                                                @foreach (var (rec, _) in VentiladorCentrifugo.Recursos) { <option value="@rec">@rec</option> }
+                                                @foreach (var rec in RecursosDisponiveis(l.Material)) { <option value="@rec">@rec</option> }
                                             </select>
                                         }
                                         else
                                         {
-                                            <input class="cell vc-mat" list="dl-vc-materiais" value="@l.Material" placeholder="—" @onchange="e => Campo(() => l.Material = Txt(e))" />
+                                            var fora = l.Material.Length > 0 && l.Material != "-" && tabOk && Tabela.Material(l.Material) is null;
+                                            <input class="cell vc-mat @(fora ? "vc-fora" : "")" list="dl-vc-materiais" value="@l.Material" placeholder="—"
+                                                   title="@(fora ? "Este material não está na tabela de custos: o valor fica o digitado" : l.Material)" @onchange="e => MudarMaterial(l, e)" />
                                         }
                                     </td>
                                 }
@@ -305,6 +319,7 @@
     private async Task NovaAba()
     {
         var f = VentiladorCentrifugo.Nova();
+        foreach (var l in f.Linhas) PelaTabela(l);   // os valores da tabela de custos, como a planilha
         await Acrescentar(f);
     }
 
@@ -356,14 +371,61 @@
         await Avisar();
     }
 
-    /// <summary>Trocar o recurso da mão de obra traz o valor da hora dele.</summary>
+    /// <summary>A BU da proposta (HSA, HCHL…): o valor da hora da mão de obra é o dela na tabela.</summary>
+    [Parameter] public string Bu { get; set; } = "";
+
+    private string BuDaTabela => (Bu ?? "").ToUpperInvariant() switch
+    {
+        var b when b.Contains("HCHL") => "HCHL",
+        var b when b.Contains("HPU") => "HPU",
+        _ => "HSA",
+    };
+
+    private string _avisoTabela = "";
+
+    /// <summary>O valor da linha pela tabela de custos (como a planilha): material → MP; recurso → MP+MO de MO_Howden. true = achou.</summary>
+    private bool PelaTabela(LinhaVentilador l)
+    {
+        decimal? v = l.Secao switch
+        {
+            "mp" or "cald" => Tabela.Material(l.Material),
+            "mo" or "eng" or "at" when l.Material.Length > 0 => Tabela.MaoDeObra(l.Material, BuDaTabela),
+            _ => null,
+        };
+        if (v is not decimal x) return false;
+        l.Valor = Math.Round(x, 4);
+        return true;
+    }
+
+    /// <summary>Trocar o material busca o R$/kg dele na tabela.</summary>
+    private async Task MudarMaterial(LinhaVentilador l, ChangeEventArgs e)
+    {
+        l.Material = Txt(e);
+        PelaTabela(l);
+        await Avisar();
+    }
+
+    /// <summary>Trocar o recurso da mão de obra traz o valor da hora dele (da tabela; sem ela, o padrão).</summary>
     private async Task MudarRecurso(LinhaVentilador l, ChangeEventArgs e)
     {
         l.Material = Txt(e);
-        var v = VentiladorCentrifugo.ValorDaHora(l.Material);
-        if (v > 0m) l.Valor = v;
+        if (!PelaTabela(l) && VentiladorCentrifugo.ValorDaHora(l.Material) is var v && v > 0m) l.Valor = v;
         await Avisar();
     }
+
+    private async Task AtualizarPelaTabela()
+    {
+        if (Atual is not { } a) return;
+        var com = a.Ficha.Linhas.Where(l => l.Material.Length > 0 && l.Material != "-" && l.Secao is "mp" or "cald" or "mo" or "eng" or "at").ToList();
+        var achadas = com.Count(PelaTabela);
+        var fora = com.Count - achadas;
+        await Avisar();
+        _avisoTabela = $"{achadas} valor(es) atualizado(s) pela tabela" + (fora > 0 ? $"; {fora} linha(s) com material ou recurso fora da tabela ficaram como estavam." : ".");
+    }
+
+    private IEnumerable<string> RecursosDisponiveis(string atual) =>
+        Tabela.Recursos(BuDaTabela).Concat(VentiladorCentrifugo.Recursos.Select(r => r.Nome)).Append(atual)
+            .Where(r => r.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase);
 
     private static int UltimaDa(FichaVentilador f, string secao)
     {
@@ -373,7 +435,8 @@
 
     private IEnumerable<string> Materiais() =>
         _abas.SelectMany(a => a.Ficha.Linhas).Where(l => l.Secao is "mp" or "cald").Select(l => l.Material)
-            .Where(m => m.Length > 0 && m != "-").Distinct().OrderBy(m => m);
+            .Concat(Tabela.Materiais())
+            .Where(m => m.Length > 0 && m != "-").Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(m => m);
 
     private RenderFragment Texto(string rotulo, string sugestoes, string valor, Action<string> gravar) => __builder =>
     {

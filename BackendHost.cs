@@ -97,6 +97,8 @@ public static class BackendHost
         builder.Services.AddScoped<DadosBancariosRepository>();
         builder.Services.AddScoped<CustosPadraoRepository>();
         builder.Services.AddScoped<FollowUpRepository>();
+        // as tabelas de custo (BD) dos ventiladores, lidas de uma pasta da rede (Custos:PastaTabelas)
+        builder.Services.AddSingleton(new TabelaDeCustos(builder.Configuration["Custos:PastaTabelas"]));
         builder.Services.AddScoped<VisitRepository>();
         builder.Services.AddScoped<OfferRepository>();
         builder.Services.AddScoped<OppOverrideRepository>();

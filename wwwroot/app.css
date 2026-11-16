@@ -1746,3 +1746,7 @@ input.cell.vc-num { width: 82px; text-align: right; }
 .vc-meta { display: flex; gap: 6px; margin-top: 4px; }
 
 .badge.score-badge.enviada { background: #dcfce7; color: #166534; }
+.vc-tabela-custos { margin-top: 8px; font-size: 12.5px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.vc-tabela-custos.ok { color: #166534; }
+.vc-tabela-custos.falta { color: #b45309; }
+.cell.vc-fora { border-color: #f59e0b; background: #fffbeb; }
