@@ -46,7 +46,7 @@
         <InputFile OnChange="Importar" accept=".xlsx,.xlsm,.xls,.csv" />
         <span class="dz-ico">⇪</span>
         <span><strong>Arraste a planilha aqui</strong> ou clique para escolher<br />
-            <small>.xlsx, .xls ou .csv · as colunas do modelo; a mesma proposta, revisão, cliente e part number atualiza em vez de duplicar</small></span>
+            <small>.xlsx, .xls ou .csv · as colunas do modelo; a mesma proposta, revisão, cliente, part number e serial atualiza em vez de duplicar</small></span>
     </label>
 </div>
 @if (_excluindo && _adm)
@@ -126,6 +126,8 @@
                     <td>@Traco(r.Estado)</td>
                     <td class="nowrap">@Traco(r.Intercompany)</td>
                     <td class="nowrap"><strong>@r.PartNumber</strong></td>
+                    <td class="nowrap">@Traco(r.Modelo)</td>
+                    <td class="nowrap">@Traco(r.SerialNumber)</td>
                     <td class="right">@(r.Quantidade > 0 ? r.Quantidade.ToString("0.##") : "—")</td>
                     <td class="right nowrap">@(r.PrecoUnitLiquido > 0 ? Moedas.Dinheiro(r.MoedaDoPreco, r.PrecoUnitLiquido) : "—")</td>
                     <td class="right nowrap">@(r.PrecoTotalLiquido > 0 ? Moedas.Dinheiro(r.MoedaDoPreco, r.PrecoTotalLiquido) : "—")</td>
@@ -157,7 +159,7 @@
             }
             @if (!Filtradas.Any())
             {
-                <tr><td colspan="19" class="empty">@(_todas.Count == 0 ? "Nenhuma referência ainda: salve uma proposta com itens ou arraste uma planilha aqui em cima." : "Nenhuma referência com esse texto.")</td></tr>
+                <tr><td colspan="@(Colunas.Length + 1)" class="empty">@(_todas.Count == 0 ? "Nenhuma referência ainda: salve uma proposta com itens ou arraste uma planilha aqui em cima." : "Nenhuma referência com esse texto.")</td></tr>
             }
         </tbody>
     </table>
@@ -191,6 +193,8 @@
         new("Estado", r => r.Estado),
         new("Intercompany", r => r.Intercompany),
         new("Part Number", r => IntelligenceService.NormPn(r.PartNumber)),
+        new("Modelo", r => Textos.Simples(r.Modelo)),
+        new("Serial Number", r => Textos.Simples(r.SerialNumber)),
         new("Quantidade", r => r.Quantidade, true),
         new("Valor unit. líquido", r => r.PrecoUnitLiquido, true),
         new("Valor total líquido", r => r.PrecoTotalLiquido, true),
@@ -253,7 +257,7 @@
                 _ => true,
             }).Where(r => termos.All(t => Textos.Simples(
                 $"{r.NumeroAf} {r.Proposta} {r.Revisao} {r.Cliente} {r.Plantas} {r.Estado} {r.Intercompany} {r.PartNumber} {r.Descricao} {r.Modelo} {r.SerialNumber} {r.Usuario}").Contains(t)));
-            var col = Colunas.FirstOrDefault(c => c.Nome == _ordem) ?? Colunas[10];
+            var col = Colunas.FirstOrDefault(c => c.Nome == _ordem) ?? Colunas.First(c => c.Nome == "Data");
             // vazio (sem valor, sem texto) fica sempre no fim, nos dois sentidos
             var comVazio = lista.OrderBy(r => Vazio(col.Chave(r)));
             return _crescente ? comVazio.ThenBy(col.Chave) : comVazio.ThenByDescending(col.Chave);
@@ -278,7 +282,6 @@
 
     private static string Detalhe(ReferenciaDeCusto r) => string.Join(" · ", new[]
     {
-        r.Modelo.Length > 0 ? "Modelo " + r.Modelo : "", r.SerialNumber.Length > 0 ? "SN " + r.SerialNumber : "",
         r.Origem.Length > 0 ? "custo: " + r.Origem : "", r.Usuario,
     }.Where(t => t.Length > 0));
 

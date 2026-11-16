@@ -252,7 +252,7 @@ public sealed class ReferenciaDeCustoRepository
     {
         var linhas = refs.Select(r => (IReadOnlyList<string>)new[]
         {
-            r.Proposta, r.Revisao, r.Cliente, r.Plantas, r.Estado, r.Intercompany, r.PartNumber, r.Quantidade.ToString("0.##"),
+            r.Proposta, r.Revisao, r.Cliente, r.Plantas, r.Estado, r.Intercompany, r.PartNumber, r.Modelo, r.SerialNumber, r.Quantidade.ToString("0.##"),
             r.PrecoUnitLiquido.ToString("0.00"), r.PrecoTotalLiquido.ToString("0.00"), r.DataComoData?.ToString("dd/MM/yyyy") ?? "",
             r.Valor.ToString("0.00"), r.Ta.ToString("0.00"), r.Descricao, r.NumeroAf, r.VendaPor,
             r.ValorPacote > 0 ? r.ValorPacote.ToString("0.00") : "", r.QtdItensPacote > 0 ? r.QtdItensPacote.ToString("0.##") : "", r.BaseDoCusto,
@@ -273,6 +273,8 @@ public sealed class ReferenciaDeCustoRepository
         ("Estado", new[] { "estado", "uf" }),
         ("Intercompany", new[] { "intercompany", "unidade", "bu", "unidade howden" }),
         ("Part Number", new[] { "part number", "partnumber", "pn", "codigo da peca" }),
+        ("Modelo", new[] { "modelo", "modelo do equipamento", "modelo do compressor", "modelo do ventilador" }),
+        ("Serial Number", new[] { "serial number", "serial", "sn", "s/n", "numero de serie", "n de serie", "no de serie" }),
         ("Quantidade", new[] { "quantidade", "qtd", "qtde", "quant" }),
         ("Valor unitário líquido", new[] { "valor unitario liquido", "valor unit liquido", "preco unitario liquido", "preco unitario", "valor unitario", "unitario liquido" }),
         ("Valor total líquido", new[] { "valor total liquido", "preco total liquido", "valor total", "preco total", "total liquido" }),
@@ -310,7 +312,7 @@ public sealed class ReferenciaDeCustoRepository
         }
         if (!indice.ContainsKey("Part Number"))
             return (0, new List<string> { "A planilha não tem a coluna \"Part Number\". Baixe o modelo para ver as colunas." });
-        foreach (var (col, _) in Colunas.Where(c => c.Nome is not ("Moeda" or "Moeda do custo") && !indice.ContainsKey(c.Nome)))
+        foreach (var (col, _) in Colunas.Where(c => c.Nome is not ("Moeda" or "Moeda do custo" or "Modelo" or "Serial Number") && !indice.ContainsKey(c.Nome)))
             avisos.Add($"Coluna \"{col}\" não encontrada (fica vazia).");
 
         string C(string[] l, string col) => indice.TryGetValue(col, out var i) && i < l.Length ? (l[i] ?? "").Trim() : "";
@@ -325,6 +327,7 @@ public sealed class ReferenciaDeCustoRepository
             {
                 Proposta = C(l, "Proposta"), Revisao = C(l, "Revisão"), Cliente = C(l, "Cliente"), Plantas = C(l, "Plantas"),
                 Estado = C(l, "Estado"), Intercompany = C(l, "Intercompany"), PartNumber = pn,
+                Modelo = C(l, "Modelo"), SerialNumber = C(l, "Serial Number"),
                 Quantidade = Numero(C(l, "Quantidade")) ?? 0m, PrecoUnitLiquido = Numero(C(l, "Valor unitário líquido")) ?? 0m,
                 PrecoTotalLiquido = Numero(C(l, "Valor total líquido")) ?? 0m, Data = DataIso(C(l, "Data")),
                 Valor = Numero(C(l, "Custo unit.")) ?? 0m, Ta = Numero(C(l, "TA")) ?? 0m,
@@ -338,7 +341,8 @@ public sealed class ReferenciaDeCustoRepository
             if (r.PrecoTotalLiquido == 0m && r.PrecoUnitLiquido > 0m && r.Quantidade > 0m) r.PrecoTotalLiquido = r.PrecoUnitLiquido * r.Quantidade;
             if (r.PrecoUnitLiquido == 0m && r.PrecoTotalLiquido > 0m && r.Quantidade > 0m) r.PrecoUnitLiquido = Math.Round(r.PrecoTotalLiquido / r.Quantidade, 2);
             if (C(l, "Data").Length > 0 && r.Data.Length == 0) avisos.Add($"Linha {n}: data \"{C(l, "Data")}\" não entendida.");
-            r.Id = "pl-" + Hash($"{r.Proposta}|{r.Revisao}|{r.Cliente}|{IntelligenceService.NormPn(pn)}|{r.Plantas}");
+            r.Id = "pl-" + Hash($"{r.Proposta}|{r.Revisao}|{r.Cliente}|{IntelligenceService.NormPn(pn)}|{r.Plantas}"
+                                + (r.SerialNumber.Length > 0 ? $"|{Textos.Simples(r.SerialNumber)}" : ""));
             novas.Add(r);
         }
         // a mesma linha duas vezes na planilha: fica a última
@@ -350,7 +354,7 @@ public sealed class ReferenciaDeCustoRepository
     /// <summary>O modelo da planilha de importação, com uma linha de exemplo.</summary>
     public static byte[] Modelo() => AfmHsa.Data.Planilha.Xlsx("Referências", Colunas.Select(c => c.Nome).ToList(), new[]
     {
-        (IReadOnlyList<string>)new[] { "HSA2026-0147", "2", "Vale", "São Luís", "MA", "HSA-SP", "HW-NAC-A", "3", "3853,22", "11559,66", "05/11/2026", "2100,00", "0", "Rolamento", "AF-12345", "pacote", "25000,00", "8", "cotação", "BRL", "BRL" },
+        (IReadOnlyList<string>)new[] { "HSA2026-0147", "2", "Vale", "São Luís", "MA", "HSA-SP", "HW-NAC-A", "VX 2025", "SN-123456", "3", "3853,22", "11559,66", "05/11/2026", "2100,00", "0", "Rolamento", "AF-12345", "pacote", "25000,00", "8", "cotação", "BRL", "BRL" },
     });
 
     public const string Cotacao = "cotação";
