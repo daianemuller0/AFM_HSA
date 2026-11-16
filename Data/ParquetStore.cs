@@ -189,6 +189,40 @@ WHERE _rn = 1 AND NOT _deleted{order};";
         return list;
     }
 
+    /// <summary>
+    /// TODAS as versões gravadas da entidade (não só a mais recente), em ordem
+    /// de gravação, com o instante (_ts) e se era uma exclusão. Nada se perde
+    /// numa regravação: é daqui que se recupera o que foi gravado por cima.
+    /// </summary>
+    public List<(T Linha, long Ts, bool Apagado)> ReadHistory<T>(string entity, string selectCols, Func<IDataReader, T> map)
+    {
+        var dir = EntityDir(entity);
+        if (!Directory.EnumerateFiles(dir, "*.parquet").Any())
+            return new List<(T, long, bool)>();
+
+        var glob = Duck(Path.Combine(dir, "*.parquet"));
+        using var conn = Open();
+
+        var presentes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        using (var describe = conn.CreateCommand())
+        {
+            describe.CommandText = $"DESCRIBE SELECT * FROM read_parquet('{glob}', union_by_name=true);";
+            using var dr = describe.ExecuteReader();
+            while (dr.Read()) presentes.Add(dr.GetString(0));
+        }
+
+        var lista = selectCols.Split(',').Select(c => c.Trim()).ToList();
+        var cols = string.Join(", ", lista.Select(c => presentes.Contains(c) ? c : $"NULL AS {c}"));
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = $"SELECT {cols}, _ts, _deleted FROM read_parquet('{glob}', union_by_name=true) ORDER BY _ts;";
+        using var r = cmd.ExecuteReader();
+        var saida = new List<(T, long, bool)>();
+        var n = lista.Count;
+        while (r.Read())
+            saida.Add((map(r), r.IsDBNull(n) ? 0 : Convert.ToInt64(r.GetValue(n)), !r.IsDBNull(n + 1) && Convert.ToBoolean(r.GetValue(n + 1))));
+        return saida;
+    }
+
     public bool IsEmpty(string entity)
     {
         var dir = EntityDir(entity);

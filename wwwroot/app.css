@@ -1603,3 +1603,7 @@ a.btn-logout:hover { border-color: var(--primary); color: var(--primary); backgr
 .novo-vendedor-campos { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px 12px; }
 .novo-vendedor-campos label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; font-weight: 600; color: var(--muted); }
 .pricing-dica.rev-nova { color: #b45309; }
+
+/* Propostas: revisões gravadas por cima que podem voltar */
+.recuperar-revisoes { border-left: 4px solid #b45309; background: #fffbeb; }
+.recuperar-cab { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }

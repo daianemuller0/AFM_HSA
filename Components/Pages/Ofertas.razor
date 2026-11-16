@@ -17,6 +17,43 @@
     <div class="alert-ok" style="margin-bottom:12px">@_msg</div>
 }
 
+@if (_sobrescritas.Count > 0)
+{
+    @* revisões que a troca do número gravou por cima (antes de a troca virar
+       registro novo): continuam no histórico e voltam como registro próprio *@
+    <div class="panel recuperar-revisoes" style="margin-bottom:12px">
+        <div class="recuperar-cab">
+            <span>🕘 <strong>@_sobrescritas.Count</strong> @(_sobrescritas.Count == 1 ? "revisão foi gravada por cima" : "revisões foram gravadas por cima") quando o número da revisão foi trocado. Elas continuam no histórico e podem voltar como registro próprio.</span>
+            <span style="flex:1"></span>
+            <button class="btn-ghost" @onclick="() => _verSobrescritas = !_verSobrescritas">@(_verSobrescritas ? "esconder" : "ver quais")</button>
+            <button class="btn-primary" disabled="@_recuperando" @onclick="RecuperarTodas">Recuperar todas</button>
+        </div>
+        @if (_verSobrescritas)
+        {
+            <table class="grid" style="margin-top:10px">
+                <thead><tr><th>Código</th><th>Rev.</th><th>Cliente</th><th>Data</th><th>Status</th><th class="right">Itens</th><th class="right">Valor total líquido</th><th>Gravada por cima</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var r in _sobrescritas)
+                    {
+                        var o = r.Oferta;
+                        <tr>
+                            <td class="nowrap">@o.OfferCode</td>
+                            <td>@PropostaWord.Ou(o.Revisao, "0")</td>
+                            <td>@o.ClientName</td>
+                            <td class="nowrap">@Fmt.Date(o.OfferDate)</td>
+                            <td><span class="badge score-badge">@o.Status</span></td>
+                            <td class="right">@r.Itens.Count</td>
+                            <td class="right nowrap">@Cambio.Dinheiro(o, o.TotalLiquido > 0m ? o.TotalLiquido : o.TotalAmount)</td>
+                            <td class="nowrap">pela rev @PropostaWord.Ou(r.GravadaPorCimaPela, "0") em @r.SobrescritaEm.ToString("dd/MM/yyyy HH:mm")</td>
+                            <td class="nowrap"><button class="btn-link" disabled="@_recuperando" @onclick="() => Recuperar(r)">recuperar</button></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+}
+
 @if (_all.Count == 0)
 {
     <div class="panel empty-state"><div class="empty-title">Nenhuma proposta ainda</div>
@@ -88,11 +125,43 @@ else
     private readonly HashSet<string> _marcadas = new();
     private bool _confirmar;
     private string? _msg;
+    private List<OfferRepository.RevisaoSobrescrita> _sobrescritas = new();
+    private bool _verSobrescritas, _recuperando;
 
     protected override async Task OnInitializedAsync()
     {
         _adm = Acessos.EhAdm((await Auth.GetAuthenticationStateAsync()).User);
         _all = OffersRepo.All();
+    }
+
+    /// <summary>O histórico é lido depois que a lista aparece: a página não espera por ele.</summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try { _sobrescritas = await Task.Run(OffersRepo.RevisoesSobrescritas); }
+        catch (Exception) { _sobrescritas = new(); }
+        if (_sobrescritas.Count > 0) StateHasChanged();
+    }
+
+    private async Task Recuperar(OfferRepository.RevisaoSobrescrita r) => await RecuperarAs(new[] { r });
+
+    private async Task RecuperarTodas() => await RecuperarAs(_sobrescritas.ToList());
+
+    private async Task RecuperarAs(IReadOnlyList<OfferRepository.RevisaoSobrescrita> lista)
+    {
+        if (_recuperando || lista.Count == 0) return;
+        _recuperando = true;
+        try
+        {
+            var usuario = (await Auth.GetAuthenticationStateAsync()).User.Identity?.Name ?? "";
+            foreach (var r in lista) OffersRepo.RecuperarRevisao(r, usuario);
+            _msg = lista.Count == 1
+                ? $"Revisão {PropostaWord.Ou(lista[0].Oferta.Revisao, "0")} da {lista[0].Oferta.OfferCode} recuperada: está na lista como registro próprio, com uma nota dizendo de onde veio."
+                : $"{lista.Count} revisões recuperadas: estão na lista como registros próprios, cada uma com uma nota dizendo de onde veio.";
+            _all = OffersRepo.All();
+            _sobrescritas = await Task.Run(OffersRepo.RevisoesSobrescritas);
+        }
+        finally { _recuperando = false; }
     }
 
     private IEnumerable<CommercialOffer> Selecionadas => _all.Where(o => _marcadas.Contains(o.Id));

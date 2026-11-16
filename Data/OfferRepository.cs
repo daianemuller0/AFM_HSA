@@ -1,3 +1,4 @@
+using System.Data;
 using System.Globalization;
 using System.Text.Json;
 using AfmHsa.Models;
@@ -20,7 +21,7 @@ public class OfferRepository
     }
 
     // ---- ofertas ---------------------------------------------------------
-    public List<CommercialOffer> All() => _s.ReadLatest("commercialOffers",
+    private const string ColunasDaOferta =
         "id, offer_code, client_unit_id, equipment_id, client_name, attention_to, city, our_reference, project, " +
         "offer_date, prepared_by, intro_text, tax_text, payment_terms, delivery_time, delivery_conditions, " +
         "validity_text, observations, sgi_text, terms_text, total_amount, status, created_at, " +
@@ -32,8 +33,9 @@ public class OfferRepository
         "pricing_custo, pricing_markup, pricing_venda_liquida, pricing_margem, pricing_preco_impostos, " +
         "tipo_outras_garantias, outras_garantias, pricing_custos, moeda_venda, cambio_taxa, cambio_direcao, " +
         "cambio_seguranca, total_reais, contato_email, contato_telefone, sua_referencia, incoterm, incoterm_local, " +
-        "plantas, equipamentos_proposta, impostos_no_preco, vendedor, idioma, frete_custo, numero_crm, moeda_custo, vendedor2, cambio_conferido, total_liquido, protected_margin, preco_meta_nivel, importacoes, notas, custos_adicionais, base_custos_adicionais",
-        r => new CommercialOffer
+        "plantas, equipamentos_proposta, impostos_no_preco, vendedor, idioma, frete_custo, numero_crm, moeda_custo, vendedor2, cambio_conferido, total_liquido, protected_margin, preco_meta_nivel, importacoes, notas, custos_adicionais, base_custos_adicionais";
+
+    private static CommercialOffer LerOferta(IDataReader r) => new CommercialOffer
         {
             Id = Fmt.S(r, 0), OfferCode = Fmt.S(r, 1), ClientUnitId = Fmt.S(r, 2), EquipmentId = Fmt.S(r, 3),
             ClientName = Fmt.S(r, 4), AttentionTo = Fmt.S(r, 5), City = Fmt.S(r, 6), OurReference = Fmt.S(r, 7),
@@ -77,7 +79,9 @@ public class OfferRepository
             Notas = Json(Fmt.S(r, 85), new List<NotaDaProposta>()),
             CustosAdicionais = Json(Fmt.S(r, 86), new List<CustoAdicional>()),
             BaseCustosAdicionais = Fmt.Dec(Fmt.S(r, 87)),
-        }, orderBy: "created_at DESC");
+        };
+
+    public List<CommercialOffer> All() => _s.ReadLatest("commercialOffers", ColunasDaOferta, LerOferta, orderBy: "created_at DESC");
 
     public CommercialOffer? Get(string id) => All().FirstOrDefault(o => o.Id == id);
 
@@ -121,6 +125,115 @@ public class OfferRepository
         new("pricing_preco_impostos", D(o.PricingPrecoImpostos)),
     });
 
+    // ---- revisões gravadas por cima -------------------------------------
+
+    /// <summary>
+    /// Uma revisão que existiu e foi gravada por cima (o número da revisão foi
+    /// trocado na mesma proposta, antes de a troca virar registro novo): como
+    /// ela estava na última gravação, com os itens daquele momento.
+    /// </summary>
+    public sealed record RevisaoSobrescrita(CommercialOffer Oferta, List<CommercialOfferItem> Itens,
+        string IdAtual, string GravadaPorCimaPela, DateTime GravadaEm, DateTime SobrescritaEm)
+    {
+        public string Chave => $"{IdAtual}|{Oferta.Revisao}";
+    }
+
+    /// <summary>A revisão como número: "", "0" e "00" são a mesma; "1" e "01" também.</summary>
+    public static string RevisaoNormal(string? rev)
+    {
+        var t = (rev ?? "").Trim();
+        return t.Length == 0 ? "0" : int.TryParse(t, out var n) ? n.ToString(CultureInfo.InvariantCulture) : t.ToUpperInvariant();
+    }
+
+    private static string ChaveDaRevisao(string codigo, string rev) => $"{codigo.Trim().ToUpperInvariant()}|{RevisaoNormal(rev)}";
+
+    /// <summary>
+    /// Procura no histórico (cada gravação continua nos arquivos) as revisões
+    /// que foram gravadas por cima e ainda não existem como registro. Proposta
+    /// apagada fica de fora.
+    /// </summary>
+    public List<RevisaoSobrescrita> RevisoesSobrescritas()
+    {
+        var atuais = All();
+        var porId = atuais.ToDictionary(o => o.Id);
+        var existentes = atuais.Select(o => ChaveDaRevisao(o.OfferCode, o.Revisao)).ToHashSet();
+
+        var achadas = new Dictionary<string, (CommercialOffer O, long Ts, long Corte, string IdAtual, string Por)>();
+        foreach (var g in _s.ReadHistory("commercialOffers", ColunasDaOferta, LerOferta).GroupBy(h => h.Linha.Id))
+        {
+            if (!porId.ContainsKey(g.Key)) continue;
+            var versoes = g.Where(h => !h.Apagado).OrderBy(h => h.Ts).ToList();
+            for (var i = 0; i + 1 < versoes.Count; i++)
+            {
+                var (o, ts, _) = versoes[i];
+                var seguinte = versoes[i + 1].Linha;
+                if (RevisaoNormal(o.Revisao) == RevisaoNormal(seguinte.Revisao)) continue;
+                // só a troca de revisão do mesmo número: rascunho que ganhou o nº do CRM depois não é revisão
+                if (string.IsNullOrWhiteSpace(o.OfferCode)
+                    || !string.Equals(o.OfferCode.Trim(), seguinte.OfferCode.Trim(), StringComparison.OrdinalIgnoreCase)) continue;
+                var chave = ChaveDaRevisao(o.OfferCode, o.Revisao);
+                if (existentes.Contains(chave)) continue;
+                // a mesma revisão gravada por cima mais de uma vez: vale a última
+                if (!achadas.TryGetValue(chave, out var ja) || ja.Ts < ts)
+                    achadas[chave] = (o, ts, versoes[i + 1].Ts, g.Key, seguinte.Revisao);
+            }
+        }
+        if (achadas.Count == 0) return new();
+
+        // os itens como estavam: a última versão de cada item gravada antes da
+        // gravação que trocou a revisão (a proposta é gravada antes dos itens)
+        var ids = achadas.Values.Select(a => a.IdAtual).ToHashSet();
+        var historicoItens = _s.ReadHistory("commercialOfferItems", ColunasDoItem, LerItem)
+            .GroupBy(h => h.Linha.Id)
+            .Where(g => g.Any(h => ids.Contains(h.Linha.OfferId)))
+            .Select(g => g.OrderBy(h => h.Ts).ToList())
+            .ToList();
+
+        return achadas.Values
+            .Select(a =>
+            {
+                var itens = historicoItens
+                    .Select(v => v.LastOrDefault(h => h.Ts < a.Corte))
+                    .Where(h => h.Linha is not null && !h.Apagado && h.Linha.OfferId == a.IdAtual)
+                    .Select(h => h.Linha)
+                    .OrderBy(i => i.Ordem)
+                    .ToList();
+                return new RevisaoSobrescrita(a.O, itens, a.IdAtual, a.Por,
+                    new DateTime(a.Ts, DateTimeKind.Utc).ToLocalTime(), new DateTime(a.Corte, DateTimeKind.Utc).ToLocalTime());
+            })
+            .OrderBy(r => r.Oferta.OfferCode).ThenBy(r => int.TryParse(RevisaoNormal(r.Oferta.Revisao), out var n) ? n : 0)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Grava a revisão recuperada como um registro novo (ids novos), do jeito
+    /// que estava, com uma nota dizendo de onde ela veio. Devolve o id novo.
+    /// </summary>
+    public string RecuperarRevisao(RevisaoSobrescrita r, string usuario)
+    {
+        var o = r.Oferta;
+        o.Id = Guid.NewGuid().ToString("N");
+        o.Notas = o.Notas.Concat(new[]
+        {
+            new NotaDaProposta
+            {
+                Texto = $"Revisão recuperada do histórico: tinha sido gravada por cima pela revisão {PropostaWord.Ou(r.GravadaPorCimaPela, "0")} " +
+                        $"em {r.SobrescritaEm:dd/MM/yyyy HH:mm}. Está como estava na última gravação ({r.GravadaEm:dd/MM/yyyy HH:mm}).",
+                Nivel = NotaDaProposta.Info,
+                Autor = usuario,
+                Data = DateTime.Now.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture),
+            },
+        }).ToList();
+        Save(o);
+        foreach (var it in r.Itens)
+        {
+            it.Id = Guid.NewGuid().ToString("N");
+            it.OfferId = o.Id;
+            SaveItem(it);
+        }
+        return o.Id;
+    }
+
     public void Delete(string id) => _s.WriteRow("commercialOffers",
         new KeyValuePair<string, object?>[] { new("id", id) }, deleted: true);
 
@@ -136,12 +249,13 @@ public class OfferRepository
     }
 
     // ---- itens -----------------------------------------------------------
-    public List<CommercialOfferItem> AllItems() => _s.ReadLatest("commercialOfferItems",
+    private const string ColunasDoItem =
         "id, offer_id, description, quantity, unit_price, total_price, " +
         "equipment_id, part_number, nacionalizado, custo_referencia, custo_data, ultima_venda, ultima_venda_data, " +
         "importado, valor_moeda, custo_importacao, ordem, ncm, custo_manual, custo_unitario, prazo_entrega_dias, " +
-        "modelo, serial_number, tag, preco_meta, custo_ta, peso_kg, base_custo, ta_manual, origem_importacao",
-        r => new CommercialOfferItem
+        "modelo, serial_number, tag, preco_meta, custo_ta, peso_kg, base_custo, ta_manual, origem_importacao";
+
+    private static CommercialOfferItem LerItem(IDataReader r) => new CommercialOfferItem
         {
             Id = Fmt.S(r, 0), OfferId = Fmt.S(r, 1), Description = Fmt.S(r, 2),
             Quantity = Fmt.Int(Fmt.S(r, 3)), UnitPrice = Fmt.Dec(Fmt.S(r, 4)), TotalPrice = Fmt.Dec(Fmt.S(r, 5)),
@@ -153,7 +267,9 @@ public class OfferRepository
             CustoManual = DecOuNull(Fmt.S(r, 18)), CustoUnitario = DecOuNull(Fmt.S(r, 19)), PrazoEntregaDias = Fmt.Int(Fmt.S(r, 20)),
             Modelo = Fmt.S(r, 21), SerialNumber = Fmt.S(r, 22), Tag = Fmt.S(r, 23),
             PrecoMeta = Fmt.Dec(Fmt.S(r, 24)), CustoTa = Fmt.Dec(Fmt.S(r, 25)), PesoKg = Fmt.Dec(Fmt.S(r, 26)), BaseCusto = Fmt.S(r, 27), TaManual = Fmt.S(r, 28) == "1", OrigemImportacao = Fmt.S(r, 29),
-        });
+        };
+
+    public List<CommercialOfferItem> AllItems() => _s.ReadLatest("commercialOfferItems", ColunasDoItem, LerItem);
 
     /// <summary>Vazio continua vazio: "custo não disponível" não pode virar R$ 0,00.</summary>
     private static decimal? DecOuNull(string s) => string.IsNullOrWhiteSpace(s) ? null : Fmt.Dec(s);
