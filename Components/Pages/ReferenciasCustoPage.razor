@@ -32,6 +32,14 @@
         <span class="nota">@Filtradas.Count() de @_todas.Count referência(s)</span>
         <button class="btn-ghost" @onclick="BaixarModelo">⬇ Modelo da planilha</button>
         <button class="btn-ghost" @onclick="Exportar">⬇ Exportar a lista</button>
+        @if (_adm)
+        {
+            <button class="btn-ghost perigo" title="Só o administrador: limpa a lista inteira (com senha); antes, grava o backup na pasta de dados" @onclick="AbrirExcluir">🗑 Excluir a base</button>
+            @if (_backups.Count > 0)
+            {
+                <button class="btn-ghost" title="Só o administrador: devolve à lista o que estava num backup" @onclick="AbrirRestaurar">↺ Restaurar backup</button>
+            }
+        }
     </div>
     <label class="dropzone @(_arrastando ? "arrastando" : "")" @ondragenter="() => _arrastando = true" @ondragleave="() => _arrastando = false"
            @ondrop="() => _arrastando = false">
@@ -41,6 +49,49 @@
             <small>.xlsx, .xls ou .csv · as colunas do modelo; a mesma proposta, revisão, cliente e part number atualiza em vez de duplicar</small></span>
     </label>
 </div>
+@if (_excluindo && _adm)
+{
+    <div class="panel excluir-barra excluir-base" role="alertdialog" aria-label="Excluir a base de referências">
+        <div>
+            <strong>Excluir a base inteira: @_todas.Count referência(s).</strong>
+            Antes de apagar, o sistema grava o backup na pasta de dados (<code>@Refs.PastaDosBackups</code>):
+            a lista em Excel e os arquivos como estavam ("↺ Restaurar backup" devolve a lista inteira).
+        </div>
+        <div class="excluir-base-linha">
+            <input class="cell" type="password" placeholder="senha para excluir" autocomplete="off" @bind="_senha" @bind:event="oninput"
+                   @onkeydown="@(async e => { if (e.Key == "Enter") await ExcluirBase(); })" />
+            <button class="btn-primary perigo" disabled="@(_senha.Trim().Length == 0)" @onclick="ExcluirBase">Excluir a base</button>
+            <button class="btn-link" @onclick="() => _excluindo = false">cancelar</button>
+        </div>
+        @if (_erroExcluir is not null) { <div class="alert-error" style="margin:8px 0 0">@_erroExcluir</div> }
+    </div>
+}
+@if (_restaurando && _adm)
+{
+    <div class="panel excluir-base restaurar-base" style="border-left-color:#2563eb">
+        <div>
+            <strong>Restaurar um backup.</strong> A lista volta a ter as referências do backup exatamente como estavam
+            (as gravadas depois da exclusão continuam). Os backups ficam em <code>@Refs.PastaDosBackups</code>.
+        </div>
+        <table class="grid">
+            <thead><tr><th>Backup</th><th>Excluída em</th><th>Por</th><th>Referências</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var bk in _backups)
+                {
+                    var b = bk;
+                    <tr>
+                        <td class="nowrap">@b.Arquivo</td>
+                        <td class="nowrap">@b.Quando.ToString("dd/MM/yyyy HH:mm")</td>
+                        <td>@(b.Usuario.Length > 0 ? b.Usuario : "—")</td>
+                        <td>@(b.Quantas.Length > 0 ? b.Quantas : "—")</td>
+                        <td class="nowrap"><button class="btn-primary" @onclick="() => Restaurar(b)">Restaurar</button></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        <div><button class="btn-link" @onclick="() => _restaurando = false">fechar</button></div>
+    </div>
+}
 @if (_msg is not null)
 {
     <div class="@(_msgOk ? "alert-ok" : "alert-error")" style="margin-bottom:10px">@_msg
@@ -184,6 +235,8 @@
         _todas = Refs.Todas();
         var u = (await Auth.GetAuthenticationStateAsync()).User;
         _usuario = u.Identity?.Name ?? "";
+        _adm = Acessos.EhAdm(u);
+        if (_adm) _backups = Refs.Backups();
     }
 
     private IEnumerable<ReferenciaDeCusto> Filtradas
@@ -262,15 +315,59 @@
 
     private async Task Exportar()
     {
-        var linhas = Filtradas.Select(r => (IReadOnlyList<string>)new[]
-        {
-            r.Proposta, r.Revisao, r.Cliente, r.Plantas, r.Estado, r.Intercompany, r.PartNumber, r.Quantidade.ToString("0.##"),
-            r.PrecoUnitLiquido.ToString("0.00"), r.PrecoTotalLiquido.ToString("0.00"), r.DataComoData?.ToString("dd/MM/yyyy") ?? "",
-            r.Valor.ToString("0.00"), r.Ta.ToString("0.00"), r.Descricao, r.NumeroAf, r.VendaPor,
-            r.ValorPacote > 0 ? r.ValorPacote.ToString("0.00") : "", r.QtdItensPacote > 0 ? r.QtdItensPacote.ToString("0.##") : "", r.BaseDoCusto, r.MoedaDoPreco.Codigo(), r.MoedaDoCusto.Codigo(),
-        });
-        var bytes = Planilha.Xlsx("Referências", ReferenciaDeCustoRepository.Colunas.Select(c => c.Nome).ToList(), linhas);
+        var bytes = ReferenciaDeCustoRepository.Planilha(Filtradas);
         await JS.InvokeVoidAsync("appDownload", "referencias_de_preco.xlsx",
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", Convert.ToBase64String(bytes));
+    }
+
+    // ---- excluir a base: só o administrador, com a senha; antes, o backup na pasta de dados ----
+    private bool _adm;
+    private bool _excluindo;
+    private string _senha = "";
+    private string? _erroExcluir;
+
+    private void AbrirExcluir() { _excluindo = true; _restaurando = false; _senha = ""; _erroExcluir = null; _msg = null; }
+
+    private bool _restaurando;
+    private List<ReferenciaDeCustoRepository.BackupDeReferencias> _backups = new();
+
+    private void AbrirRestaurar() { _restaurando = true; _excluindo = false; _msg = null; _backups = Refs.Backups(); }
+
+    private async Task Restaurar(ReferenciaDeCustoRepository.BackupDeReferencias b)
+    {
+        if (!Acessos.EhAdm((await Auth.GetAuthenticationStateAsync()).User)) return;
+        try
+        {
+            var antes = _todas.Count;
+            var agora = Refs.RestaurarBackup(b.Arquivo);
+            _todas = Refs.Todas();
+            _restaurando = false;
+            _avisos = new();
+            _msgOk = true;
+            _msg = $"Backup {b.Arquivo} restaurado: a lista tinha {antes} e agora tem {agora} referência(s).";
+        }
+        catch (Exception ex) { _msgOk = false; _avisos = new(); _msg = "Não deu para restaurar: " + ex.Message; }
+    }
+
+    private async Task ExcluirBase()
+    {
+        // confere de novo na hora: só o administrador, e a senha certa
+        if (!Acessos.EhAdm((await Auth.GetAuthenticationStateAsync()).User)) { _erroExcluir = "Só o administrador pode excluir a base."; return; }
+        if (!ReferenciaDeCustoRepository.SenhaDeExcluirConfere(_senha)) { _erroExcluir = "Senha incorreta."; _senha = ""; return; }
+        try
+        {
+            var (apagadas, planilha, arquivos) = Refs.ExcluirBase(_usuario);
+            _excluindo = false; _senha = ""; _erroExcluir = null;
+            _avisos = new();
+            _msgOk = true;
+            _msg = $"Base excluída: {apagadas} referência(s). O backup ficou na pasta de dados ({Path.GetDirectoryName(planilha)}): " +
+                   $"{Path.GetFileName(planilha)} (a lista em Excel) e {Path.GetFileName(arquivos)} (os arquivos como estavam; \"↺ Restaurar backup\" devolve tudo).";
+            _todas = Refs.Todas();
+            _backups = Refs.Backups();
+        }
+        catch (Exception ex)
+        {
+            _erroExcluir = "Não deu para excluir: " + ex.Message;
+        }
     }
 }

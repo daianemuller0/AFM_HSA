@@ -223,6 +223,31 @@ WHERE _rn = 1 AND NOT _deleted{order};";
         return saida;
     }
 
+    /// <summary>
+    /// Devolve à entidade os Parquet de um backup (.zip com os arquivos da
+    /// pasta dela). Junta com o que já existe: arquivo de mesmo nome não é
+    /// tocado, e por id vale a gravação mais recente. Devolve quantos voltaram.
+    /// </summary>
+    public int RestaurarDe(string entity, string zip)
+    {
+        var dir = EntityDir(entity);
+        var n = 0;
+        using var arquivo = System.IO.Compression.ZipFile.OpenRead(zip);
+        foreach (var e in arquivo.Entries)
+        {
+            var nome = Path.GetFileName(e.FullName);
+            if (!nome.EndsWith(".parquet", StringComparison.OrdinalIgnoreCase) || nome != e.FullName) continue;
+            var destino = Path.Combine(dir, nome);
+            if (File.Exists(destino)) continue;
+            System.IO.Compression.ZipFileExtensions.ExtractToFile(e, destino);
+            n++;
+        }
+        return n;
+    }
+
+    /// <summary>A subpasta da entidade (onde ficam os Parquet dela).</summary>
+    public string PastaDa(string entity) => EntityDir(entity);
+
     public bool IsEmpty(string entity)
     {
         var dir = EntityDir(entity);

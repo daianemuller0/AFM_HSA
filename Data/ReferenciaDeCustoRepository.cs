@@ -171,6 +171,96 @@ public sealed class ReferenciaDeCustoRepository
         return ids.Count;
     }
 
+    // ================= excluir a base (administrador, com senha e backup) =================
+
+    /// <summary>SHA-256 da senha de excluir a base (a senha não fica escrita no código).</summary>
+    private const string HashDaSenhaDeExcluir = "a71dfc358f9ab5bb22c517cd4348e77ac0ed3ae9a101588d750ba11e42ec4de3";
+
+    public static bool SenhaDeExcluirConfere(string? digitada)
+    {
+        var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes((digitada ?? "").Trim()));
+        return System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(hash, Convert.FromHexString(HashDaSenhaDeExcluir));
+    }
+
+    /// <summary>Onde ficam os backups: na pasta de dados do sistema, em backups\referencias_de_preco.</summary>
+    public string PastaDosBackups => Path.Combine(_store.Folder, "backups", "referencias_de_preco");
+
+    /// <summary>
+    /// Limpa a lista inteira. Antes, grava o backup na pasta de dados: a
+    /// planilha (as colunas da importação: arrastar de volta restaura a lista)
+    /// e um .zip com os arquivos como estavam. Sem o backup gravado, não apaga.
+    /// </summary>
+    public (int Apagadas, string Planilha, string Arquivos) ExcluirBase(string usuario)
+    {
+        var todas = Todas();
+        var pasta = PastaDosBackups;
+        Directory.CreateDirectory(pasta);
+        var carimbo = DateTime.Now.ToString("yyyy-MM-dd_HHmmss", System.Globalization.CultureInfo.InvariantCulture);
+        var planilha = Path.Combine(pasta, $"referencias_de_preco_{carimbo}.xlsx");
+        var arquivos = Path.Combine(pasta, $"referencias_de_preco_{carimbo}_arquivos.zip");
+
+        File.WriteAllBytes(planilha, Planilha(todas));
+        System.IO.Compression.ZipFile.CreateFromDirectory(_store.PastaDa(Entidade), arquivos);
+        if (!File.Exists(planilha) || new FileInfo(planilha).Length == 0 || !File.Exists(arquivos))
+            throw new InvalidOperationException("o backup não foi gravado; nada foi apagado.");
+
+        File.AppendAllText(Path.Combine(pasta, "exclusoes.log"),
+            $"{DateTime.Now:dd/MM/yyyy HH:mm:ss}\t{usuario}\t{todas.Count} referência(s)\t{Path.GetFileName(planilha)}\t{Path.GetFileName(arquivos)}{Environment.NewLine}");
+
+        _store.Clear(Entidade);
+        return (todas.Count, planilha, arquivos);
+    }
+
+    /// <summary>Um backup da base (o .zip com os arquivos), com o que o registro de exclusões diz dele.</summary>
+    public sealed record BackupDeReferencias(string Arquivo, DateTime Quando, string Usuario, string Quantas);
+
+    /// <summary>Os backups na pasta de dados, do mais novo ao mais antigo.</summary>
+    public List<BackupDeReferencias> Backups()
+    {
+        var pasta = PastaDosBackups;
+        if (!Directory.Exists(pasta)) return new();
+        var registro = new Dictionary<string, (string Usuario, string Quantas)>(StringComparer.OrdinalIgnoreCase);
+        var log = Path.Combine(pasta, "exclusoes.log");
+        if (File.Exists(log))
+            foreach (var linha in File.ReadAllLines(log))
+            {
+                var c = linha.Split('\t');
+                if (c.Length >= 5) registro[c[4].Trim()] = (c[1], c[2]);
+            }
+        return Directory.EnumerateFiles(pasta, "referencias_de_preco_*_arquivos.zip")
+            .Select(f => new FileInfo(f))
+            .OrderByDescending(f => f.Name, StringComparer.Ordinal)
+            .Select(f =>
+            {
+                var (u, q) = registro.TryGetValue(f.Name, out var r) ? r : ("", "");
+                return new BackupDeReferencias(f.Name, f.LastWriteTime, u, q);
+            })
+            .ToList();
+    }
+
+    /// <summary>Devolve à lista o que estava no backup (junta com o que foi gravado depois). Devolve quantas referências há agora.</summary>
+    public int RestaurarBackup(string arquivo)
+    {
+        // só um dos backups listados (nada de caminho vindo de fora)
+        var b = Backups().FirstOrDefault(x => x.Arquivo == arquivo) ?? throw new InvalidOperationException("backup não encontrado na pasta.");
+        _store.RestaurarDe(Entidade, Path.Combine(PastaDosBackups, b.Arquivo));
+        return Todas().Count;
+    }
+
+    /// <summary>A lista em planilha, nas colunas da importação (a exportação da tela e o backup).</summary>
+    public static byte[] Planilha(IEnumerable<ReferenciaDeCusto> refs)
+    {
+        var linhas = refs.Select(r => (IReadOnlyList<string>)new[]
+        {
+            r.Proposta, r.Revisao, r.Cliente, r.Plantas, r.Estado, r.Intercompany, r.PartNumber, r.Quantidade.ToString("0.##"),
+            r.PrecoUnitLiquido.ToString("0.00"), r.PrecoTotalLiquido.ToString("0.00"), r.DataComoData?.ToString("dd/MM/yyyy") ?? "",
+            r.Valor.ToString("0.00"), r.Ta.ToString("0.00"), r.Descricao, r.NumeroAf, r.VendaPor,
+            r.ValorPacote > 0 ? r.ValorPacote.ToString("0.00") : "", r.QtdItensPacote > 0 ? r.QtdItensPacote.ToString("0.##") : "", r.BaseDoCusto,
+            r.MoedaDoPreco.Codigo(), r.MoedaDoCusto.Codigo(),
+        }).ToList();
+        return AfmHsa.Data.Planilha.Xlsx("Referências", Colunas.Select(c => c.Nome).ToList(), linhas);
+    }
+
     // ================= planilha =================
 
     /// <summary>As colunas da planilha, na ordem da tela; os apelidos aceitos vêm depois do nome.</summary>
@@ -200,7 +290,7 @@ public sealed class ReferenciaDeCustoRepository
     };
 
     private static string ChaveDaColuna(string s) =>
-        new(Textos.Simples(s).Where(c => char.IsLetterOrDigit(c) || c == ' ').ToArray());
+        new(Textos.Simples(s).Replace('º', 'o').Replace('ª', 'a').Where(c => char.IsLetterOrDigit(c) || c == ' ').ToArray());
 
     /// <summary>
     /// Lê a planilha (xlsx, xls ou csv) e grava as referências. A mesma linha
@@ -216,7 +306,7 @@ public sealed class ReferenciaDeCustoRepository
         {
             var h = ChaveDaColuna(cab[i]);
             foreach (var (col, apelidos) in Colunas)
-                if (!indice.ContainsKey(col) && apelidos.Any(a => ChaveDaColuna(a) == h)) { indice[col] = i; break; }
+                if (!indice.ContainsKey(col) && (ChaveDaColuna(col) == h || apelidos.Any(a => ChaveDaColuna(a) == h))) { indice[col] = i; break; }
         }
         if (!indice.ContainsKey("Part Number"))
             return (0, new List<string> { "A planilha não tem a coluna \"Part Number\". Baixe o modelo para ver as colunas." });
@@ -258,7 +348,7 @@ public sealed class ReferenciaDeCustoRepository
     }
 
     /// <summary>O modelo da planilha de importação, com uma linha de exemplo.</summary>
-    public static byte[] Modelo() => Planilha.Xlsx("Referências", Colunas.Select(c => c.Nome).ToList(), new[]
+    public static byte[] Modelo() => AfmHsa.Data.Planilha.Xlsx("Referências", Colunas.Select(c => c.Nome).ToList(), new[]
     {
         (IReadOnlyList<string>)new[] { "HSA2026-0147", "2", "Vale", "São Luís", "MA", "HSA-SP", "HW-NAC-A", "3", "3853,22", "11559,66", "05/11/2026", "2100,00", "0", "Rolamento", "AF-12345", "pacote", "25000,00", "8", "cotação", "BRL", "BRL" },
     });
