@@ -28,10 +28,24 @@ public partial class NovaOferta : IDisposable
     // etapas
     // =====================================================================
 
-    private static readonly (int Numero, string Nome)[] Etapas =
+    /// <summary>A etapa 3 é "Ventiladores" (as abas de ventilador centrífugo) quando a proposta é de ventiladores.</summary>
+    private (int Numero, string Nome)[] Etapas => new[]
     {
-        (1, "Começar"), (2, "Cliente e condições"), (3, "Itens"), (4, "Preço"), (5, "Documentos"),
+        (1, "Começar"), (2, "Cliente e condições"), (3, EhVentilador ? "Ventiladores" : "Itens"), (4, "Preço"), (5, "Documentos"),
     };
+
+    /// <summary>A proposta é de ventiladores centrífugos (a escolha do começo).</summary>
+    private bool EhVentilador => VentiladorCentrifugo.EhVentilador(_o);
+
+    /// <summary>Compressores (o processo de sempre) ou ventiladores centrífugos (as abas de ventilador).</summary>
+    private void EscolherTipo(string tipo) => _o.TipoEquipamento = tipo == VentiladorCentrifugo.Ventiladores ? tipo : "";
+
+    /// <summary>Uma aba de ventilador mudou: o custo do item mudou, então o preço também.</summary>
+    private void VentiladoresMudaram()
+    {
+        AtualizarPrecos();
+        StateHasChanged();
+    }
 
     private int _etapa = 1;
 
@@ -44,7 +58,7 @@ public partial class NovaOferta : IDisposable
     /// <summary>Os campos do cabeçalho que quase nunca mudam (número, PV, ano, NCM c/redução…).</summary>
     private bool _maisCampos;
 
-    private static string NomeDaEtapa(int n) => Etapas.FirstOrDefault(e => e.Numero == n).Nome ?? "";
+    private string NomeDaEtapa(int n) => Etapas.FirstOrDefault(e => e.Numero == n).Nome ?? "";
 
     private void IrParaEtapa(int n)
     {
@@ -314,8 +328,10 @@ public partial class NovaOferta : IDisposable
     /// <summary>Uma proposta nova, já com os padrões da última proposta de quem está montando.</summary>
     private void NovaComPadroes()
     {
+        var tipo = _o.TipoEquipamento;   // a escolha compressores / ventiladores continua
         _o = new CommercialOffer
         {
+            TipoEquipamento = tipo,
             Status = "Rascunho",
             IntroText = OfferDefaults.Intro, TaxText = OfferDefaults.Tax, PaymentTerms = OfferDefaults.Payment,
             DeliveryTime = OfferDefaults.DeliveryTime, DeliveryConditions = OfferDefaults.DeliveryConditions,

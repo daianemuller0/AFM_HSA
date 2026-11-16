@@ -1,0 +1,395 @@
+@using System.Globalization
+@* A etapa dos itens quando a proposta é de ventiladores centrífugos: uma aba por
+   item, como as abas "ITEM" da planilha C_HSAXYZ0000-0.xlsm. O total de cada aba,
+   dividido pela quantidade, vira o custo unitário do item no pricing. *@
+
+<div class="panel vc" id="f-itens">
+    <div class="vc-topo">
+        <div class="dash-title" style="margin:0">Ventiladores centrífugos <span class="vc-sub">uma aba por item da proposta</span></div>
+        <span style="flex:1"></span>
+        <button class="btn-primary" @onclick="NovaAba">+ Nova aba</button>
+        @if (Atual is not null)
+        {
+            <button class="btn-ghost" title="Uma aba nova igual a esta (seleção e custos)" @onclick="Duplicar">⧉ Duplicar esta aba</button>
+        }
+    </div>
+
+    @if (_outros.Count > 0)
+    {
+        <div class="nota vc-aviso">
+            @(_outros.Count == 1 ? "1 item" : $"{_outros.Count} itens") desta proposta não @(_outros.Count == 1 ? "é" : "são") de ventilador
+            (@string.Join(", ", _outros.Take(3).Select(i => i.PartNumber.Length > 0 ? i.PartNumber : i.Description).Where(x => x.Length > 0)))
+            e continua@(_outros.Count == 1 ? "" : "m") no preço.
+            <button class="btn-link" @onclick="TirarOutros">tirar da proposta</button>
+        </div>
+    }
+
+    @if (_abas.Count == 0)
+    {
+        <div class="empty-state" style="padding:26px 10px">
+            <div class="empty-title">Nenhum ventilador ainda</div>
+            <p class="empty-text">Cada aba é um item da proposta: a seleção do equipamento e a tabela de custos (como as abas "ITEM" da planilha).</p>
+            <button class="btn-primary" style="margin-top:10px" @onclick="NovaAba">+ Criar a primeira aba</button>
+        </div>
+    }
+    else
+    {
+        <div class="vc-abas" role="tablist">
+            @for (var i = 0; i < _abas.Count; i++)
+            {
+                var n = i;
+                var (it, f) = _abas[i];
+                <button role="tab" class="vc-aba @(n == _atual ? "on" : "")" aria-selected="@(n == _atual)" @onclick="() => _atual = n">
+                    <span class="vc-aba-num">Item @(n + 1)</span>
+                    <span class="vc-aba-nome">@(f.Equipamento.Trim().Length > 0 ? f.Equipamento : "sem modelo") · @f.Quantidade×</span>
+                    <span class="vc-aba-valor">R$ @VentiladorCentrifugo.Dinheiro(VentiladorCentrifugo.TotalGeral(f))</span>
+                </button>
+            }
+        </div>
+    }
+</div>
+
+@if (Atual is { } a)
+{
+    var f = a.Ficha;
+    var total = VentiladorCentrifugo.TotalGeral(f);
+    <div class="vc-kpis">
+        <div class="vc-kpi"><span>Custo total do item</span><strong>R$ @VentiladorCentrifugo.Dinheiro(total)</strong></div>
+        <div class="vc-kpi"><span>Por ventilador (@f.Quantidade×)</span><strong>R$ @VentiladorCentrifugo.Dinheiro(VentiladorCentrifugo.PorVentiladorDe(f))</strong><small>entra no pricing como custo unitário</small></div>
+        <div class="vc-kpi"><span>Linhas em uso</span><strong>@f.Linhas.Count(l => l.Usar != "0")</strong><small>de @f.Linhas.Count</small></div>
+        <span style="flex:1"></span>
+        <label class="chk-inline"><input type="checkbox" checked="@_soEmUso" @onchange="e => _soEmUso = e.Value is true" /> mostrar só as linhas em uso</label>
+        <button class="btn-link perigo" @onclick="() => _confirmarRemover = true">✕ remover esta aba</button>
+    </div>
+    @if (_confirmarRemover)
+    {
+        <div class="panel excluir-barra" style="margin-bottom:12px">
+            <span>Remover o Item @(_atual + 1) (@(f.Equipamento.Length > 0 ? f.Equipamento : "sem modelo")) da proposta?</span>
+            <button class="btn-primary perigo" @onclick="RemoverAba">Sim, remover</button>
+            <button class="btn-link" @onclick="() => _confirmarRemover = false">cancelar</button>
+        </div>
+    }
+
+    <div class="panel vc-selecao">
+        <div class="vc-cols">
+            <div>
+                <div class="vc-grupo">Seleção do equipamento</div>
+                <div class="vc-campos">
+                    <label class="vc-largo">Tipo da oferta
+                        <select class="cell" value="@f.TipoOferta" @onchange="e => Campo(() => f.TipoOferta = Txt(e))">
+                            @foreach (var t in VentiladorCentrifugo.TiposDeOferta) { <option value="@t.Nome">@t.Nome</option> }
+                        </select>
+                        <small>NCM @VentiladorCentrifugo.TipoDe(f.TipoOferta).Ncm · "@VentiladorCentrifugo.TipoDe(f.TipoOferta).Descricao …"</small>
+                    </label>
+                    <label class="vc-largo">Equipamento (modelo)
+                        <input class="cell" placeholder="ex.: SIROCCO 1250 BC" value="@f.Equipamento" @onchange="e => Campo(() => f.Equipamento = Txt(e))" />
+                    </label>
+                    <label>Quantidade
+                        <input class="cell num" type="number" min="1" step="1" value="@f.Quantidade" @onchange="e => Campo(() => f.Quantidade = Math.Max(1, (int)(Num(e) ?? 1)))" />
+                    </label>
+                    @Texto("Família do equip.", "Familia", f.Familia, v => f.Familia = v)
+                    @Texto("Arranjo", "Arranjo", f.Arranjo, v => f.Arranjo = v)
+                    @Texto("Aplicação", "Aplicacao", f.Aplicacao, v => f.Aplicacao = v)
+                    @Texto("Tipo de fluido", "TipoFluido", f.TipoFluido, v => f.TipoFluido = v)
+                    @Texto("Entrada", "Entrada", f.Entrada, v => f.Entrada = v)
+                    @Texto("Caixa de entrada", "CaixaEntrada", f.CaixaEntrada, v => f.CaixaEntrada = v)
+                    @Texto("Tipo das pás", "TipoPas", f.TipoPas, v => f.TipoPas = v)
+                    @Texto("Acionamento", "Acionamento", f.Acionamento, v => f.Acionamento = v)
+                </div>
+            </div>
+            <div>
+                <div class="vc-grupo">Condições de projeto</div>
+                <div class="vc-campos dois">
+                    @Texto("Referência usada", "", f.ReferenciaUsada, v => f.ReferenciaUsada = v)
+                    @Texto("Ø do rotor [mm]", "", f.DiametroRotor, v => f.DiametroRotor = v)
+                    @Texto("Temp. projeto [ºC]", "", f.TempProjeto, v => f.TempProjeto = v)
+                    @Texto("Pressão projeto [mmca]", "", f.PressaoProjeto, v => f.PressaoProjeto = v)
+                </div>
+                <div class="vc-grupo" style="margin-top:12px">Motor elétrico</div>
+                <div class="vc-campos dois">
+                    @Texto("Potência [kW]", "", f.MotorPotencia, v => f.MotorPotencia = v)
+                    @Texto("Rotação [rpm]", "", f.MotorRotacao, v => f.MotorRotacao = v)
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @foreach (var s in VentiladorCentrifugo.Secoes)
+    {
+        var secao = s;
+        var linhas = f.Linhas.Where(l => l.Secao == secao.Codigo).ToList();
+        var visiveis = _soEmUso ? linhas.Where(l => l.Usar != "0").ToList() : linhas;
+        var totalSecao = VentiladorCentrifugo.TotalDaSecao(f, secao.Codigo);
+        var emUso = linhas.Count(l => l.Usar != "0");
+        // bloco sem nada em uso começa fechado (a pessoa abre o que precisa); com algo em uso, aberto
+        var aberta = _abertas.Contains(secao.Codigo) || (emUso > 0 && !_fechadas.Contains(secao.Codigo));
+        <div class="panel vc-secao @(totalSecao > 0 ? "com-valor" : "")">
+            <button class="vc-secao-cab" @onclick="() => Alternar(secao.Codigo, aberta)" aria-expanded="@aberta">
+                <span class="vc-seta">@(aberta ? "▾" : "▸")</span>
+                <strong>@secao.Nome</strong>
+                <span class="vc-secao-info">@emUso de @linhas.Count em uso · @secao.Explicacao</span>
+                <span style="flex:1"></span>
+                <span class="vc-secao-total">R$ @VentiladorCentrifugo.Dinheiro(totalSecao)</span>
+            </button>
+            @if (aberta)
+            {
+                <div class="tabela-rolante">
+                <table class="grid vc-tabela">
+                    <thead><tr>
+                        <th title="0 = não entra; 1 = uma vez no pedido; × qtd = uma por ventilador">Usar</th>
+                        <th>Parte, peça ou serviço</th>
+                        <th class="right">@secao.Medida</th>
+                        @if (secao.Material.Length > 0) { <th>@secao.Material</th> }
+                        <th class="right">Valor unit. (R$)</th><th class="right">Custo / peça</th><th class="right">Custo total</th><th></th>
+                    </tr></thead>
+                    <tbody>
+                        @foreach (var linha in visiveis)
+                        {
+                            var l = linha;
+                            var usada = l.Usar != "0";
+                            <tr class="@(usada ? "usada" : "parada")">
+                                <td>
+                                    <select class="cell vc-usar" value="@l.Usar" @onchange="e => Campo(() => l.Usar = Txt(e))">
+                                        <option value="0">—</option>
+                                        <option value="1">1 no pedido</option>
+                                        <option value="qtd">× qtd (@f.Quantidade)</option>
+                                    </select>
+                                </td>
+                                <td class="vc-parte">
+                                    @if (l.Extra)
+                                    {
+                                        <input class="cell" placeholder="descrição" value="@l.Descricao" @onchange="e => Campo(() => l.Descricao = Txt(e))" />
+                                        <div class="vc-meta">
+                                            <select class="cell vc-cat" title="Categoria (o resumo soma por ela)" value="@l.Categoria" @onchange="e => Campo(() => l.Categoria = Txt(e))">
+                                                @foreach (var c in VentiladorCentrifugo.Categorias) { <option value="@c">@c</option> }
+                                            </select>
+                                            <select class="cell vc-tipo" title="Tipo de custo" value="@l.Tipo" @onchange="e => Campo(() => l.Tipo = Txt(e))">
+                                                @foreach (var t in VentiladorCentrifugo.TiposDeCusto) { <option value="@t">@t</option> }
+                                            </select>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <span class="vc-desc">@l.Descricao</span>
+                                        <span class="vc-meta-txt">@l.Categoria · @l.Tipo</span>
+                                    }
+                                </td>
+                                <td class="right nowrap">
+                                    @if (l.Regra is VentiladorCentrifugo.Regras.DoisTrechos or VentiladorCentrifugo.Regras.UmaVez or VentiladorCentrifugo.Regras.DiasDeViagem or VentiladorCentrifugo.Regras.UmPorCentoCaldeiraria)
+                                    {
+                                        <span class="vc-auto" title="calculado como na planilha">@VentiladorCentrifugo.MedidaEfetiva(f, l).ToString("0.##", PtBr) @(l.Regra == VentiladorCentrifugo.Regras.DiasDeViagem ? "dias" : "")</span>
+                                    }
+                                    else
+                                    {
+                                        <input class="cell num vc-num" type="number" min="0" step="any" value="@Inv(l.Medida)" @onchange="e => MudarMedida(l, e)" />
+                                        @if (l.Regra == VentiladorCentrifugo.Regras.Diaria) { <small class="vc-auto"> × 8 h</small> }
+                                    }
+                                </td>
+                                @if (secao.Material.Length > 0)
+                                {
+                                    <td>
+                                        @if (secao.Material == "Recurso")
+                                        {
+                                            <select class="cell vc-mat" value="@l.Material" @onchange="e => MudarRecurso(l, e)">
+                                                <option value="">—</option>
+                                                @foreach (var (rec, _) in VentiladorCentrifugo.Recursos) { <option value="@rec">@rec</option> }
+                                            </select>
+                                        }
+                                        else
+                                        {
+                                            <input class="cell vc-mat" list="dl-vc-materiais" value="@l.Material" placeholder="—" @onchange="e => Campo(() => l.Material = Txt(e))" />
+                                        }
+                                    </td>
+                                }
+                                <td class="right">
+                                    @if (l.Regra == VentiladorCentrifugo.Regras.UmPorCentoCaldeiraria)
+                                    {
+                                        <span class="vc-auto" title="1% do total da caldeiraria">@VentiladorCentrifugo.Dinheiro(VentiladorCentrifugo.ValorDe(f, l))</span>
+                                    }
+                                    else
+                                    {
+                                        <input class="cell num vc-num" type="number" min="0" step="any" value="@Inv(l.Valor)" @onchange="e => Campo(() => l.Valor = Num(e) ?? 0m)" />
+                                    }
+                                </td>
+                                <td class="right nowrap">@VentiladorCentrifugo.Dinheiro(VentiladorCentrifugo.PorPeca(f, l))</td>
+                                <td class="right nowrap"><strong>@(usada ? VentiladorCentrifugo.Dinheiro(VentiladorCentrifugo.Total(f, l)) : "—")</strong></td>
+                                <td>@if (l.Extra) { <button class="btn-link perigo" title="Apagar esta linha" @onclick="() => Campo(() => f.Linhas.Remove(l))">✕</button> }</td>
+                            </tr>
+                        }
+                        @if (visiveis.Count == 0)
+                        {
+                            <tr><td colspan="8" class="empty">Nenhuma linha em uso neste bloco.</td></tr>
+                        }
+                    </tbody>
+                </table>
+                </div>
+                <button class="btn-link vc-mais" @onclick="() => Campo(() => f.Linhas.Insert(UltimaDa(f, secao.Codigo) + 1, VentiladorCentrifugo.LinhaNova(secao.Codigo)))">+ linha em @secao.Nome.ToLowerInvariant()</button>
+            }
+        </div>
+    }
+
+    var resumo = VentiladorCentrifugo.Resumo(f);
+    <div class="panel vc-resumo">
+        <div class="dash-title">Resumo da tabela de custo</div>
+        @if (resumo.Count == 0)
+        {
+            <div class="nota">Ainda sem custo: escolha em "Usar" as linhas que entram e preencha peso, horas ou quantidade.</div>
+        }
+        else
+        {
+            <table class="grid">
+                <thead><tr><th>Categoria</th><th>Tipo</th><th class="right">Custo / ventilador</th><th class="right">Custo total</th><th class="right">%</th></tr></thead>
+                <tbody>
+                    @foreach (var (cat, tipo, t) in resumo)
+                    {
+                        <tr><td>@cat</td><td>@tipo</td><td class="right">@VentiladorCentrifugo.Dinheiro(t / Math.Max(f.Quantidade, 1))</td><td class="right">@VentiladorCentrifugo.Dinheiro(t)</td>
+                            <td class="right">@((total > 0 ? t / total : 0m).ToString("P1", PtBr))</td></tr>
+                    }
+                    <tr class="vc-total"><td colspan="2">Total</td><td class="right">@VentiladorCentrifugo.Dinheiro(VentiladorCentrifugo.PorVentiladorDe(f))</td><td class="right">@VentiladorCentrifugo.Dinheiro(total)</td><td class="right">100%</td></tr>
+                </tbody>
+            </table>
+        }
+    </div>
+
+    <datalist id="dl-vc-materiais">
+        @foreach (var m in Materiais()) { <option value="@m" /> }
+    </datalist>
+    @foreach (var (campo, lista) in VentiladorCentrifugo.Sugestoes)
+    {
+        <datalist id="@($"dl-vc-{campo}")">@foreach (var v in lista) { <option value="@v" /> }</datalist>
+    }
+}
+
+@code {
+    /// <summary>Os itens da proposta (a etapa acrescenta, tira e altera os de ventilador).</summary>
+    [Parameter, EditorRequired] public List<CommercialOfferItem> Itens { get; set; } = new();
+    /// <summary>Avisa a tela da proposta (recalcular preços e pendências).</summary>
+    [Parameter] public EventCallback Mudou { get; set; }
+
+    private static readonly CultureInfo PtBr = new("pt-BR");
+    private readonly List<(CommercialOfferItem Item, FichaVentilador Ficha)> _abas = new();
+    private List<CommercialOfferItem> _outros = new();
+    private int _atual;
+    private bool _soEmUso, _confirmarRemover;
+    private readonly HashSet<string> _fechadas = new(), _abertas = new();
+
+    private (CommercialOfferItem Item, FichaVentilador Ficha)? Atual => _atual >= 0 && _atual < _abas.Count ? _abas[_atual] : null;
+
+    protected override void OnParametersSet()
+    {
+        // as fichas já abertas continuam as mesmas (a tela edita nelas); as novas são lidas do item
+        var antes = _abas.ToDictionary(x => x.Item, x => x.Ficha, ReferenceEqualityComparer.Instance as IEqualityComparer<CommercialOfferItem>
+                                                                ?? EqualityComparer<CommercialOfferItem>.Default);
+        _abas.Clear();
+        foreach (var it in Itens)
+        {
+            if (antes.TryGetValue(it, out var f)) { _abas.Add((it, f)); continue; }
+            if (VentiladorCentrifugo.Ler(it) is { } lida) _abas.Add((it, lida));
+        }
+        _outros = Itens.Where(i => string.IsNullOrWhiteSpace(i.FichaVentilador)).ToList();
+        _atual = Math.Clamp(_atual, 0, Math.Max(_abas.Count - 1, 0));
+    }
+
+    private async Task Avisar()
+    {
+        foreach (var (it, f) in _abas) VentiladorCentrifugo.Aplicar(f, it);
+        await Mudou.InvokeAsync();
+    }
+
+    private async Task Campo(Action mudar)
+    {
+        mudar();
+        await Avisar();
+    }
+
+    private async Task NovaAba()
+    {
+        var f = VentiladorCentrifugo.Nova();
+        await Acrescentar(f);
+    }
+
+    private async Task Duplicar()
+    {
+        if (Atual is not { } a) return;
+        await Acrescentar(VentiladorCentrifugo.Copia(a.Ficha));
+    }
+
+    private async Task Acrescentar(FichaVentilador f)
+    {
+        var it = new CommercialOfferItem { Quantity = f.Quantidade, Ordem = Itens.Count + 1 };
+        VentiladorCentrifugo.Aplicar(f, it);
+        Itens.Add(it);
+        _abas.Add((it, f));
+        _atual = _abas.Count - 1;
+        _confirmarRemover = false;
+        await Avisar();
+    }
+
+    private async Task RemoverAba()
+    {
+        if (Atual is not { } a) return;
+        Itens.Remove(a.Item);
+        _abas.RemoveAt(_atual);
+        _atual = Math.Clamp(_atual - 1, 0, Math.Max(_abas.Count - 1, 0));
+        _confirmarRemover = false;
+        await Avisar();
+    }
+
+    private async Task TirarOutros()
+    {
+        foreach (var it in _outros) Itens.Remove(it);
+        _outros.Clear();
+        await Avisar();
+    }
+
+    private void Alternar(string secao, bool aberta)
+    {
+        if (aberta) { _abertas.Remove(secao); _fechadas.Add(secao); }
+        else { _fechadas.Remove(secao); _abertas.Add(secao); }
+    }
+
+    /// <summary>Preencher peso/horas/quantidade numa linha parada já põe ela em uso (uma por ventilador).</summary>
+    private async Task MudarMedida(LinhaVentilador l, ChangeEventArgs e)
+    {
+        l.Medida = Num(e) ?? 0m;
+        if (l.Medida > 0m && l.Usar == "0") l.Usar = "qtd";
+        await Avisar();
+    }
+
+    /// <summary>Trocar o recurso da mão de obra traz o valor da hora dele.</summary>
+    private async Task MudarRecurso(LinhaVentilador l, ChangeEventArgs e)
+    {
+        l.Material = Txt(e);
+        var v = VentiladorCentrifugo.ValorDaHora(l.Material);
+        if (v > 0m) l.Valor = v;
+        await Avisar();
+    }
+
+    private static int UltimaDa(FichaVentilador f, string secao)
+    {
+        var i = f.Linhas.FindLastIndex(l => l.Secao == secao);
+        return i < 0 ? f.Linhas.Count - 1 : i;
+    }
+
+    private IEnumerable<string> Materiais() =>
+        _abas.SelectMany(a => a.Ficha.Linhas).Where(l => l.Secao is "mp" or "cald").Select(l => l.Material)
+            .Where(m => m.Length > 0 && m != "-").Distinct().OrderBy(m => m);
+
+    private RenderFragment Texto(string rotulo, string sugestoes, string valor, Action<string> gravar) => __builder =>
+    {
+        <label>@rotulo
+            <input class="cell" list="@(sugestoes.Length > 0 ? $"dl-vc-{sugestoes}" : null)" value="@valor" @onchange="e => Campo(() => gravar(Txt(e)))" />
+        </label>
+    };
+
+    private static string Txt(ChangeEventArgs e) => (e.Value?.ToString() ?? "").Trim();
+
+    private static decimal? Num(ChangeEventArgs e)
+    {
+        var s = (e.Value?.ToString() ?? "").Trim();
+        if (decimal.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out var v)) return v;
+        return decimal.TryParse(s, NumberStyles.Any, PtBr, out v) ? v : null;
+    }
+
+    private static string Inv(decimal v) => v.ToString(CultureInfo.InvariantCulture);
+}

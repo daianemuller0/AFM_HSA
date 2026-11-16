@@ -1674,3 +1674,73 @@ input.cell.fu-data { width: 160px; flex: none; }
 .excluir-base code { font-size: 12px; background: #f1f5f9; padding: 1px 5px; border-radius: 4px; word-break: break-all; }
 .excluir-base-linha { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .excluir-base-linha input.cell { width: 240px; }
+
+/* ===== Proposta de ventiladores centrífugos ===== */
+.tipo-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.tipo-card {
+    text-align: left; border: 2px solid var(--border); background: #fff; border-radius: var(--radius-sm); padding: 14px 16px;
+    font: inherit; cursor: pointer; display: flex; flex-direction: column; gap: 4px; color: var(--text);
+}
+.tipo-card strong { font-size: 15px; }
+.tipo-card span { font-size: 12.5px; color: var(--muted); }
+.tipo-card:hover { border-color: #93c5fd; }
+.tipo-card.on { border-color: var(--primary); background: #eff6ff; box-shadow: 0 0 0 3px rgba(37, 99, 235, .12); }
+.vc { margin-bottom: 12px; }
+.vc-topo { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.vc-sub { font-size: 12px; font-weight: 400; color: var(--muted); text-transform: none; letter-spacing: 0; margin-left: 6px; }
+.vc-aviso { margin-top: 10px; color: #92400e; }
+.vc-abas { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.vc-aba {
+    border: 1px solid var(--border); background: #f8fafc; border-radius: 10px; padding: 7px 12px; cursor: pointer; font: inherit;
+    display: flex; flex-direction: column; align-items: flex-start; min-width: 150px; color: var(--text);
+}
+.vc-aba-num { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.vc-aba-nome { font-size: 13px; font-weight: 600; }
+.vc-aba-valor { font-size: 12px; color: var(--muted); }
+.vc-aba.on { background: var(--primary); border-color: var(--primary); color: #fff; }
+.vc-aba.on .vc-aba-num, .vc-aba.on .vc-aba-valor { color: rgba(255, 255, 255, .85); }
+.vc-kpis { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 12px; }
+.vc-kpi { background: #fff; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 14px; display: flex; flex-direction: column; min-width: 170px; }
+.vc-kpi span { font-size: 11.5px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.vc-kpi strong { font-size: 18px; }
+.vc-kpi small { font-size: 11px; color: var(--muted); }
+.vc-selecao { margin-bottom: 12px; }
+.vc-cols { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 22px; }
+@media (max-width: 1000px) { .vc-cols { grid-template-columns: 1fr; } }
+.vc-grupo { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 8px; }
+.vc-campos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 12px; }
+.vc-campos.dois { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.vc-campos label { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.vc-campos label .cell { font-weight: 400; color: var(--text); width: 100%; }
+.vc-campos label small { font-weight: 400; font-size: 11px; }
+.vc-campos .vc-largo { grid-column: span 2; }
+@media (max-width: 700px) { .vc-campos { grid-template-columns: 1fr 1fr; } }
+.vc-secao { margin-bottom: 10px; padding: 0; overflow: hidden; }
+.vc-secao-cab {
+    width: 100%; display: flex; align-items: center; gap: 10px; background: #f8fafc; border: none; padding: 11px 16px;
+    font: inherit; cursor: pointer; text-align: left; color: var(--text);
+}
+.vc-secao.com-valor .vc-secao-cab { background: #eff6ff; }
+.vc-seta { width: 14px; color: var(--muted); }
+.vc-secao-info { font-size: 12px; color: var(--muted); }
+.vc-secao-total { font-weight: 700; font-size: 14px; white-space: nowrap; }
+.vc-tabela { margin: 0; }
+.vc-tabela td { vertical-align: middle; padding-top: 5px; padding-bottom: 5px; }
+.vc-tabela .cell { padding: 5px 7px; font-size: 12.5px; }
+.vc-tabela tr.parada td { opacity: .55; }
+.vc-tabela tr.parada td:first-child { opacity: 1; }
+.vc-tabela tr.usada td { background: #fff; }
+select.cell.vc-usar { width: 112px; min-width: 112px; }
+select.cell.vc-cat { width: 170px; }
+.cell.vc-mat { width: 150px; }
+select.cell.vc-tipo { width: 86px; }
+input.cell.vc-num { width: 82px; text-align: right; }
+.vc-desc { font-size: 13px; }
+.vc-auto { color: var(--muted); font-size: 12.5px; }
+.vc-mais { margin: 6px 16px 10px; display: inline-block; }
+.vc-resumo { margin-bottom: 14px; }
+.vc-resumo tr.vc-total td { font-weight: 700; border-top: 2px solid var(--border); }
+.vc-parte { min-width: 190px; }
+.vc-desc { display: block; font-weight: 600; }
+.vc-meta-txt { display: block; font-size: 11.5px; color: var(--muted); }
+.vc-meta { display: flex; gap: 6px; margin-top: 4px; }

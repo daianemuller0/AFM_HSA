@@ -166,6 +166,8 @@ public class CommercialOffer
     public List<CustoAdicional> CustosAdicionais { get; set; } = new();
     /// <summary>O custo puro dos itens (sem frete e TA) ao salvar: a base do "% do custo dos itens" fora da tela (Word, detalhe).</summary>
     public decimal BaseCustosAdicionais { get; set; }
+    /// <summary>"compressores" (vazio) ou "ventiladores" (centrífugos): muda a etapa dos itens.</summary>
+    public string TipoEquipamento { get; set; } = "";
     // Resultado do pricing no momento em que a proposta foi salva (para consulta).
     public decimal PricingCusto { get; set; }
     public decimal PricingMarkup { get; set; }
@@ -349,6 +351,8 @@ public class CommercialOfferItem
     public decimal ValorMoeda { get; set; }
     /// <summary>A BU de fora de onde o item vem (ex.: Howden Burton Corblin (France)): cada origem é uma importação.</summary>
     public string OrigemImportacao { get; set; } = "";
+    /// <summary>A ficha de custo do ventilador centrífugo (JSON de <c>FichaVentilador</c>); vazio = item comum.</summary>
+    public string FichaVentilador { get; set; } = "";
     /// <summary>Custo unitário em R$ da importação (por item, ou rateio do total); null = não calculado.</summary>
     public decimal? CustoImportacao { get; set; }
 }
