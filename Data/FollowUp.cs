@@ -321,7 +321,6 @@ public sealed class FollowUpRepository
     public void Gravar(FollowUpDaProposta f)
     {
         _s.WriteRow(Entidade, new KeyValuePair<string, object?>[] { new("id", f.OfferId), new("dados", JsonSerializer.Serialize(f, Opcoes)) });
-        Esquecer();
     }
 
     /// <summary>
@@ -338,19 +337,36 @@ public sealed class FollowUpRepository
         return f;
     }
 
-    // ---- o número do menu (lido de novo a cada minuto, no máximo) ----
-    private static (DateTime Quando, int Valor)? _pendentes;
+    // ---- o número do menu: calculado em segundo plano, e só de novo quando algo mudou ----
+    private static (string Chave, int Valor)? _pendentes;
+    private static Task<int>? _calculando;
+    private static readonly object _trava = new();
 
-    public static void Esquecer() => _pendentes = null;
+    /// <summary>O último número calculado (o menu mostra na hora, sem esperar).</summary>
+    public static int? PendentesConhecidos => _pendentes?.Valor;
 
-    public int PendentesHoje(OfferRepository ofertas)
+    public static void Esquecer() { }
+
+    /// <summary>
+    /// Follow-ups para hoje ou atrasados, fora da tela (em segundo plano).
+    /// Só relê quando a pasta das propostas ou a dos follow-ups mudou, ou o dia
+    /// virou (a leitura das propostas é a mesma das telas, guardada enquanto nada muda).
+    /// </summary>
+    public Task<int> PendentesAsync(OfferRepository ofertas)
     {
-        if (_pendentes is { } p && (DateTime.UtcNow - p.Quando).TotalSeconds < 60) return p.Valor;
-        int valor;
-        try { valor = FollowUps.Pendentes(FollowUps.Montar(ofertas.All(), Todos(), DateTime.Today)); }
-        catch (Exception) { valor = 0; }
-        _pendentes = (DateTime.UtcNow, valor);
-        return valor;
+        lock (_trava)
+        {
+            if (_calculando is { IsCompleted: false } t) return t;
+            _calculando = Task.Run(() =>
+            {
+                var chave = $"{DateTime.Today:yyyyMMdd}|{_s.Assinatura("commercialOffers")}|{_s.Assinatura(Entidade)}";
+                if (_pendentes is { } p && p.Chave == chave) return p.Valor;
+                var valor = FollowUps.Pendentes(FollowUps.Montar(ofertas.All(), Todos(), DateTime.Today));
+                _pendentes = (chave, valor);
+                return valor;
+            });
+            return _calculando;
+        }
     }
 
     // ---- o modelo do e-mail ----

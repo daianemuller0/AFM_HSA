@@ -279,11 +279,11 @@ public partial class NovaOferta : IDisposable
             if (it.Id.Length == 0) it.Id = Guid.NewGuid().ToString("N");
             it.OfferId = _o.Id;
             it.Ordem = n + 1;
-            OffersRepo.SaveItem(it);
             agora.Add(it.Id);
         }
+        OffersRepo.SaveItems(_items);
         var apagados = _idsGravados.Where(id => !agora.Contains(id)).ToList();
-        foreach (var id in apagados) OffersRepo.DeleteItem(id);
+        OffersRepo.DeleteItems(apagados);
         _idsGravados = agora;
         GravarReferenciasDeCusto(apagados);
         GravarListas();

@@ -147,59 +147,100 @@ public class OfferRepository
 
     private static string ChaveDaRevisao(string codigo, string rev) => $"{codigo.Trim().ToUpperInvariant()}|{RevisaoNormal(rev)}";
 
-    /// <summary>
-    /// Procura no histórico (cada gravação continua nos arquivos) as revisões
-    /// que foram gravadas por cima e ainda não existem como registro. Proposta
-    /// apagada fica de fora.
-    /// </summary>
-    public List<RevisaoSobrescrita> RevisoesSobrescritas()
-    {
-        var atuais = All();
-        var porId = atuais.ToDictionary(o => o.Id);
-        var existentes = atuais.Select(o => ChaveDaRevisao(o.OfferCode, o.Revisao)).ToHashSet();
+    /// <summary>Uma revisão gravada por cima, só o que a busca leve acha (sem ler a proposta inteira nem os itens).</summary>
+    public sealed record RevisaoACandidata(string IdAtual, string Codigo, string Revisao, string Por, long Ts, long Corte, string Arquivo);
 
-        var achadas = new Dictionary<string, (CommercialOffer O, long Ts, long Corte, string IdAtual, string Por)>();
-        foreach (var g in _s.ReadHistory("commercialOffers", ColunasDaOferta, LerOferta).GroupBy(h => h.Linha.Id))
+    // a busca leve, guardada enquanto a pasta das propostas não muda (vale para todas as telas do processo)
+    private static (string Assinatura, List<RevisaoACandidata> Lista)? _candidatas;
+    private static readonly object _travaCandidatas = new();
+
+    /// <summary>
+    /// Quantas revisões foram gravadas por cima e ainda não existem como
+    /// registro: lê só id, número e revisão de cada gravação, e só quando a
+    /// pasta das propostas mudou desde a última vez. Proposta apagada fica de fora.
+    /// </summary>
+    public List<RevisaoACandidata> RevisoesSobrescritasLeve()
+    {
+        var assinatura = _s.Assinatura("commercialOffers");
+        lock (_travaCandidatas)
         {
-            if (!porId.ContainsKey(g.Key)) continue;
+            if (_candidatas is { } c && c.Assinatura == assinatura) return c.Lista;
+        }
+
+        static (string Id, string Codigo, string Rev) Ler(IDataReader r) => (Fmt.S(r, 0), Fmt.S(r, 1), Fmt.S(r, 2));
+        var atuais = All();   // a mesma leitura das telas (guardada enquanto nada muda)
+        var vivos = atuais.Select(a => a.Id).ToHashSet();
+        var existentes = atuais.Select(a => ChaveDaRevisao(a.OfferCode, a.Revisao)).ToHashSet();
+
+        var achadas = new Dictionary<string, RevisaoACandidata>();
+        foreach (var g in _s.ReadHistory("commercialOffers", "id, offer_code, revisao", Ler).GroupBy(h => h.Linha.Id))
+        {
+            if (!vivos.Contains(g.Key)) continue;
             var versoes = g.Where(h => !h.Apagado).OrderBy(h => h.Ts).ToList();
             for (var i = 0; i + 1 < versoes.Count; i++)
             {
-                var (o, ts, _) = versoes[i];
+                var (o, ts, _, arquivo) = versoes[i];
                 var seguinte = versoes[i + 1].Linha;
-                if (RevisaoNormal(o.Revisao) == RevisaoNormal(seguinte.Revisao)) continue;
+                if (RevisaoNormal(o.Rev) == RevisaoNormal(seguinte.Rev)) continue;
                 // só a troca de revisão do mesmo número: rascunho que ganhou o nº do CRM depois não é revisão
-                if (string.IsNullOrWhiteSpace(o.OfferCode)
-                    || !string.Equals(o.OfferCode.Trim(), seguinte.OfferCode.Trim(), StringComparison.OrdinalIgnoreCase)) continue;
-                var chave = ChaveDaRevisao(o.OfferCode, o.Revisao);
+                if (string.IsNullOrWhiteSpace(o.Codigo)
+                    || !string.Equals(o.Codigo.Trim(), seguinte.Codigo.Trim(), StringComparison.OrdinalIgnoreCase)) continue;
+                var chave = ChaveDaRevisao(o.Codigo, o.Rev);
                 if (existentes.Contains(chave)) continue;
                 // a mesma revisão gravada por cima mais de uma vez: vale a última
                 if (!achadas.TryGetValue(chave, out var ja) || ja.Ts < ts)
-                    achadas[chave] = (o, ts, versoes[i + 1].Ts, g.Key, seguinte.Revisao);
+                    achadas[chave] = new RevisaoACandidata(g.Key, o.Codigo, o.Rev, seguinte.Rev, ts, versoes[i + 1].Ts, arquivo);
             }
         }
-        if (achadas.Count == 0) return new();
+        var lista = achadas.Values.ToList();
+        lock (_travaCandidatas) _candidatas = (assinatura, lista);
+        return lista;
+    }
+
+    /// <summary>
+    /// As revisões gravadas por cima, completas (a proposta como estava e os
+    /// itens daquele momento): para a lista e para recuperar. Lê por inteiro
+    /// só os arquivos dessas revisões e dos itens delas, e não a pasta toda.
+    /// </summary>
+    public List<RevisaoSobrescrita> RevisoesSobrescritas()
+    {
+        var candidatas = RevisoesSobrescritasLeve();
+        if (candidatas.Count == 0) return new();
+
+        // a proposta como estava: só os arquivos das gravações achadas
+        var ofertas = _s.ReadHistory("commercialOffers", ColunasDaOferta, LerOferta, candidatas.Select(c => c.Arquivo).Distinct().ToList())
+            .GroupBy(h => (h.Linha.Id, h.Ts))
+            .ToDictionary(g => g.Key, g => g.First().Linha);
 
         // os itens como estavam: a última versão de cada item gravada antes da
-        // gravação que trocou a revisão (a proposta é gravada antes dos itens)
-        var ids = achadas.Values.Select(a => a.IdAtual).ToHashSet();
-        var historicoItens = _s.ReadHistory("commercialOfferItems", ColunasDoItem, LerItem)
+        // gravação que trocou a revisão (a proposta é gravada antes dos itens).
+        // Primeiro só id e proposta de cada gravação; depois, por inteiro, só os arquivos que interessam.
+        var ids = candidatas.Select(c => c.IdAtual).ToHashSet();
+        var leve = _s.ReadHistory("commercialOfferItems", "id, offer_id", r => (Id: Fmt.S(r, 0), OfferId: Fmt.S(r, 1)))
             .GroupBy(h => h.Linha.Id)
             .Where(g => g.Any(h => ids.Contains(h.Linha.OfferId)))
             .Select(g => g.OrderBy(h => h.Ts).ToList())
             .ToList();
+        var porCandidata = candidatas.ToDictionary(c => c, c => leve
+            .Select(v => v.LastOrDefault(h => h.Ts < c.Corte))
+            .Where(h => h.Linha.Id is not null && !h.Apagado && h.Linha.OfferId == c.IdAtual)
+            .ToList());
+        var arquivosDosItens = porCandidata.Values.SelectMany(v => v.Select(h => h.Arquivo)).Distinct().ToList();
+        var itensLidos = _s.ReadHistory("commercialOfferItems", ColunasDoItem, LerItem, arquivosDosItens)
+            .GroupBy(h => (h.Linha.Id, h.Ts, h.Arquivo))
+            .ToDictionary(g => g.Key, g => g.First().Linha);
 
-        return achadas.Values
-            .Select(a =>
+        return candidatas
+            .Where(c => ofertas.ContainsKey((c.IdAtual, c.Ts)))
+            .Select(c =>
             {
-                var itens = historicoItens
-                    .Select(v => v.LastOrDefault(h => h.Ts < a.Corte))
-                    .Where(h => h.Linha is not null && !h.Apagado && h.Linha.OfferId == a.IdAtual)
-                    .Select(h => h.Linha)
+                var itens = porCandidata[c]
+                    .Select(h => itensLidos.GetValueOrDefault((h.Linha.Id, h.Ts, h.Arquivo)))
+                    .Where(i => i is not null).Select(i => i!)
                     .OrderBy(i => i.Ordem)
                     .ToList();
-                return new RevisaoSobrescrita(a.O, itens, a.IdAtual, a.Por,
-                    new DateTime(a.Ts, DateTimeKind.Utc).ToLocalTime(), new DateTime(a.Corte, DateTimeKind.Utc).ToLocalTime());
+                return new RevisaoSobrescrita(ofertas[(c.IdAtual, c.Ts)], itens, c.IdAtual, c.Por,
+                    new DateTime(c.Ts, DateTimeKind.Utc).ToLocalTime(), new DateTime(c.Corte, DateTimeKind.Utc).ToLocalTime());
             })
             .OrderBy(r => r.Oferta.OfferCode).ThenBy(r => int.TryParse(RevisaoNormal(r.Oferta.Revisao), out var n) ? n : 0)
             .ToList();
@@ -229,8 +270,8 @@ public class OfferRepository
         {
             it.Id = Guid.NewGuid().ToString("N");
             it.OfferId = o.Id;
-            SaveItem(it);
         }
+        SaveItems(r.Itens);
         return o.Id;
     }
 
@@ -282,7 +323,27 @@ public class OfferRepository
     public List<CommercialOfferItem> ItemsFor(string offerId) =>
         AllItems().Where(i => i.OfferId == offerId).OrderBy(i => i.Ordem).ToList();
 
-    public void SaveItem(CommercialOfferItem it) => _s.WriteRow("commercialOfferItems",
+    public void SaveItem(CommercialOfferItem it) => _s.WriteRow("commercialOfferItems", LinhaDoItem(it));
+
+    /// <summary>
+    /// Os itens da proposta numa gravação só (um arquivo), e não um arquivo
+    /// por item: a pasta cresce bem menos e toda leitura fica mais rápida.
+    /// </summary>
+    public void SaveItems(IReadOnlyList<CommercialOfferItem> itens)
+    {
+        if (itens.Count == 0) return;
+        _s.WriteBatch("commercialOfferItems", itens.Select(LinhaDoItem).ToList());
+    }
+
+    /// <summary>Tira vários itens numa gravação só.</summary>
+    public void DeleteItems(IReadOnlyCollection<string> ids)
+    {
+        if (ids.Count == 0) return;
+        _s.WriteBatch("commercialOfferItems",
+            ids.Select(id => (IReadOnlyList<KeyValuePair<string, object?>>)new KeyValuePair<string, object?>[] { new("id", id) }).ToList(), deleted: true);
+    }
+
+    private static IReadOnlyList<KeyValuePair<string, object?>> LinhaDoItem(CommercialOfferItem it) =>
         new KeyValuePair<string, object?>[]
         {
             new("id", it.Id), new("offer_id", it.OfferId), new("description", it.Description),
@@ -299,5 +360,5 @@ public class OfferRepository
             new("prazo_entrega_dias", it.PrazoEntregaDias.ToString()),
             new("modelo", it.Modelo), new("serial_number", it.SerialNumber), new("tag", it.Tag),
             new("preco_meta", D(it.PrecoMeta)), new("custo_ta", D(it.CustoTa)), new("peso_kg", D(it.PesoKg)), new("base_custo", it.BaseCusto), new("ta_manual", it.TaManual ? "1" : "0"), new("origem_importacao", it.OrigemImportacao),
-        });
+        };
 }

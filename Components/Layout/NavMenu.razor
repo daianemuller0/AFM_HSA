@@ -110,10 +110,27 @@
     /// <summary>Follow-ups para hoje ou atrasados (o número ao lado de "Follow-up").</summary>
     private int _followUps;
 
+    /// <summary>Mostra o último número na hora e atualiza em segundo plano: a tela nunca espera por ele.</summary>
     private void ContarFollowUps()
     {
         if (_paginas is null || !Acessos.PodeAbrir(_paginas, "/follow-up")) { _followUps = 0; return; }
-        _followUps = FollowUpsRepo.PendentesHoje(OffersRepo);
+        _followUps = FollowUpRepository.PendentesConhecidos ?? _followUps;
+        _ = AtualizarFollowUps();
+    }
+
+    private async Task AtualizarFollowUps()
+    {
+        try
+        {
+            var n = await FollowUpsRepo.PendentesAsync(OffersRepo);
+            if (n != _followUps) { _followUps = n; await InvokeAsync(StateHasChanged); }
+        }
+        catch (Exception) { /* o número é só um aviso: sem ele, o menu segue */ }
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender) ContarFollowUps();
     }
 
     private string _logo = "";
@@ -128,7 +145,7 @@
     protected override async Task OnInitializedAsync()
     {
         _paginas = Acessos.PaginasDe((await Auth.GetAuthenticationStateAsync()).User, Usuarios);
-        ContarFollowUps();
+        _followUps = FollowUpRepository.PendentesConhecidos ?? 0;
         Nav.LocationChanged += OnChanged;
         Loc.Changed += StateHasChanged;
         var b = Brand.Get();

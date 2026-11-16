@@ -161,6 +161,13 @@ public sealed class ReferenciaDeCustoRepository
 
     public void Apagar(string id) => _store.WriteRow(Entidade, new KeyValuePair<string, object?>[] { new("id", id) }, deleted: true);
 
+    /// <summary>Apaga várias numa gravação só.</summary>
+    public void ApagarVarias(IReadOnlyCollection<string> ids)
+    {
+        if (ids.Count == 0) return;
+        _store.WriteBatch(Entidade, ids.Select(id => (IReadOnlyList<KeyValuePair<string, object?>>)new KeyValuePair<string, object?>[] { new("id", id) }).ToList(), deleted: true);
+    }
+
     /// <summary>Apaga as referências gravadas por essas propostas (as importadas do Excel ficam). Devolve quantas.</summary>
     public int ApagarDasPropostas(IReadOnlyCollection<string> propostas)
     {

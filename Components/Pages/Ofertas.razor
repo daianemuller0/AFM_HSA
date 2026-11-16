@@ -17,18 +17,18 @@
     <div class="alert-ok" style="margin-bottom:12px">@_msg</div>
 }
 
-@if (_sobrescritas.Count > 0)
+@if (_adm && _qtdSobrescritas > 0)
 {
     @* revisões que a troca do número gravou por cima (antes de a troca virar
        registro novo): continuam no histórico e voltam como registro próprio *@
     <div class="panel recuperar-revisoes" style="margin-bottom:12px">
         <div class="recuperar-cab">
-            <span>🕘 <strong>@_sobrescritas.Count</strong> @(_sobrescritas.Count == 1 ? "revisão foi gravada por cima" : "revisões foram gravadas por cima") quando o número da revisão foi trocado. Elas continuam no histórico e podem voltar como registro próprio.</span>
+            <span>🕘 <strong>@_qtdSobrescritas</strong> @(_qtdSobrescritas == 1 ? "revisão foi gravada por cima" : "revisões foram gravadas por cima") quando o número da revisão foi trocado. Elas continuam no histórico e podem voltar como registro próprio.</span>
             <span style="flex:1"></span>
-            <button class="btn-ghost" @onclick="() => _verSobrescritas = !_verSobrescritas">@(_verSobrescritas ? "esconder" : "ver quais")</button>
+            <button class="btn-ghost" disabled="@_recuperando" @onclick="VerSobrescritas">@(_carregandoSobrescritas ? "carregando…" : _verSobrescritas ? "esconder" : "ver quais")</button>
             <button class="btn-primary" disabled="@_recuperando" @onclick="RecuperarTodas">Recuperar todas</button>
         </div>
-        @if (_verSobrescritas)
+        @if (_verSobrescritas && _sobrescritas.Count > 0)
         {
             <table class="grid" style="margin-top:10px">
                 <thead><tr><th>Código</th><th>Rev.</th><th>Cliente</th><th>Data</th><th>Status</th><th class="right">Itens</th><th class="right">Valor total líquido</th><th>Gravada por cima</th><th></th></tr></thead>
@@ -126,7 +126,8 @@ else
     private bool _confirmar;
     private string? _msg;
     private List<OfferRepository.RevisaoSobrescrita> _sobrescritas = new();
-    private bool _verSobrescritas, _recuperando;
+    private int _qtdSobrescritas;
+    private bool _verSobrescritas, _recuperando, _carregandoSobrescritas;
 
     protected override async Task OnInitializedAsync()
     {
@@ -134,18 +135,42 @@ else
         _all = OffersRepo.All();
     }
 
-    /// <summary>O histórico é lido depois que a lista aparece: a página não espera por ele.</summary>
+    /// <summary>
+    /// Só para o administrador, e depois que a lista aparece: a busca leve
+    /// (número e revisão de cada gravação), que só relê quando algo mudou.
+    /// A lista completa (proposta e itens de cada revisão) só ao pedir.
+    /// </summary>
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender) return;
+        if (!firstRender || !_adm) return;
+        try { _qtdSobrescritas = (await Task.Run(OffersRepo.RevisoesSobrescritasLeve)).Count; }
+        catch (Exception) { _qtdSobrescritas = 0; }
+        if (_qtdSobrescritas > 0) StateHasChanged();
+    }
+
+    private async Task CarregarSobrescritas()
+    {
+        _carregandoSobrescritas = true;
+        StateHasChanged();
         try { _sobrescritas = await Task.Run(OffersRepo.RevisoesSobrescritas); }
-        catch (Exception) { _sobrescritas = new(); }
-        if (_sobrescritas.Count > 0) StateHasChanged();
+        finally { _carregandoSobrescritas = false; }
+        _qtdSobrescritas = _sobrescritas.Count;
+    }
+
+    private async Task VerSobrescritas()
+    {
+        if (_verSobrescritas) { _verSobrescritas = false; return; }
+        if (_sobrescritas.Count == 0) await CarregarSobrescritas();
+        _verSobrescritas = true;
     }
 
     private async Task Recuperar(OfferRepository.RevisaoSobrescrita r) => await RecuperarAs(new[] { r });
 
-    private async Task RecuperarTodas() => await RecuperarAs(_sobrescritas.ToList());
+    private async Task RecuperarTodas()
+    {
+        if (_sobrescritas.Count == 0) await CarregarSobrescritas();
+        await RecuperarAs(_sobrescritas.ToList());
+    }
 
     private async Task RecuperarAs(IReadOnlyList<OfferRepository.RevisaoSobrescrita> lista)
     {
@@ -159,7 +184,9 @@ else
                 ? $"Revisão {PropostaWord.Ou(lista[0].Oferta.Revisao, "0")} da {lista[0].Oferta.OfferCode} recuperada: está na lista como registro próprio, com uma nota dizendo de onde veio."
                 : $"{lista.Count} revisões recuperadas: estão na lista como registros próprios, cada uma com uma nota dizendo de onde veio.";
             _all = OffersRepo.All();
-            _sobrescritas = await Task.Run(OffersRepo.RevisoesSobrescritas);
+            _sobrescritas = new();
+            _verSobrescritas = false;
+            _qtdSobrescritas = (await Task.Run(OffersRepo.RevisoesSobrescritasLeve)).Count;
         }
         finally { _recuperando = false; }
     }

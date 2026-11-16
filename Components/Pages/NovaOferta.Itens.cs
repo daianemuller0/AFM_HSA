@@ -414,13 +414,16 @@ public partial class NovaOferta
         var todasAsPlantas = string.Join("; ", _o.Plantas.Select(PlantasDaProposta.Rotulo).Where(t => t.Length > 0));
         // o pacote: o total líquido que o cliente recebeu (todas as linhas, na moeda da proposta) e quantas peças
         var (valorDoPacote, qtdDoPacote) = PacoteDaProposta(paraLiquido);
+        // tudo numa gravação só no fim (um arquivo), e não um por item
+        var gravar = new List<ReferenciaDeCusto>();
+        var apagar = new List<string>();
 
         foreach (var it in _items.Where(i => i != _itemDemais && i.Id.Length > 0))
         {
             var custo = CustoBaseDoItem(it);
             if (it.PartNumber.Trim().Length == 0 || (custo is not > 0m && it.UnitPrice <= 0m))
             {
-                if (porId.ContainsKey(it.Id)) RefsCusto.Apagar(it.Id);
+                if (porId.ContainsKey(it.Id)) apagar.Add(it.Id);
                 continue;
             }
             var origem = DeFora ? "preço de fora" : it.Importado ? "importação" : it.CustoManual is > 0 ? "digitado" : RefDoItem(it).Nacionalizado ? "nacionalização" : "proposta";
@@ -446,9 +449,11 @@ public partial class NovaOferta
                 nova.NumeroAf = antiga.NumeroAf; nova.VendaPor = antiga.VendaPor;
                 if (Igual(antiga, nova)) continue;   // sem mudança, a referência fica como estava
             }
-            RefsCusto.Gravar(nova);
+            gravar.Add(nova);
         }
-        foreach (var id in itensApagados.Where(porId.ContainsKey)) RefsCusto.Apagar(id);
+        apagar.AddRange(itensApagados.Where(porId.ContainsKey));
+        if (gravar.Count > 0) RefsCusto.GravarVarias(gravar);
+        RefsCusto.ApagarVarias(apagar);
         LerReferenciasDeCusto();
     }
 

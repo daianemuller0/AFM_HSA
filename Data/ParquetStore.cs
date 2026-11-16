@@ -150,23 +150,37 @@ public sealed class ParquetStore
     /// </summary>
     public List<T> ReadLatest<T>(string entity, string selectCols, Func<IDataReader, T> map, string orderBy = "")
     {
-        var dir = EntityDir(entity);
-        if (!Directory.EnumerateFiles(dir, "*.parquet").Any())
-            return new List<T>();
+        // O resultado fica guardado enquanto a pasta não muda: a mesma leitura
+        // de novo (outra tela, o mesmo dado) só confere a lista de arquivos, em
+        // vez de abrir todos eles. Qualquer gravação, de qualquer pessoa, cria um
+        // arquivo novo e a próxima leitura vai aos arquivos. Os objetos são
+        // montados de novo a cada leitura (quem altera um não altera o guardado).
+        var assinatura = Assinatura(entity);
+        if (assinatura.EndsWith("|0|", StringComparison.Ordinal)) return new List<T>();
+        var chave = $"{Folder}|{entity}|{selectCols}|{orderBy}";
+        if (!_lidos.TryGetValue(chave, out var guardado) || guardado.Assinatura != assinatura)
+        {
+            guardado = (assinatura, Consultar(entity, selectCols, orderBy));
+            _lidos[chave] = guardado;
+        }
+        var list = new List<T>(guardado.Tabela.Rows.Count);
+        using var r = guardado.Tabela.CreateDataReader();
+        while (r.Read()) list.Add(map(r));
+        return list;
+    }
 
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (string Assinatura, DataTable Tabela)> _lidos = new();
+
+    private DataTable Consultar(string entity, string selectCols, string orderBy)
+    {
+        var dir = EntityDir(entity);
         var glob = Duck(Path.Combine(dir, "*.parquet"));
         using var conn = Open();
 
         // Evolução de esquema: arquivos antigos podem não ter colunas novas.
         // union_by_name junta esquemas diferentes entre arquivos, e as colunas
         // pedidas que não existirem em NENHUM arquivo viram NULL no SELECT.
-        var presentes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        using (var describe = conn.CreateCommand())
-        {
-            describe.CommandText = $"DESCRIBE SELECT * FROM read_parquet('{glob}', union_by_name=true);";
-            using var dr = describe.ExecuteReader();
-            while (dr.Read()) presentes.Add(dr.GetString(0));
-        }
+        var presentes = ColunasDa(entity, conn, $"'{glob}'");
 
         var cols = string.Join(", ", selectCols.Split(',')
             .Select(c => c.Trim())
@@ -184,9 +198,9 @@ WHERE _rn = 1 AND NOT _deleted{order};";
         using var cmd = conn.CreateCommand();
         cmd.CommandText = sql;
         using var r = cmd.ExecuteReader();
-        var list = new List<T>();
-        while (r.Read()) list.Add(map(r));
-        return list;
+        var tabela = new DataTable();
+        tabela.Load(r);
+        return tabela;
     }
 
     /// <summary>
@@ -194,33 +208,77 @@ WHERE _rn = 1 AND NOT _deleted{order};";
     /// de gravação, com o instante (_ts) e se era uma exclusão. Nada se perde
     /// numa regravação: é daqui que se recupera o que foi gravado por cima.
     /// </summary>
-    public List<(T Linha, long Ts, bool Apagado)> ReadHistory<T>(string entity, string selectCols, Func<IDataReader, T> map)
+    public List<(T Linha, long Ts, bool Apagado, string Arquivo)> ReadHistory<T>(string entity, string selectCols, Func<IDataReader, T> map,
+        IReadOnlyCollection<string>? soArquivos = null)
     {
         var dir = EntityDir(entity);
-        if (!Directory.EnumerateFiles(dir, "*.parquet").Any())
-            return new List<(T, long, bool)>();
+        if (soArquivos is { Count: 0 } || !Directory.EnumerateFiles(dir, "*.parquet").Any())
+            return new List<(T, long, bool, string)>();
 
-        var glob = Duck(Path.Combine(dir, "*.parquet"));
+        // a pasta inteira, ou só os arquivos pedidos (ler o que interessa, e não tudo de novo)
+        var fonte = soArquivos is null
+            ? $"'{Duck(Path.Combine(dir, "*.parquet"))}'"
+            : "[" + string.Join(", ", soArquivos.Select(f => $"'{Duck(f).Replace("'", "''")}'")) + "]";
         using var conn = Open();
 
-        var presentes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        using (var describe = conn.CreateCommand())
-        {
-            describe.CommandText = $"DESCRIBE SELECT * FROM read_parquet('{glob}', union_by_name=true);";
-            using var dr = describe.ExecuteReader();
-            while (dr.Read()) presentes.Add(dr.GetString(0));
-        }
+        // a pasta inteira: as colunas guardadas; só alguns arquivos: as deles
+        var presentes = soArquivos is null ? ColunasDa(entity, conn, fonte) : Descrever(conn, fonte);
 
         var lista = selectCols.Split(',').Select(c => c.Trim()).ToList();
         var cols = string.Join(", ", lista.Select(c => presentes.Contains(c) ? c : $"NULL AS {c}"));
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = $"SELECT {cols}, _ts, _deleted FROM read_parquet('{glob}', union_by_name=true) ORDER BY _ts;";
+        cmd.CommandText = $"SELECT {cols}, _ts, _deleted, filename FROM read_parquet({fonte}, union_by_name=true, filename=true) ORDER BY _ts;";
         using var r = cmd.ExecuteReader();
-        var saida = new List<(T, long, bool)>();
+        var saida = new List<(T, long, bool, string)>();
         var n = lista.Count;
         while (r.Read())
-            saida.Add((map(r), r.IsDBNull(n) ? 0 : Convert.ToInt64(r.GetValue(n)), !r.IsDBNull(n + 1) && Convert.ToBoolean(r.GetValue(n + 1))));
+            saida.Add((map(r), r.IsDBNull(n) ? 0 : Convert.ToInt64(r.GetValue(n)), !r.IsDBNull(n + 1) && Convert.ToBoolean(r.GetValue(n + 1)),
+                r.IsDBNull(n + 2) ? "" : r.GetString(n + 2)));
         return saida;
+    }
+
+    // As colunas que existem nos arquivos da entidade (evolução de esquema). Descobrir
+    // isso abre todos os arquivos — tanto quanto a própria leitura —, então fica
+    // guardado enquanto a pasta não muda (mesma quantidade de arquivos e o mesmo mais novo).
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (string Assinatura, HashSet<string> Colunas)> _colunas = new();
+
+    private HashSet<string> ColunasDa(string entity, DuckDBConnection conn, string fonte)
+    {
+        var chave = $"{Folder}|{entity}";
+        var assinatura = Assinatura(entity);
+        if (_colunas.TryGetValue(chave, out var c) && c.Assinatura == assinatura) return c.Colunas;
+        var colunas = Descrever(conn, fonte);
+        _colunas[chave] = (assinatura, colunas);
+        return colunas;
+    }
+
+    private static HashSet<string> Descrever(DuckDBConnection conn, string fonte)
+    {
+        var presentes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        using var describe = conn.CreateCommand();
+        describe.CommandText = $"DESCRIBE SELECT * FROM read_parquet({fonte}, union_by_name=true);";
+        using var dr = describe.ExecuteReader();
+        while (dr.Read()) presentes.Add(dr.GetString(0));
+        return presentes;
+    }
+
+    /// <summary>
+    /// Um retrato barato da pasta da entidade (quantos arquivos e o nome do
+    /// mais novo, que começa pelo instante da gravação): muda a cada gravação,
+    /// exclusão ou restauração. Serve para não reler a pasta quando nada mudou.
+    /// </summary>
+    public string Assinatura(string entity)
+    {
+        var dir = EntityDir(entity);
+        var n = 0;
+        var maior = "";
+        foreach (var f in Directory.EnumerateFiles(dir, "*.parquet"))
+        {
+            n++;
+            var nome = Path.GetFileName(f);
+            if (string.CompareOrdinal(nome, maior) > 0) maior = nome;
+        }
+        return $"{Folder}|{entity}|{n}|{maior}";
     }
 
     /// <summary>
