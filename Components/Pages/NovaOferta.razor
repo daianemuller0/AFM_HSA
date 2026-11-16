@@ -237,7 +237,15 @@
             <small class="pricing-dica">arquivos: @PropostaWord.Referencia(_o) · P_@PropostaWord.Referencia(_o) · R_@PropostaWord.Referencia(_o)</small>
         </label>
         <label id="f-revisao">Revisão
-            <input class="cell" list="dl-revisao" @bind="_o.Revisao" />
+            <input @key="_chaveRevisao" class="cell" list="dl-revisao" value="@_o.Revisao" @onchange="MudarRevisao" />
+            @if (_revisaoDe is { } rd)
+            {
+                <small class="pricing-dica rev-nova">nova revisão: ao salvar vira um registro novo · a rev @PropostaWord.Revisao2(rd.Revisao) continua gravada</small>
+            }
+            else if (_o.Id.Length > 0)
+            {
+                <small class="pricing-dica">trocar o número cria uma revisão nova (a atual fica gravada)</small>
+            }
         </label>
         <label id="f-cliente">Nome do cliente *
             <input class="cell" list="dl-clientes" placeholder="da base ou digitado" @bind="_o.ClientName" />

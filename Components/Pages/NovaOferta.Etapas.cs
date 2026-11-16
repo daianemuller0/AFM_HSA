@@ -290,6 +290,7 @@ public partial class NovaOferta : IDisposable
 
         _baseSalva = Foto();
         _anteriores = OffersRepo.All();
+        _revisaoDe = null;   // a revisão nova já é um registro dela
         if (explicito) _msg = $"Salvo às {now:HH:mm}.";
         if (nova) _ = TrocarUrl();
         return true;
@@ -323,6 +324,7 @@ public partial class NovaOferta : IDisposable
         };
         _items = new();
         _idsGravados = new();
+        _revisaoDe = null;
         _bomMarcados.Clear(); _refs.Clear(); _bomBusca = "";
         _buscandoEquip = false; _buscaEquip = ""; _novoItem = NovoItemVazio(); _autoCidade = "";
         _itemDemais = null; _taxaDoDia = false; _wordGerado = false; _erro = null; _msg = null;
@@ -405,6 +407,7 @@ public partial class NovaOferta : IDisposable
             foreach (var it in _items) { it.Id = ""; it.OfferId = ""; }
         }
         _idsGravados = manterId ? _items.Select(i => i.Id).ToHashSet() : new();
+        _revisaoDe = null;
         // proposta de antes das plantas: as listas saem da unidade e dos equipamentos gravados
         PlantasDaProposta.Completar(_o, _items, _units, _equipamentos, _base);
         CompletarDaFicha();
