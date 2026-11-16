@@ -4,6 +4,7 @@
 @inject OfferRepository OffersRepo
 @inject ReferenciaDeCustoRepository RefsCusto
 @inject AuthenticationStateProvider Auth
+@inject FollowUpRepository FollowUpsRepo
 
 <PageTitle>Propostas · AFM HSA</PageTitle>
 
@@ -103,7 +104,18 @@ else
                     <td>@PropostaWord.Ou(o.Revisao, "0")</td>
                     <td>@o.ClientName</td>
                     <td class="nowrap">@Fmt.Date(o.OfferDate)</td>
-                    <td><span class="badge score-badge">@o.Status</span></td>
+                    <td class="nowrap">
+                        @if (o.Status == "Enviada")
+                        {
+                            <span class="badge score-badge enviada">✈ Enviada</span>
+                            <button class="btn-link" title="Voltar para em elaboração" @onclick="() => DesfazerEnviada(o)">desfazer</button>
+                        }
+                        else
+                        {
+                            <span class="badge score-badge">@o.Status</span>
+                            <button class="btn-link" title="Registrar que a proposta saiu para o cliente (agenda o follow-up no fim da validade)" @onclick="() => MarcarEnviada(o)">✈ marcar enviada</button>
+                        }
+                    </td>
                     <td class="right nowrap" title="@(o.TotalLiquido > 0m ? "Sem impostos" : "Gravada antes do total líquido: o valor no nível de impostos da proposta (salve de novo para atualizar)")">@Cambio.Dinheiro(o, o.TotalLiquido > 0m ? o.TotalLiquido : o.TotalAmount)</td>
                     <td class="nowrap">
                         <a class="btn-link" href="@($"/ofertas/{o.Id}")">abrir</a> · <a class="btn-link" href="@($"/gerar-proposta/{o.Id}")">editar</a>
@@ -125,6 +137,27 @@ else
     private readonly HashSet<string> _marcadas = new();
     private bool _confirmar;
     private string? _msg;
+
+    /// <summary>A proposta saiu para o cliente: status Enviada e o follow-up no fim da validade (por portal, sem follow-up).</summary>
+    private async Task MarcarEnviada(CommercialOffer o)
+    {
+        var usuario = (await Auth.GetAuthenticationStateAsync()).User.Identity?.Name ?? "";
+        o.Status = "Enviada";
+        OffersRepo.Save(o);
+        var f = FollowUpsRepo.MarcarEnviada(o, usuario, DateTime.Today);
+        _msg = f is null
+            ? $"{Rotulo(o)} marcada como enviada. Proposta por portal: sem follow-up nem e-mail de cobrança."
+            : $"{Rotulo(o)} marcada como enviada. Follow-up agendado para {FollowUps.Data(f.Proxima?.Data)?.ToString("dd/MM/yyyy") ?? "—"} (fim da validade).";
+        _all = OffersRepo.All();
+    }
+
+    private void DesfazerEnviada(CommercialOffer o)
+    {
+        o.Status = "Rascunho";
+        OffersRepo.Save(o);
+        _msg = $"{Rotulo(o)} voltou para em elaboração (sai do follow-up).";
+        _all = OffersRepo.All();
+    }
     private List<OfferRepository.RevisaoSobrescrita> _sobrescritas = new();
     private int _qtdSobrescritas;
     private bool _verSobrescritas, _recuperando, _carregandoSobrescritas;

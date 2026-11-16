@@ -1744,3 +1744,5 @@ input.cell.vc-num { width: 82px; text-align: right; }
 .vc-desc { display: block; font-weight: 600; }
 .vc-meta-txt { display: block; font-size: 11.5px; color: var(--muted); }
 .vc-meta { display: flex; gap: 6px; margin-top: 4px; }
+
+.badge.score-badge.enviada { background: #dcfce7; color: #166534; }
