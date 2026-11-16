@@ -41,7 +41,7 @@ public static class Acessos
         new("visitas", "Ações em Campo", "Gestão de Vendas", new[] { "/visitas" }),
         new("alertas", "Alertas Preditivos", "Gestão de Vendas", new[] { "/alertas" }),
         new("gerar-proposta", "Gerar Proposta", "Comercial", new[] { "/gerar-proposta", "/ofertas/nova" }),
-        new("ofertas", "Propostas", "Comercial", new[] { "/ofertas" }),
+        new("ofertas", "Propostas e follow-up", "Comercial", new[] { "/ofertas", "/follow-up" }),
         new("referencias", "Referências de preço", "Comercial", new[] { "/referencias-custo" }),
         new("intercompany", "Cotação Intercompany", "Comercial", new[] { "/cotacao-intercompany" }),
         new("tempos", "Tempo das propostas", "Comercial", new[] { "/tempos-proposta" }),

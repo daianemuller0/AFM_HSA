@@ -5,6 +5,8 @@
 @inject BrandingRepository Brand
 @inject AuthenticationStateProvider Auth
 @inject AppUserRepository Usuarios
+@inject FollowUpRepository FollowUpsRepo
+@inject OfferRepository OffersRepo
 
 <aside class="sidebar no-print">
     <div class="brand">
@@ -39,6 +41,10 @@
                     <NavLink class="nav-item" href="@it.Href" Match="NavLinkMatch.All">
                         @((MarkupString)Icons.Svg(it.Icon, "nav-ico"))
                         <span>@Loc.T(it.Label)</span>
+                        @if (it.Href == "/follow-up" && _followUps > 0)
+                        {
+                            <span class="nav-badge" title="@(_followUps == 1 ? "1 follow-up para hoje ou atrasado" : $"{_followUps} follow-ups para hoje ou atrasados")">@_followUps</span>
+                        }
                     </NavLink>
                 }
             }
@@ -70,6 +76,7 @@
         {
             new Item("/gerar-proposta", "Gerar Proposta", "file-plus"),
             new Item("/ofertas", "Propostas", "file-text"),
+            new Item("/follow-up", "Follow-up", "mail"),
             new Item("/referencias-custo", "Referências de preço", "tags"),
             new Item("/cotacao-intercompany", "Cotação Intercompany", "refresh"),
             new Item("/tempos-proposta", "Tempo das propostas", "clock"),
@@ -100,6 +107,15 @@
         return temProprio || s.Name == dono ? s with { Items = itens } : s with { Items = Array.Empty<Item>() };
     }
 
+    /// <summary>Follow-ups para hoje ou atrasados (o número ao lado de "Follow-up").</summary>
+    private int _followUps;
+
+    private void ContarFollowUps()
+    {
+        if (_paginas is null || !Acessos.PodeAbrir(_paginas, "/follow-up")) { _followUps = 0; return; }
+        _followUps = FollowUpsRepo.PendentesHoje(OffersRepo);
+    }
+
     private string _logo = "";
     private string _logoBg = "transparent";
     private readonly HashSet<string> _collapsed = new();
@@ -112,13 +128,14 @@
     protected override async Task OnInitializedAsync()
     {
         _paginas = Acessos.PaginasDe((await Auth.GetAuthenticationStateAsync()).User, Usuarios);
+        ContarFollowUps();
         Nav.LocationChanged += OnChanged;
         Loc.Changed += StateHasChanged;
         var b = Brand.Get();
         _logo = b.LogoMenu;
         _logoBg = b.LogoBg;
     }
-    private void OnChanged(object? s, LocationChangedEventArgs e) => StateHasChanged();
+    private void OnChanged(object? s, LocationChangedEventArgs e) { ContarFollowUps(); StateHasChanged(); }
     public void Dispose()
     {
         Nav.LocationChanged -= OnChanged;

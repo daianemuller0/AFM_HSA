@@ -1,0 +1,607 @@
+@page "/follow-up"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@using System.Globalization
+@inject OfferRepository OffersRepo
+@inject FollowUpRepository Repo
+@inject ClientUnitRepository Units
+@inject SalespersonRepository Vendedores
+@inject EquipmentRepository Equipamentos
+@inject InstalledBaseRepository Base
+@inject BomRepository Bom
+@inject SalesRecordRepository Vendas
+@inject DadosBancariosRepository Bancos
+@inject IWebHostEnvironment Ambiente
+@inject OutlookLocal Outlook
+@inject IJSRuntime JS
+@inject AuthenticationStateProvider Auth
+
+<PageTitle>Follow-up · AFM HSA</PageTitle>
+
+<div class="page-head">
+    <div>
+        <h1>Follow-up das propostas</h1>
+        <p class="subtitle">
+            As propostas enviadas ao cliente, fora de portal. O primeiro follow-up é no fim da validade
+            (30 dias depois do envio, ou o que a validade da proposta disser); agende outros quando quiser.
+            O e-mail abre no Outlook com a sua assinatura, o contato da proposta e a proposta em PDF anexa.
+        </p>
+    </div>
+    <div class="page-actions">
+        <button class="btn-ghost" @onclick="AbrirModelo">✉ Modelo do e-mail</button>
+    </div>
+</div>
+
+@if (_msg is not null) { <div class="alert-ok" style="margin-bottom:10px">@_msg</div> }
+@if (_erro is not null) { <div class="alert-error" style="margin-bottom:10px">@_erro</div> }
+
+@if (_modelo is not null)
+{
+    <div class="panel fu-modelo" style="margin-bottom:14px">
+        <div class="fu-modelo-topo">
+            <div class="dash-title" style="margin:0">Modelo do e-mail de follow-up</div>
+            <div class="seg">
+                @foreach (var (cod, nome) in IdiomasDaProposta.Opcoes)
+                {
+                    <button class="@(_modelo.Idioma == cod ? "on" : "")" @onclick="() => TrocarIdiomaDoModelo(cod)">@nome</button>
+                }
+            </div>
+            <span style="flex:1"></span>
+            <button class="btn-ghost" @onclick="() => _modelo = null">✕ fechar</button>
+        </div>
+        <p class="pricing-dica" style="margin:6px 0 10px">
+            Vale para todas as propostas na língua escolhida (a da proposta). Os campos entre chaves são trocados pelos da proposta.
+            @if (_modelo.Idioma != IdiomasDaProposta.Portugues) { <strong> Texto em @IdiomasDaProposta.Nome(_modelo.Idioma).ToLowerInvariant(): revise com a equipe antes de usar.</strong> }
+        </p>
+        <label class="fu-campo">Assunto <input class="cell" @bind="_modelo.Assunto" /></label>
+        <label class="fu-campo">Corpo
+            <textarea class="cell" rows="14" @bind="_modelo.Corpo"></textarea>
+        </label>
+        <div class="fu-campos-lista">
+            @foreach (var (campo, desc) in FollowUps.Campos)
+            {
+                <span><code>@campo</code> @desc</span>
+            }
+        </div>
+        <div style="display:flex;gap:8px;margin-top:10px">
+            <button class="btn-primary" @onclick="GravarModelo">Salvar modelo</button>
+            <button class="btn-ghost" @onclick="ModeloPadrao">Voltar ao padrão</button>
+        </div>
+    </div>
+}
+
+<div class="fu-resumo">
+    @foreach (var (filtro, rotulo, classe) in Filtros)
+    {
+        var n = Contar(filtro);
+        <button class="fu-chip @classe @(_filtro == filtro ? "on" : "")" @onclick="() => { _filtro = filtro; _aberta = null; }">
+            <strong>@n</strong> @rotulo
+        </button>
+    }
+    <span style="flex:1"></span>
+    <input class="cell fu-busca" placeholder="Buscar cliente, proposta ou contato" @bind="_busca" @bind:event="oninput" />
+</div>
+
+@{ var linhas = Visiveis().ToList(); }
+@if (linhas.Count == 0)
+{
+    <div class="panel empty-state">
+        <div class="empty-title">@(_linhas.Count == 0 ? "Nenhuma proposta em follow-up" : "Nada neste filtro")</div>
+        <p class="empty-text">
+            @if (_linhas.Count == 0)
+            {
+                <span>Quando a proposta for marcada como enviada (Gerar Proposta → Documentos → "✈ Marcar como enviada"), ela aparece aqui com o follow-up no fim da validade.</span>
+            }
+            else
+            {
+                <span>Escolha outro filtro acima.</span>
+            }
+        </p>
+    </div>
+}
+else
+{
+    <div style="overflow-x:auto">
+    <table class="grid fu-tabela">
+        <thead><tr>
+            <th>Próximo follow-up</th><th>Proposta</th><th>Contato</th><th>Enviada · validade</th>
+            <th class="right">Valor total líquido</th><th>Vendedor</th><th></th>
+        </tr></thead>
+        <tbody>
+            @foreach (var l in linhas)
+            {
+                var o = l.Oferta;
+                var aberta = _aberta == o.Id;
+                <tr class="fu-linha @(aberta ? "aberta" : "")">
+                    <td class="nowrap">
+                        <span class="fu-selo @Classe(l.Situacao)">@Rotulo(l)</span>
+                        @if (l.Proxima is { } p)
+                        {
+                            <div class="fu-sub">@Fmt.Date(p.Data)@(p.Automatico ? " · fim da validade" : "")</div>
+                        }
+                    </td>
+                    <td>
+                        <a class="btn-link" href="@($"/ofertas/{o.Id}")"><strong>@o.OfferCode</strong> rev @PropostaWord.Ou(o.Revisao, "0")</a>
+                        <div class="fu-sub">@o.ClientName@(o.City.Trim().Length > 0 ? $" · {o.City}" : "")</div>
+                    </td>
+                    <td>
+                        <div>@(l.Contato.Length > 0 ? l.Contato : "—")</div>
+                        @if (l.Email.Length > 0)
+                        {
+                            <div class="fu-sub" title="@(l.EmailDeOnde.Length > 0 ? l.EmailDeOnde : "da proposta")">@l.Email@(l.EmailDeOnde.Length > 0 ? " *" : "")</div>
+                        }
+                        else
+                        {
+                            <div class="fu-sub fu-falta">sem e-mail do contato</div>
+                        }
+                    </td>
+                    <td class="nowrap">
+                        <div>@FollowUps.DataDoEnvio(o, l.FollowUp).ToString("dd/MM/yyyy")@(l.Gravado && l.FollowUp.EnviadaEm.Length > 0 ? "" : "*")</div>
+                        <div class="fu-sub">válida até @FollowUps.FimDaValidade(o, l.FollowUp).ToString("dd/MM/yyyy")</div>
+                    </td>
+                    <td class="right nowrap">@Cambio.Dinheiro(o, o.TotalLiquido > 0m ? o.TotalLiquido : o.TotalAmount)</td>
+                    <td>@PropostaWord.Ou(o.Vendedor, "—")</td>
+                    <td class="nowrap fu-acoes">
+                        @if (!l.FollowUp.Encerrado)
+                        {
+                            <button class="@(l.Situacao is FollowUps.Situacao.Atrasado or FollowUps.Situacao.Hoje ? "btn-primary" : "btn-ghost") fu-btn"
+                                    disabled="@(_gerando == o.Id)" title="Abre o e-mail no Outlook com o PDF da proposta anexo" @onclick="() => Email(l)">
+                                @(_gerando == o.Id ? "gerando o PDF…" : "✉ E-mail")
+                            </button>
+                            <button class="btn-ghost fu-btn" title="Registrar que o follow-up foi feito" @onclick="() => AbrirFeito(l)">✓ Feito</button>
+                        }
+                        <button class="btn-link" title="Ver, agendar e encerrar" @onclick="() => Alternar(o.Id)">@(aberta ? "▾ fechar" : "▸ detalhes")</button>
+                    </td>
+                </tr>
+                @if (aberta)
+                {
+                    <tr class="fu-detalhe"><td colspan="7">@Detalhe(l)</td></tr>
+                }
+            }
+        </tbody>
+    </table>
+    </div>
+    <p class="pricing-dica" style="margin-top:6px">
+        * enviada antes do follow-up existir: a data é a da proposta. E-mail com * veio de outra proposta do mesmo contato (passe o mouse para ver de qual).
+    </p>
+}
+
+@if (_portal.Count > 0)
+{
+    <details class="panel fu-portal" style="margin-top:14px">
+        <summary><strong>@_portal.Count</strong> @(_portal.Count == 1 ? "proposta enviada por portal" : "propostas enviadas por portal") — sem follow-up nem e-mail de cobrança</summary>
+        <table class="grid" style="margin-top:8px">
+            <thead><tr><th>Proposta</th><th>Cliente</th><th>Portal</th><th>Data</th></tr></thead>
+            <tbody>
+                @foreach (var o in _portal)
+                {
+                    <tr>
+                        <td class="nowrap"><a class="btn-link" href="@($"/ofertas/{o.Id}")">@o.OfferCode rev @PropostaWord.Ou(o.Revisao, "0")</a></td>
+                        <td>@o.ClientName</td>
+                        <td>@o.Portal</td>
+                        <td class="nowrap">@Fmt.Date(o.OfferDate)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </details>
+}
+
+@code {
+    private List<FollowUps.Linha> _linhas = new();
+    private List<CommercialOffer> _portal = new();
+    private List<CommercialOffer> _ofertas = new();
+    private string _usuario = "";
+    private string? _msg, _erro;
+    private string _filtro = "abertos";
+    private string _busca = "";
+    private string? _aberta;
+    private string? _gerando;
+
+    // formulários do detalhe
+    private string? _feitoDe;                 // o id da proposta com o "feito" aberto
+    private string _feitoNota = "";
+    private DateTime? _feitoProxima;
+    private DateTime? _agendarData;
+    private string _agendarNota = "";
+    private string _motivo = "Cliente respondeu";
+    private string _emailDigitado = "";
+
+    private ModeloDeFollowUp? _modelo;
+
+    private static readonly string[] Motivos =
+        { "Cliente respondeu", "Pedido recebido", "Cliente declinou", "Proposta perdida", "Nova revisão em elaboração", "Outro" };
+
+    private static readonly (string Filtro, string Rotulo, string Classe)[] Filtros =
+    {
+        ("abertos", "em follow-up", ""),
+        ("atrasado", "atrasados", "atrasado"),
+        ("hoje", "para hoje", "hoje"),
+        ("semana", "nos próximos 7 dias", "breve"),
+        ("semdata", "sem data", "semdata"),
+        ("encerrado", "encerrados", "encerrado"),
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        _usuario = (await Auth.GetAuthenticationStateAsync()).User.Identity?.Name ?? "";
+        Recarregar();
+    }
+
+    private void Recarregar()
+    {
+        _ofertas = OffersRepo.All();
+        _linhas = FollowUps.Montar(_ofertas, Repo.Todos(), DateTime.Today);
+        _portal = FollowUps.PorPortalEnviadas(_ofertas);
+    }
+
+    private bool NoFiltro(FollowUps.Linha l, string filtro) => filtro switch
+    {
+        "abertos" => l.Situacao != FollowUps.Situacao.Encerrado,
+        "atrasado" => l.Situacao == FollowUps.Situacao.Atrasado,
+        "hoje" => l.Situacao == FollowUps.Situacao.Hoje,
+        "semana" => l.Situacao == FollowUps.Situacao.EmBreve,
+        "semdata" => l.Situacao == FollowUps.Situacao.SemData,
+        "encerrado" => l.Situacao == FollowUps.Situacao.Encerrado,
+        _ => true,
+    };
+
+    private int Contar(string filtro) => _linhas.Count(l => NoFiltro(l, filtro));
+
+    private IEnumerable<FollowUps.Linha> Visiveis()
+    {
+        var b = _busca.Trim();
+        return _linhas.Where(l => NoFiltro(l, _filtro))
+            .Where(l => b.Length == 0 || new[] { l.Oferta.OfferCode, l.Oferta.ClientName, l.Contato, l.Email, l.Oferta.City, l.Oferta.Vendedor }
+                .Any(x => (x ?? "").Contains(b, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    private static string Classe(FollowUps.Situacao s) => s switch
+    {
+        FollowUps.Situacao.Atrasado => "atrasado",
+        FollowUps.Situacao.Hoje => "hoje",
+        FollowUps.Situacao.EmBreve => "breve",
+        FollowUps.Situacao.SemData => "semdata",
+        FollowUps.Situacao.Encerrado => "encerrado",
+        _ => "agendado",
+    };
+
+    private static string Rotulo(FollowUps.Linha l)
+    {
+        if (l.Situacao == FollowUps.Situacao.Encerrado) return "encerrado";
+        if (l.Proxima is null || FollowUps.Data(l.Proxima.Data) is not { } d) return "sem data";
+        var dias = (int)(d.Date - DateTime.Today).TotalDays;
+        if (dias == -1) return "atrasado 1 dia";
+        if (dias < 0) return $"atrasado {-dias} dias";
+        if (dias == 0) return "hoje";
+        return dias == 1 ? "amanhã" : $"em {dias} dias";
+    }
+
+    private void Alternar(string id)
+    {
+        _aberta = _aberta == id ? null : id;
+        _feitoDe = null;
+        _agendarData = null; _agendarNota = "";
+        _emailDigitado = "";
+        _msg = null; _erro = null;
+    }
+
+    // ================= ações =================
+
+    /// <summary>Grava o follow-up (o primeiro uso de uma proposta enviada antes do follow-up grava o que a tela mostrava).</summary>
+    private void Gravar(FollowUpDaProposta f, string? mensagem = null)
+    {
+        Repo.Gravar(f);
+        Recarregar();
+        if (mensagem is not null) _msg = mensagem;
+    }
+
+    private FollowUps.Linha? LinhaDe(string id) => _linhas.FirstOrDefault(x => x.Oferta.Id == id);
+
+    private void AbrirFeito(FollowUps.Linha l)
+    {
+        _aberta = l.Oferta.Id;
+        _feitoDe = l.Oferta.Id;
+        _feitoNota = l.Proxima?.EmailEm.Length > 0 ? "E-mail de follow-up enviado." : "";
+        // já há outro agendado depois deste: não sugere mais um (ficaria repetido)
+        var outros = l.FollowUp.Etapas.Count(e => !e.Feito && e.Data.Length > 0) > (l.Proxima is null ? 0 : 1);
+        _feitoProxima = outros ? null : DateTime.Today.AddDays(7);
+        _msg = null; _erro = null;
+    }
+
+    private void RegistrarFeito(FollowUps.Linha l)
+    {
+        var f = l.FollowUp;
+        var agora = DateTime.Now.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
+        var etapa = f.Proxima;
+        if (etapa is null)
+        {
+            etapa = new EtapaDoFollowUp { Data = FollowUps.Texto(DateTime.Today) };
+            f.Etapas.Add(etapa);
+        }
+        etapa.FeitoEm = agora;
+        etapa.FeitoPor = _usuario;
+        if (_feitoNota.Trim().Length > 0) etapa.Nota = _feitoNota.Trim();
+        var proxima = _feitoProxima;
+        if (proxima is { } d && !f.Etapas.Any(e => !e.Feito && e.Data == FollowUps.Texto(d)))
+            f.Etapas.Add(new EtapaDoFollowUp { Data = FollowUps.Texto(d), Nota = "" });
+        _feitoDe = null;
+        Gravar(f, proxima is { } p
+            ? $"Follow-up registrado. O próximo da {l.Oferta.OfferCode} fica para {p:dd/MM/yyyy}."
+            : f.Proxima is { } seguinte
+                ? $"Follow-up registrado. O próximo da {l.Oferta.OfferCode} já estava agendado para {Fmt.Date(seguinte.Data)}."
+                : $"Follow-up registrado. A {l.Oferta.OfferCode} ficou sem próxima data: agende uma ou encerre.");
+    }
+
+    private void Agendar(FollowUps.Linha l)
+    {
+        if (_agendarData is not { } d) { _erro = "Escolha a data do follow-up."; return; }
+        var f = l.FollowUp;
+        f.Etapas.Add(new EtapaDoFollowUp { Data = FollowUps.Texto(d), Nota = _agendarNota.Trim() });
+        _agendarData = null; _agendarNota = "";
+        _erro = null;
+        Gravar(f, $"Follow-up da {l.Oferta.OfferCode} agendado para {d:dd/MM/yyyy}.");
+    }
+
+    private void Remover(FollowUps.Linha l, EtapaDoFollowUp e)
+    {
+        var f = l.FollowUp;
+        f.Etapas.RemoveAll(x => x.Id == e.Id);
+        Gravar(f, $"Follow-up de {Fmt.Date(e.Data)} removido.");
+    }
+
+    private void TrocarData(FollowUps.Linha l, EtapaDoFollowUp e, ChangeEventArgs ev)
+    {
+        if (!DateTime.TryParseExact(ev.Value?.ToString(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d)) return;
+        var f = l.FollowUp;
+        var alvo = f.Etapas.FirstOrDefault(x => x.Id == e.Id);
+        if (alvo is null) return;
+        alvo.Data = FollowUps.Texto(d);
+        Gravar(f, $"Follow-up remarcado para {d:dd/MM/yyyy}.");
+    }
+
+    private void Encerrar(FollowUps.Linha l)
+    {
+        var f = l.FollowUp;
+        f.EncerradoEm = DateTime.Now.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
+        f.EncerradoPor = _usuario;
+        f.Motivo = _motivo;
+        _aberta = null;
+        Gravar(f, $"Follow-up da {l.Oferta.OfferCode} encerrado ({_motivo.ToLowerInvariant()}).");
+    }
+
+    private void Reabrir(FollowUps.Linha l)
+    {
+        var f = l.FollowUp;
+        f.EncerradoEm = ""; f.EncerradoPor = ""; f.Motivo = "";
+        Gravar(f, $"Follow-up da {l.Oferta.OfferCode} reaberto.");
+    }
+
+    private void GravarEmail(FollowUps.Linha l)
+    {
+        var f = l.FollowUp;
+        f.Para = _emailDigitado.Trim();
+        _emailDigitado = "";
+        Gravar(f, f.Para.Length > 0 ? $"E-mail do contato gravado para o follow-up: {f.Para}." : "Volta ao e-mail da proposta.");
+    }
+
+    private void VoltarAoEmailDaProposta(FollowUps.Linha l)
+    {
+        _emailDigitado = "";
+        GravarEmail(l);
+    }
+
+    /// <summary>O e-mail de follow-up no Outlook, com a proposta em PDF (sem conversor, em Word) anexa.</summary>
+    private async Task Email(FollowUps.Linha l)
+    {
+        if (_gerando is not null) return;
+        var o = l.Oferta;
+        _gerando = o.Id; _msg = null; _erro = null;
+        try
+        {
+            var (anexo, aviso) = await Anexo(o);
+            var anexos = anexo is null ? Array.Empty<AnexoDoEmail>() : new[] { anexo };
+            var modelo = Repo.Modelo(o.Idioma);
+            var contatos = new[] { o.Vendedor, o.Vendedor2 }
+                .Where(v => (v ?? "").Trim().Length > 0)
+                .Select(v => EmailsDaProposta.LinhaDeContato(v!, ContatosHowden.Do(v), o.Idioma))
+                .Where(x => x.Length > 0).Distinct().ToList();
+            var cc = string.Join("; ", new[] { ContatosHowden.Do(o.Vendedor)?.Email, ContatosHowden.Do(o.Vendedor2)?.Email }
+                .Where(s => !string.IsNullOrWhiteSpace(s)).Distinct(StringComparer.OrdinalIgnoreCase));
+            EmailDaProposta Montar(string assinatura) => FollowUps.Email(o, l.FollowUp, modelo, l.Contato, contatos, l.Email, cc, assinatura);
+
+            var noOutlook = await Task.Run(() => Outlook.Abrir(Montar(""), anexos)) is null;
+            if (!noOutlook)
+            {
+                var email = Montar(PropostaWord.Ou(_usuario, "Equipe Howden"));
+                await JS.InvokeVoidAsync("appDownload", PricingExcel.Limpo("Follow-up " + PropostaWord.Referencia(o)) + ".eml", "message/rfc822",
+                    Convert.ToBase64String(EmailsDaProposta.Eml(email, anexos)));
+            }
+
+            // registra que o e-mail saiu (no follow-up por fazer; sem um, no de hoje)
+            var f = l.FollowUp;
+            var etapa = f.Proxima;
+            if (etapa is null) { etapa = new EtapaDoFollowUp { Data = FollowUps.Texto(DateTime.Today) }; f.Etapas.Add(etapa); }
+            etapa.EmailEm = DateTime.Now.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
+            Gravar(f);
+            var onde = noOutlook ? "aberto no Outlook" : "pronto: abra o arquivo baixado no Outlook";
+            var semEmail = l.Email.Length == 0 ? " Falta o e-mail do contato: preencha o destinatário." : "";
+            _msg = $"E-mail de follow-up da {o.OfferCode} {onde}{(anexo is null ? "" : $", com {anexo.Nome} anexo")}. Depois de enviar, clique em ✓ Feito.{semEmail}";
+            if (aviso is not null) _erro = aviso;
+        }
+        catch (Exception ex) { _erro = "Não deu para montar o e-mail de follow-up: " + ex.Message; }
+        finally { _gerando = null; }
+    }
+
+    /// <summary>A proposta como foi gravada, em PDF; sem Word nem LibreOffice para converter, vai o Word (e o aviso).</summary>
+    private async Task<(AnexoDoEmail? Anexo, string? Aviso)> Anexo(CommercialOffer o)
+    {
+        if (Cambio.BloqueioDosDocumentos(o) is { } bloqueio) return (null, "A proposta não foi anexada: " + bloqueio);
+        var modelo = Path.Combine(Ambiente.ContentRootPath, PropostaWord.CaminhoDoModelo);
+        if (!File.Exists(modelo)) return (null, $"A proposta não foi anexada: o modelo não está em {PropostaWord.CaminhoDoModelo}.");
+        var itens = OffersRepo.ItemsFor(o.Id);
+        var dados = PropostaWord.Dados(o, itens, Units.All(), Vendedores.All(), Equipamentos.All(), Base.All(), Bom.All(), Vendas.All())
+            with { Faturamento = Bancos.ParaProposta(o) };
+        var word = PropostaWord.Gerar(dados, modelo);
+        try
+        {
+            var pdf = await Task.Run(() => PdfDaProposta.Converter(word));
+            return (new AnexoDoEmail(PropostaWord.NomeDoArquivo(o, "pdf"), "application/pdf", pdf), null);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return (new AnexoDoEmail(PropostaWord.NomeDoArquivo(o), "application/vnd.openxmlformats-officedocument.wordprocessingml.document", word),
+                $"Não deu para gerar o PDF ({ex.Message}); a proposta foi anexada em Word.");
+        }
+    }
+
+    // ================= modelo do e-mail =================
+
+    private void AbrirModelo()
+    {
+        _modelo = Repo.Modelo(IdiomasDaProposta.Portugues);
+        _msg = null; _erro = null;
+    }
+
+    private void TrocarIdiomaDoModelo(string idioma) => _modelo = Repo.Modelo(idioma);
+
+    private void GravarModelo()
+    {
+        if (_modelo is null) return;
+        if (_modelo.Corpo.Trim().Length == 0) { _erro = "O corpo do e-mail não pode ficar vazio (use \"Voltar ao padrão\")."; return; }
+        Repo.GravarModelo(_modelo);
+        _erro = null;
+        _msg = $"Modelo em {IdiomasDaProposta.Nome(_modelo.Idioma).ToLowerInvariant()} gravado: vale para os próximos e-mails.";
+    }
+
+    private void ModeloPadrao()
+    {
+        if (_modelo is null) return;
+        Repo.ModeloPadrao(_modelo.Idioma);
+        _modelo = FollowUps.ModeloPadrao(_modelo.Idioma);
+        _msg = $"Modelo em {IdiomasDaProposta.Nome(_modelo.Idioma).ToLowerInvariant()} de volta ao padrão.";
+    }
+
+    // ================= o detalhe da proposta =================
+
+    private RenderFragment Detalhe(FollowUps.Linha l) => __builder =>
+    {
+        var f = l.FollowUp;
+        var o = l.Oferta;
+        <div class="fu-det">
+            <div class="fu-det-col">
+                <div class="fu-det-tit">Follow-ups</div>
+                @if (f.Etapas.Count == 0)
+                {
+                    <div class="fu-sub">Nenhum follow-up agendado.</div>
+                }
+                <ul class="fu-etapas">
+                    @foreach (var e in f.Etapas.OrderBy(x => x.Data, StringComparer.Ordinal))
+                    {
+                        var etapa = e;
+                        <li class="@(e.Feito ? "feito" : "")">
+                            <span class="fu-etapa-marca">@(e.Feito ? "✓" : "○")</span>
+                            <div class="fu-etapa-corpo">
+                                <div>
+                                    @if (e.Feito || f.Encerrado)
+                                    {
+                                        <strong>@Fmt.Date(e.Data)</strong>
+                                    }
+                                    else
+                                    {
+                                        <input type="date" class="cell fu-data" value="@e.Data" @onchange="ev => TrocarData(l, etapa, ev)" title="Remarcar" />
+                                    }
+                                    @if (e.Automatico) { <span class="fu-tag">fim da validade</span> }
+                                    @if (e.EmailEm.Length > 0) { <span class="fu-tag mail">e-mail em @Fmt.Date(e.EmailEm[..10]) @e.EmailEm[11..]</span> }
+                                    @if (e.Feito) { <span class="fu-sub"> · feito em @Fmt.Date(e.FeitoEm[..10])@(e.FeitoPor.Length > 0 ? $" por {e.FeitoPor}" : "")</span> }
+                                    @if (!e.Feito && !f.Encerrado)
+                                    {
+                                        <button class="btn-link perigo" title="Remover este follow-up" @onclick="() => Remover(l, etapa)">remover</button>
+                                    }
+                                </div>
+                                @if (e.Nota.Length > 0) { <div class="fu-nota">@e.Nota</div> }
+                            </div>
+                        </li>
+                    }
+                </ul>
+
+                @if (!f.Encerrado)
+                {
+                    @if (_feitoDe == o.Id)
+                    {
+                        <div class="fu-form destaque">
+                            <div class="fu-det-tit">Registrar o follow-up@(f.Proxima is { } px ? $" de {Fmt.Date(px.Data)}" : "")</div>
+                            <label class="fu-campo">O que aconteceu
+                                <textarea class="cell" rows="2" placeholder="ex.: falei com o comprador, a aprovação sai na próxima semana" @bind="_feitoNota"></textarea>
+                            </label>
+                            <label class="fu-campo fu-inline">Próximo follow-up em
+                                <input type="date" class="cell fu-data" value="@(_feitoProxima?.ToString("yyyy-MM-dd") ?? "")"
+                                       @onchange="ev => _feitoProxima = DateTime.TryParse(ev.Value?.ToString(), CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) ? d : null" />
+                                <button class="btn-link" @onclick="() => _feitoProxima = null">sem próxima data</button>
+                            </label>
+                            <div style="display:flex;gap:8px">
+                                <button class="btn-primary" @onclick="() => RegistrarFeito(l)">Registrar</button>
+                                <button class="btn-link" @onclick="() => _feitoDe = null">cancelar</button>
+                            </div>
+                        </div>
+                    }
+                    <div class="fu-form">
+                        <div class="fu-det-tit">Agendar um follow-up</div>
+                        <div class="fu-inline">
+                            <input type="date" class="cell fu-data" value="@(_agendarData?.ToString("yyyy-MM-dd") ?? "")"
+                                   @onchange="ev => _agendarData = DateTime.TryParse(ev.Value?.ToString(), CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) ? d : null" />
+                            <input class="cell" placeholder="o que fazer (opcional)" @bind="_agendarNota" />
+                            <button class="btn-ghost" @onclick="() => Agendar(l)">📅 Agendar</button>
+                        </div>
+                        <div class="fu-atalhos">
+                            @foreach (var (dias, rot) in new[] { (7, "+1 semana"), (15, "+15 dias"), (30, "+30 dias") })
+                            {
+                                var dd = dias;
+                                <button class="btn-link" @onclick="() => _agendarData = DateTime.Today.AddDays(dd)">@rot</button>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <div class="fu-det-col">
+                <div class="fu-det-tit">Contato</div>
+                <div>@(l.Contato.Length > 0 ? l.Contato : "sem nome do contato na proposta")</div>
+                <div class="fu-sub">
+                    @(l.Email.Length > 0 ? l.Email : "sem e-mail")@(l.EmailDeOnde.Length > 0 ? $" ({l.EmailDeOnde})" : "")
+                    @if (o.ContatoTelefone.Trim().Length > 0) { <span> · @o.ContatoTelefone</span> }
+                </div>
+                <div class="fu-inline" style="margin-top:6px">
+                    <input class="cell" placeholder="@(l.Email.Length > 0 ? "outro e-mail para o follow-up" : "e-mail do contato")" @bind="_emailDigitado" />
+                    <button class="btn-ghost" @onclick="() => GravarEmail(l)">usar</button>
+                    @if (f.Para.Length > 0) { <button class="btn-link" @onclick="() => VoltarAoEmailDaProposta(l)">voltar ao da proposta</button> }
+                </div>
+                <div class="fu-sub" style="margin-top:4px">O contato vem da proposta (Cliente e condições). <a class="btn-link" href="@($"/gerar-proposta/{o.Id}")">corrigir na proposta</a></div>
+
+                <div class="fu-det-tit" style="margin-top:14px">Proposta</div>
+                <div class="fu-sub">
+                    Enviada em @FollowUps.DataDoEnvio(o, f).ToString("dd/MM/yyyy")@(f.EnviadaPor.Length > 0 ? $" por {f.EnviadaPor}" : "") ·
+                    validade de @FollowUps.DiasDeValidade(o.ValidityText) dias (até @FollowUps.FimDaValidade(o, f).ToString("dd/MM/yyyy")) ·
+                    e-mail em @IdiomasDaProposta.Nome(o.Idioma).ToLowerInvariant()
+                </div>
+
+                <div class="fu-det-tit" style="margin-top:14px">Encerrar</div>
+                @if (f.Encerrado)
+                {
+                    <div>Encerrado em @Fmt.Date(f.EncerradoEm[..10])@(f.EncerradoPor.Length > 0 ? $" por {f.EncerradoPor}" : "") — @f.Motivo</div>
+                    <button class="btn-ghost" style="margin-top:6px" @onclick="() => Reabrir(l)">Reabrir o follow-up</button>
+                }
+                else
+                {
+                    <div class="fu-inline">
+                        <select class="cell" @bind="_motivo">
+                            @foreach (var m in Motivos) { <option value="@m">@m</option> }
+                        </select>
+                        <button class="btn-ghost perigo" @onclick="() => Encerrar(l)">Encerrar o follow-up</button>
+                    </div>
+                    <div class="fu-sub">Encerrada, a proposta sai da lista de follow-ups (fica em "encerrados").</div>
+                }
+            </div>
+        </div>
+    };
+}

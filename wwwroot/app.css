@@ -1607,3 +1607,64 @@ a.btn-logout:hover { border-color: var(--primary); color: var(--primary); backgr
 /* Propostas: revisões gravadas por cima que podem voltar */
 .recuperar-revisoes { border-left: 4px solid #b45309; background: #fffbeb; }
 .recuperar-cab { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+/* ===== Follow-up das propostas ===== */
+.nav-badge {
+    margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px;
+    background: #dc2626; color: #fff; font-size: 11.5px; font-weight: 700;
+    display: inline-flex; align-items: center; justify-content: center;
+}
+.fu-resumo { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+.fu-chip {
+    border: 1px solid var(--border); background: #fff; border-radius: 999px; padding: 6px 14px;
+    font: inherit; font-size: 13px; cursor: pointer; color: var(--text);
+}
+.fu-chip strong { font-size: 14px; margin-right: 2px; }
+.fu-chip:hover { background: #f1f5f9; }
+.fu-chip.on { background: var(--primary); border-color: var(--primary); color: #fff; }
+.fu-chip.atrasado:not(.on) strong { color: #dc2626; }
+.fu-chip.hoje:not(.on) strong { color: #b45309; }
+.fu-chip.breve:not(.on) strong { color: #2563eb; }
+.fu-busca { width: 280px; max-width: 100%; }
+.fu-tabela td { vertical-align: top; }
+.fu-linha.aberta td { background: #f8fafc; }
+.fu-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.fu-falta { color: #b45309; font-weight: 600; }
+.fu-selo {
+    display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 700;
+    background: #edf1f7; color: var(--muted);
+}
+.fu-selo.atrasado { background: #fee2e2; color: #b91c1c; }
+.fu-selo.hoje { background: #fef3c7; color: #b45309; }
+.fu-selo.breve { background: #dbeafe; color: #1d4ed8; }
+.fu-selo.agendado { background: #ecfdf5; color: #047857; }
+.fu-selo.semdata { background: #f3f4f6; color: #6b7280; }
+.fu-acoes { text-align: right; }
+.fu-btn { padding: 5px 10px; font-size: 12.5px; margin-left: 4px; }
+.fu-detalhe > td { background: #f8fafc; border-top: none; }
+.fu-det { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 22px; padding: 6px 4px 10px; }
+@media (max-width: 900px) { .fu-det { grid-template-columns: 1fr; } }
+.fu-det-tit { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 6px; }
+.fu-etapas { list-style: none; margin: 0 0 10px; padding: 0; }
+.fu-etapas li { display: flex; gap: 8px; padding: 6px 0; border-bottom: 1px dashed var(--border); }
+.fu-etapas li:last-child { border-bottom: none; }
+.fu-etapas li.feito { color: var(--muted); }
+.fu-etapa-marca { width: 16px; flex: none; font-weight: 700; color: #047857; }
+.fu-etapa-corpo { flex: 1; min-width: 0; }
+.fu-etapa-corpo > div:first-child { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.fu-nota { font-size: 12.5px; margin-top: 3px; white-space: pre-wrap; }
+.fu-tag { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 999px; background: #e0e7ff; color: #3730a3; }
+.fu-tag.mail { background: #ecfdf5; color: #047857; }
+input.cell.fu-data { width: 160px; flex: none; }
+.fu-form { margin-top: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: #fff; }
+.fu-form.destaque { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, .12); }
+.fu-inline { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.fu-inline input.cell:not(.fu-data) { flex: 1; min-width: 180px; }
+.fu-campo { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; font-weight: 600; color: var(--muted); margin-bottom: 8px; }
+.fu-campo.fu-inline { flex-direction: row; }
+.fu-campo textarea, .fu-campo input { font-weight: 400; color: var(--text); }
+.fu-atalhos { display: flex; gap: 12px; margin-top: 4px; font-size: 12.5px; }
+.fu-modelo-topo { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.fu-campos-lista { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--muted); }
+.fu-campos-lista code { background: #eef2f7; padding: 1px 5px; border-radius: 4px; color: var(--text); }
+.fu-portal summary { cursor: pointer; }

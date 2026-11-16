@@ -14,6 +14,7 @@ public partial class NovaOferta
 {
     [Inject] private IConfiguration Config { get; set; } = default!;
     [Inject] private OutlookLocal Outlook { get; set; } = default!;
+    [Inject] private FollowUpRepository FollowUpsRepo { get; set; } = default!;
     [Inject] private DadosBancariosRepository Bancos { get; set; } = default!;
 
     // o que foi digitado nos campos (null = o padrão)

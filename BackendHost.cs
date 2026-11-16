@@ -96,6 +96,7 @@ public static class BackendHost
         builder.Services.AddScoped<PerfisDeAcessoRepository>();
         builder.Services.AddScoped<DadosBancariosRepository>();
         builder.Services.AddScoped<CustosPadraoRepository>();
+        builder.Services.AddScoped<FollowUpRepository>();
         builder.Services.AddScoped<VisitRepository>();
         builder.Services.AddScoped<OfferRepository>();
         builder.Services.AddScoped<OppOverrideRepository>();

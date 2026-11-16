@@ -497,7 +497,16 @@ public partial class NovaOferta : IDisposable
     private void MarcarEnviada()
     {
         _o.Status = "Enviada";
-        if (Salvar(explicito: false)) _msg = "Marcada como enviada ao cliente.";
+        if (!Salvar(explicito: false)) return;
+        // o follow-up: o primeiro no fim da validade (proposta por portal não tem)
+        try
+        {
+            var f = FollowUpsRepo.MarcarEnviada(_o, _usuario, DateTime.Today);
+            _msg = f is null
+                ? "Marcada como enviada ao cliente. Proposta por portal: sem follow-up nem e-mail de cobrança."
+                : $"Marcada como enviada ao cliente. Follow-up agendado para {FollowUps.Data(f.Proxima?.Data)?.ToString("dd/MM/yyyy") ?? "—"} (fim da validade) — veja na guia Follow-up.";
+        }
+        catch (Exception ex) { _msg = "Marcada como enviada ao cliente."; _erro = "Não deu para agendar o follow-up: " + ex.Message; }
     }
 
     // ---- a etapa Começar ----
