@@ -18,6 +18,10 @@ public sealed class FichaVentilador
     public string TipoOferta { get; set; } = VentiladorCentrifugo.TiposDeOferta[0].Nome;
     public string Familia { get; set; } = "";
     public string Equipamento { get; set; } = "";
+    public string PartNumber { get; set; } = "";
+    public string SerialNumber { get; set; } = "";
+    /// <summary>De onde vem a referência do preço: "Último fornecimento" ou "Original" (vai para a base de referências).</summary>
+    public string UltimoFornecimento { get; set; } = "";
     public int Quantidade { get; set; } = 1;
     public string Arranjo { get; set; } = "";
     public string Aplicacao { get; set; } = "";
@@ -95,6 +99,7 @@ public static class VentiladorCentrifugo
         ["CaixaEntrada"] = new[] { "Sim", "Não" },
         ["TipoPas"] = new[] { "Radial", "Curvadas para trás", "Curvadas para frente", "Aerofólio", "Inclinadas para trás" },
         ["Acionamento"] = new[] { "Direto", "Por acoplamento", "Por correias e polias" },
+        ["UltimoFornecimento"] = new[] { "Último fornecimento", "Original" },
     };
 
     public static readonly string[] Categorias =
@@ -327,6 +332,8 @@ public static class VentiladorCentrifugo
         var custo = PorVentiladorDe(f);
         it.CustoManual = custo > 0m ? custo : null;
         it.Modelo = f.Equipamento.Trim();
+        it.PartNumber = f.PartNumber.Trim();
+        it.SerialNumber = f.SerialNumber.Trim();
         it.Ncm = tipo.Ncm;
         it.Description = $"{tipo.Descricao} {f.Equipamento}".Trim();
         it.TotalPrice = it.Quantity * it.UnitPrice;

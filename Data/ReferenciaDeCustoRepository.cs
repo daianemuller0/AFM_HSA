@@ -60,6 +60,16 @@ public sealed class ReferenciaDeCusto
     /// <summary>A quantidade total de itens (peças) da proposta — o tamanho do pacote em que o preço foi dado.</summary>
     public decimal QtdItensPacote { get; set; }
 
+    // ---- as colunas da base de ventiladores ----
+    /// <summary>De onde vem a referência do preço: "Último fornecimento" ou "Original".</summary>
+    public string UltimoFornecimento { get; set; } = "";
+    /// <summary>O escopo: o tipo da oferta (ventilador completo, partes e peças…).</summary>
+    public string Escopo { get; set; } = "";
+    /// <summary>Quem montou a proposta.</summary>
+    public string Aplicador { get; set; } = "";
+    public string MarketSegments { get; set; } = "";
+    public string Obs { get; set; } = "";
+
     public bool Vendido => NumeroAf.Trim().Length > 0;
 
     public DateTime? DataComoData =>
@@ -69,19 +79,41 @@ public sealed class ReferenciaDeCusto
     public Moeda MoedaDoCusto => Moedas.Ler(MoedaCusto);
 }
 
-/// <summary>As referências de preço e custo (entidade "referencias_custo").</summary>
-public sealed class ReferenciaDeCustoRepository
+/// <summary>
+/// As referências de preço e custo das partes e peças de compressor (entidade
+/// "referencias_custo"). A base dos ventiladores (<see cref="ReferenciaVentiladorRepository"/>)
+/// é a mesma coisa noutra entidade, com as colunas dela.
+/// </summary>
+public class ReferenciaDeCustoRepository
 {
-    private const string Entidade = "referencias_custo";
     public const string OrigemPlanilha = "planilha";
     private readonly ParquetStore _store;
-    public ReferenciaDeCustoRepository(ParquetStore store) => _store = store;
+    private readonly string _entidade;
+    private readonly string _nomeDoBackup;
+
+    /// <summary>As colunas desta base (planilha de importação, exportação e backup), na ordem da tela.</summary>
+    public (string Nome, string[] Apelidos)[] ColunasDaBase { get; }
+
+    /// <summary>A base dos ventiladores (o item pode não ter part number: vale o modelo).</summary>
+    public bool DeVentiladores { get; }
+
+    public ReferenciaDeCustoRepository(ParquetStore store) : this(store, "referencias_custo", "referencias_de_preco", Colunas, false) { }
+
+    protected ReferenciaDeCustoRepository(ParquetStore store, string entidade, string nomeDoBackup, (string Nome, string[] Apelidos)[] colunas, bool deVentiladores)
+    {
+        _store = store;
+        _entidade = entidade;
+        _nomeDoBackup = nomeDoBackup;
+        ColunasDaBase = colunas;
+        DeVentiladores = deVentiladores;
+    }
 
     public List<ReferenciaDeCusto> Todas() => _store
-        .ReadLatest(Entidade,
+        .ReadLatest(_entidade,
             "id, part_number, descricao, valor, ta, data, modelo, serial_number, origem, proposta_id, proposta, cliente, usuario, " +
             "revisao, plantas, estado, intercompany, quantidade, preco_unit_liquido, preco_total_liquido, moeda, " +
-            "numero_af, venda_por, valor_pacote, base_custo, moeda_custo, qtd_itens_pacote",
+            "numero_af, venda_por, valor_pacote, base_custo, moeda_custo, qtd_itens_pacote, " +
+            "ultimo_fornecimento, escopo, aplicador, market_segments, obs",
             r => new ReferenciaDeCusto
             {
                 Id = Fmt.S(r, 0), PartNumber = Fmt.S(r, 1), Descricao = Fmt.S(r, 2), Valor = Fmt.Dec(Fmt.S(r, 3)),
@@ -92,6 +124,7 @@ public sealed class ReferenciaDeCustoRepository
                 PrecoTotalLiquido = Fmt.Dec(Fmt.S(r, 19)), Moeda = Fmt.S(r, 20),
                 NumeroAf = Fmt.S(r, 21), VendaPor = Fmt.S(r, 22), ValorPacote = Fmt.Dec(Fmt.S(r, 23)), BaseDoCusto = Fmt.S(r, 24),
                 MoedaCusto = Fmt.S(r, 25), QtdItensPacote = Fmt.Dec(Fmt.S(r, 26)),
+                UltimoFornecimento = Fmt.S(r, 27), Escopo = Fmt.S(r, 28), Aplicador = Fmt.S(r, 29), MarketSegments = Fmt.S(r, 30), Obs = Fmt.S(r, 31),
             })
         .Select(SepararRevisao)
         .OrderByDescending(r => r.Data).ThenByDescending(r => r.Proposta)
@@ -138,9 +171,9 @@ public sealed class ReferenciaDeCustoRepository
     private static bool DeOutra(ReferenciaDeCusto r, string propostaAtual) =>
         r.PropostaId.Length == 0 || r.PropostaId != propostaAtual;
 
-    public void Gravar(ReferenciaDeCusto r) => _store.WriteRow(Entidade, Linha(r));
+    public void Gravar(ReferenciaDeCusto r) => _store.WriteRow(_entidade, Linha(r));
 
-    public void GravarVarias(IEnumerable<ReferenciaDeCusto> refs) => _store.WriteBatch(Entidade, refs.Select(Linha).ToList());
+    public void GravarVarias(IEnumerable<ReferenciaDeCusto> refs) => _store.WriteBatch(_entidade, refs.Select(Linha).ToList());
 
     private static IReadOnlyList<KeyValuePair<string, object?>> Linha(ReferenciaDeCusto r)
     {
@@ -156,16 +189,18 @@ public sealed class ReferenciaDeCustoRepository
             new("preco_total_liquido", N(r.PrecoTotalLiquido)), new("moeda", r.Moeda),
             new("numero_af", r.NumeroAf), new("venda_por", r.VendaPor), new("valor_pacote", N(r.ValorPacote)), new("base_custo", r.BaseDoCusto),
             new("moeda_custo", r.MoedaCusto), new("qtd_itens_pacote", N(r.QtdItensPacote)),
+            new("ultimo_fornecimento", r.UltimoFornecimento), new("escopo", r.Escopo), new("aplicador", r.Aplicador),
+            new("market_segments", r.MarketSegments), new("obs", r.Obs),
         };
     }
 
-    public void Apagar(string id) => _store.WriteRow(Entidade, new KeyValuePair<string, object?>[] { new("id", id) }, deleted: true);
+    public void Apagar(string id) => _store.WriteRow(_entidade, new KeyValuePair<string, object?>[] { new("id", id) }, deleted: true);
 
     /// <summary>Apaga várias numa gravação só.</summary>
     public void ApagarVarias(IReadOnlyCollection<string> ids)
     {
         if (ids.Count == 0) return;
-        _store.WriteBatch(Entidade, ids.Select(id => (IReadOnlyList<KeyValuePair<string, object?>>)new KeyValuePair<string, object?>[] { new("id", id) }).ToList(), deleted: true);
+        _store.WriteBatch(_entidade, ids.Select(id => (IReadOnlyList<KeyValuePair<string, object?>>)new KeyValuePair<string, object?>[] { new("id", id) }).ToList(), deleted: true);
     }
 
     /// <summary>Apaga as referências gravadas por essas propostas (as importadas do Excel ficam). Devolve quantas.</summary>
@@ -174,7 +209,7 @@ public sealed class ReferenciaDeCustoRepository
         var conjunto = propostas.ToHashSet();
         var ids = Todas().Where(r => r.PropostaId.Length > 0 && conjunto.Contains(r.PropostaId)).Select(r => r.Id).ToList();
         if (ids.Count > 0)
-            _store.WriteBatch(Entidade, ids.Select(id => (IReadOnlyList<KeyValuePair<string, object?>>)new KeyValuePair<string, object?>[] { new("id", id) }).ToList(), deleted: true);
+            _store.WriteBatch(_entidade, ids.Select(id => (IReadOnlyList<KeyValuePair<string, object?>>)new KeyValuePair<string, object?>[] { new("id", id) }).ToList(), deleted: true);
         return ids.Count;
     }
 
@@ -189,8 +224,8 @@ public sealed class ReferenciaDeCustoRepository
         return System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(hash, Convert.FromHexString(HashDaSenhaDeExcluir));
     }
 
-    /// <summary>Onde ficam os backups: na pasta de dados do sistema, em backups\referencias_de_preco.</summary>
-    public string PastaDosBackups => Path.Combine(_store.Folder, "backups", "referencias_de_preco");
+    /// <summary>Onde ficam os backups: na pasta de dados do sistema, em backups\referencias_de_preco (ou \referencias_ventiladores).</summary>
+    public string PastaDosBackups => Path.Combine(_store.Folder, "backups", _nomeDoBackup);
 
     /// <summary>
     /// Limpa a lista inteira. Antes, grava o backup na pasta de dados: a
@@ -203,18 +238,18 @@ public sealed class ReferenciaDeCustoRepository
         var pasta = PastaDosBackups;
         Directory.CreateDirectory(pasta);
         var carimbo = DateTime.Now.ToString("yyyy-MM-dd_HHmmss", System.Globalization.CultureInfo.InvariantCulture);
-        var planilha = Path.Combine(pasta, $"referencias_de_preco_{carimbo}.xlsx");
-        var arquivos = Path.Combine(pasta, $"referencias_de_preco_{carimbo}_arquivos.zip");
+        var planilha = Path.Combine(pasta, $"{_nomeDoBackup}_{carimbo}.xlsx");
+        var arquivos = Path.Combine(pasta, $"{_nomeDoBackup}_{carimbo}_arquivos.zip");
 
         File.WriteAllBytes(planilha, Planilha(todas));
-        System.IO.Compression.ZipFile.CreateFromDirectory(_store.PastaDa(Entidade), arquivos);
+        System.IO.Compression.ZipFile.CreateFromDirectory(_store.PastaDa(_entidade), arquivos);
         if (!File.Exists(planilha) || new FileInfo(planilha).Length == 0 || !File.Exists(arquivos))
             throw new InvalidOperationException("o backup não foi gravado; nada foi apagado.");
 
         File.AppendAllText(Path.Combine(pasta, "exclusoes.log"),
             $"{DateTime.Now:dd/MM/yyyy HH:mm:ss}\t{usuario}\t{todas.Count} referência(s)\t{Path.GetFileName(planilha)}\t{Path.GetFileName(arquivos)}{Environment.NewLine}");
 
-        _store.Clear(Entidade);
+        _store.Clear(_entidade);
         return (todas.Count, planilha, arquivos);
     }
 
@@ -234,7 +269,7 @@ public sealed class ReferenciaDeCustoRepository
                 var c = linha.Split('\t');
                 if (c.Length >= 5) registro[c[4].Trim()] = (c[1], c[2]);
             }
-        return Directory.EnumerateFiles(pasta, "referencias_de_preco_*_arquivos.zip")
+        return Directory.EnumerateFiles(pasta, $"{_nomeDoBackup}_*_arquivos.zip")
             .Select(f => new FileInfo(f))
             .OrderByDescending(f => f.Name, StringComparer.Ordinal)
             .Select(f =>
@@ -250,23 +285,47 @@ public sealed class ReferenciaDeCustoRepository
     {
         // só um dos backups listados (nada de caminho vindo de fora)
         var b = Backups().FirstOrDefault(x => x.Arquivo == arquivo) ?? throw new InvalidOperationException("backup não encontrado na pasta.");
-        _store.RestaurarDe(Entidade, Path.Combine(PastaDosBackups, b.Arquivo));
+        _store.RestaurarDe(_entidade, Path.Combine(PastaDosBackups, b.Arquivo));
         return Todas().Count;
     }
 
-    /// <summary>A lista em planilha, nas colunas da importação (a exportação da tela e o backup).</summary>
-    public static byte[] Planilha(IEnumerable<ReferenciaDeCusto> refs)
+    /// <summary>A lista em planilha, nas colunas desta base (a exportação da tela e o backup).</summary>
+    public byte[] Planilha(IEnumerable<ReferenciaDeCusto> refs) =>
+        AfmHsa.Data.Planilha.Xlsx("Referências", ColunasDaBase.Select(c => c.Nome).ToList(),
+            refs.Select(r => (IReadOnlyList<string>)ColunasDaBase.Select(c => Campos[c.Nome].Ler(r)).ToList()).ToList());
+
+    /// <summary>Como cada coluna da planilha sai da referência e volta para ela (exportar e importar).</summary>
+    private static readonly Dictionary<string, (Func<ReferenciaDeCusto, string> Ler, Action<ReferenciaDeCusto, string> Escrever)> Campos = new()
     {
-        var linhas = refs.Select(r => (IReadOnlyList<string>)new[]
-        {
-            r.Proposta, r.Revisao, r.Cliente, r.Plantas, r.Estado, r.Intercompany, r.PartNumber, r.Modelo, r.SerialNumber, r.Quantidade.ToString("0.##"),
-            r.PrecoUnitLiquido.ToString("0.00"), r.PrecoTotalLiquido.ToString("0.00"), r.DataComoData?.ToString("dd/MM/yyyy") ?? "",
-            r.Valor.ToString("0.00"), r.Ta.ToString("0.00"), r.Descricao, r.NumeroAf, r.VendaPor,
-            r.ValorPacote > 0 ? r.ValorPacote.ToString("0.00") : "", r.QtdItensPacote > 0 ? r.QtdItensPacote.ToString("0.##") : "", r.BaseDoCusto,
-            r.MoedaDoPreco.Codigo(), r.MoedaDoCusto.Codigo(),
-        }).ToList();
-        return AfmHsa.Data.Planilha.Xlsx("Referências", Colunas.Select(c => c.Nome).ToList(), linhas);
-    }
+        ["Proposta"] = (r => r.Proposta, (r, v) => r.Proposta = v),
+        ["Revisão"] = (r => r.Revisao, (r, v) => r.Revisao = v),
+        ["Cliente"] = (r => r.Cliente, (r, v) => r.Cliente = v),
+        ["Plantas"] = (r => r.Plantas, (r, v) => r.Plantas = v),
+        ["Estado"] = (r => r.Estado, (r, v) => r.Estado = v),
+        ["Intercompany"] = (r => r.Intercompany, (r, v) => r.Intercompany = v),
+        ["Part Number"] = (r => r.PartNumber, (r, v) => r.PartNumber = v),
+        ["Modelo"] = (r => r.Modelo, (r, v) => r.Modelo = v),
+        ["Serial Number"] = (r => r.SerialNumber, (r, v) => r.SerialNumber = v),
+        ["Quantidade"] = (r => r.Quantidade.ToString("0.##"), (r, v) => r.Quantidade = Numero(v) ?? 0m),
+        ["Valor unitário líquido"] = (r => r.PrecoUnitLiquido.ToString("0.00"), (r, v) => r.PrecoUnitLiquido = Numero(v) ?? 0m),
+        ["Valor total líquido"] = (r => r.PrecoTotalLiquido.ToString("0.00"), (r, v) => r.PrecoTotalLiquido = Numero(v) ?? 0m),
+        ["Data"] = (r => r.DataComoData?.ToString("dd/MM/yyyy") ?? "", (r, v) => r.Data = DataIso(v)),
+        ["Custo unit."] = (r => r.Valor.ToString("0.00"), (r, v) => r.Valor = Numero(v) ?? 0m),
+        ["TA"] = (r => r.Ta.ToString("0.00"), (r, v) => r.Ta = Numero(v) ?? 0m),
+        ["Descrição"] = (r => r.Descricao, (r, v) => r.Descricao = v),
+        ["Nº AF"] = (r => r.NumeroAf, (r, v) => r.NumeroAf = v),
+        ["Vendido por"] = (r => r.VendaPor, (r, v) => r.VendaPor = VendaPorDe(v)),
+        ["Valor total do pacote"] = (r => r.ValorPacote > 0 ? r.ValorPacote.ToString("0.00") : "", (r, v) => r.ValorPacote = Numero(v) ?? 0m),
+        ["Qtd. itens do pacote"] = (r => r.QtdItensPacote > 0 ? r.QtdItensPacote.ToString("0.##") : "", (r, v) => r.QtdItensPacote = Numero(v) ?? 0m),
+        ["Base do custo"] = (r => r.BaseDoCusto, (r, v) => r.BaseDoCusto = BaseDe(v)),
+        ["Moeda"] = (r => r.MoedaDoPreco.Codigo(), (r, v) => r.Moeda = Moedas.Ler(v).Codigo()),
+        ["Moeda do custo"] = (r => r.MoedaDoCusto.Codigo(), (r, v) => r.MoedaCusto = Moedas.Ler(v).Codigo()),
+        ["Último fornecimento / Original"] = (r => r.UltimoFornecimento, (r, v) => r.UltimoFornecimento = v),
+        ["Escopo"] = (r => r.Escopo, (r, v) => r.Escopo = v),
+        ["Aplicador"] = (r => r.Aplicador, (r, v) => r.Aplicador = v),
+        ["Market Segments"] = (r => r.MarketSegments, (r, v) => r.MarketSegments = v),
+        ["OBS"] = (r => r.Obs, (r, v) => r.Obs = v),
+    };
 
     // ================= planilha =================
 
@@ -298,6 +357,25 @@ public sealed class ReferenciaDeCustoRepository
         ("Moeda do custo", new[] { "moeda do custo", "moeda custo", "moeda do custo e ta" }),
     };
 
+    /// <summary>As colunas da base de ventiladores (as que a equipe pediu), na ordem da tela.</summary>
+    public static readonly (string Nome, string[] Apelidos)[] ColunasVentiladores =
+        Colunas.Where(c => c.Nome != "Base do custo")
+            .Concat(new (string, string[])[]
+            {
+                ("Último fornecimento / Original", new[] { "ultimo fornecimento / original", "ultimo fornecimetno / original", "ultimo fornecimento", "ultimo fornecimento original", "original" }),
+                ("Escopo", new[] { "escopo", "tipo da oferta", "escopo de fornecimento" }),
+                ("Aplicador", new[] { "aplicador", "elaborado por", "responsavel" }),
+                ("Market Segments", new[] { "market segments", "market segment", "segmento de mercado", "segmentos de mercado", "segmento" }),
+                ("OBS", new[] { "obs", "observacao", "observacoes", "obs." }),
+            })
+            .ToArray();
+
+    /// <summary>Colunas que podem faltar na planilha sem aviso.</summary>
+    private static readonly HashSet<string> Opcionais = new()
+    {
+        "Moeda", "Moeda do custo", "Modelo", "Serial Number", "Último fornecimento / Original", "Escopo", "Aplicador", "Market Segments", "OBS",
+    };
+
     private static string ChaveDaColuna(string s) =>
         new(Textos.Simples(s).Replace('º', 'o').Replace('ª', 'a').Where(c => char.IsLetterOrDigit(c) || c == ' ').ToArray());
 
@@ -314,12 +392,14 @@ public sealed class ReferenciaDeCustoRepository
         for (var i = 0; i < cab.Length; i++)
         {
             var h = ChaveDaColuna(cab[i]);
-            foreach (var (col, apelidos) in Colunas)
+            foreach (var (col, apelidos) in ColunasDaBase)
                 if (!indice.ContainsKey(col) && (ChaveDaColuna(col) == h || apelidos.Any(a => ChaveDaColuna(a) == h))) { indice[col] = i; break; }
         }
-        if (!indice.ContainsKey("Part Number"))
-            return (0, new List<string> { "A planilha não tem a coluna \"Part Number\". Baixe o modelo para ver as colunas." });
-        foreach (var (col, _) in Colunas.Where(c => c.Nome is not ("Moeda" or "Moeda do custo" or "Modelo" or "Serial Number") && !indice.ContainsKey(c.Nome)))
+        // compressor: o part number identifica a peça; ventilador: o part number, o modelo ou a descrição
+        var chaves = DeVentiladores ? new[] { "Part Number", "Modelo", "Descrição" } : new[] { "Part Number" };
+        if (!chaves.Any(indice.ContainsKey))
+            return (0, new List<string> { $"A planilha não tem a coluna \"{string.Join("\", \"", chaves)}\". Baixe o modelo para ver as colunas." });
+        foreach (var (col, _) in ColunasDaBase.Where(c => !Opcionais.Contains(c.Nome) && !indice.ContainsKey(c.Nome)))
             avisos.Add($"Coluna \"{col}\" não encontrada (fica vazia).");
 
         string C(string[] l, string col) => indice.TryGetValue(col, out var i) && i < l.Length ? (l[i] ?? "").Trim() : "";
@@ -328,28 +408,18 @@ public sealed class ReferenciaDeCustoRepository
         foreach (var l in linhas)
         {
             n++;
-            var pn = C(l, "Part Number");
-            if (pn.Length == 0) continue;
-            var r = new ReferenciaDeCusto
-            {
-                Proposta = C(l, "Proposta"), Revisao = C(l, "Revisão"), Cliente = C(l, "Cliente"), Plantas = C(l, "Plantas"),
-                Estado = C(l, "Estado"), Intercompany = C(l, "Intercompany"), PartNumber = pn,
-                Modelo = C(l, "Modelo"), SerialNumber = C(l, "Serial Number"),
-                Quantidade = Numero(C(l, "Quantidade")) ?? 0m, PrecoUnitLiquido = Numero(C(l, "Valor unitário líquido")) ?? 0m,
-                PrecoTotalLiquido = Numero(C(l, "Valor total líquido")) ?? 0m, Data = DataIso(C(l, "Data")),
-                Valor = Numero(C(l, "Custo unit.")) ?? 0m, Ta = Numero(C(l, "TA")) ?? 0m,
-                MoedaCusto = Moedas.Ler(C(l, "Moeda do custo")).Codigo(),
-                Descricao = C(l, "Descrição"), Moeda = Moedas.Ler(C(l, "Moeda")).Codigo(),
-                NumeroAf = C(l, "Nº AF"), VendaPor = VendaPorDe(C(l, "Vendido por")), ValorPacote = Numero(C(l, "Valor total do pacote")) ?? 0m,
-                QtdItensPacote = Numero(C(l, "Qtd. itens do pacote")) ?? 0m,
-                BaseDoCusto = BaseDe(C(l, "Base do custo")),
-                Origem = OrigemPlanilha, Usuario = usuario,
-            };
+            if (chaves.All(k => C(l, k).Length == 0)) continue;
+            var r = new ReferenciaDeCusto { Origem = OrigemPlanilha, Usuario = usuario };
+            foreach (var (col, _) in ColunasDaBase)
+                if (indice.ContainsKey(col)) Campos[col].Escrever(r, C(l, col));
+            r.Moeda = Moedas.Ler(r.Moeda).Codigo();
+            r.MoedaCusto = Moedas.Ler(r.MoedaCusto).Codigo();
             if (r.PrecoTotalLiquido == 0m && r.PrecoUnitLiquido > 0m && r.Quantidade > 0m) r.PrecoTotalLiquido = r.PrecoUnitLiquido * r.Quantidade;
             if (r.PrecoUnitLiquido == 0m && r.PrecoTotalLiquido > 0m && r.Quantidade > 0m) r.PrecoUnitLiquido = Math.Round(r.PrecoTotalLiquido / r.Quantidade, 2);
             if (C(l, "Data").Length > 0 && r.Data.Length == 0) avisos.Add($"Linha {n}: data \"{C(l, "Data")}\" não entendida.");
-            r.Id = "pl-" + Hash($"{r.Proposta}|{r.Revisao}|{r.Cliente}|{IntelligenceService.NormPn(pn)}|{r.Plantas}"
-                                + (r.SerialNumber.Length > 0 ? $"|{Textos.Simples(r.SerialNumber)}" : ""));
+            r.Id = "pl-" + Hash($"{r.Proposta}|{r.Revisao}|{r.Cliente}|{IntelligenceService.NormPn(r.PartNumber)}|{r.Plantas}"
+                                + (r.SerialNumber.Length > 0 ? $"|{Textos.Simples(r.SerialNumber)}" : "")
+                                + (DeVentiladores ? $"|{Textos.Simples(r.Modelo)}|{Textos.Simples(r.Descricao)}" : ""));
             novas.Add(r);
         }
         // a mesma linha duas vezes na planilha: fica a última
@@ -358,10 +428,25 @@ public sealed class ReferenciaDeCustoRepository
         return (novas.Count, avisos);
     }
 
-    /// <summary>O modelo da planilha de importação, com uma linha de exemplo.</summary>
-    public static byte[] Modelo() => AfmHsa.Data.Planilha.Xlsx("Referências", Colunas.Select(c => c.Nome).ToList(), new[]
+    /// <summary>O modelo da planilha de importação desta base, com uma linha de exemplo.</summary>
+    public byte[] Modelo() => Planilha(new[]
     {
-        (IReadOnlyList<string>)new[] { "HSA2026-0147", "2", "Vale", "São Luís", "MA", "HSA-SP", "HW-NAC-A", "VX 2025", "SN-123456", "3", "3853,22", "11559,66", "05/11/2026", "2100,00", "0", "Rolamento", "AF-12345", "pacote", "25000,00", "8", "cotação", "BRL", "BRL" },
+        DeVentiladores
+            ? new ReferenciaDeCusto
+            {
+                Proposta = "HSA2026-0201", Revisao = "0", Cliente = "Suzano", Plantas = "Aracruz", Estado = "ES", Intercompany = "HSA-SP",
+                PartNumber = "", Modelo = "SIROCCO 1250 BC", SerialNumber = "SN-77881", Quantidade = 1, PrecoUnitLiquido = 385000m, PrecoTotalLiquido = 385000m,
+                Data = "2026-11-18", Valor = 241000m, Descricao = "Ventilador Completo Howden Modelo SIROCCO 1250 BC", NumeroAf = "", VendaPor = "",
+                QtdItensPacote = 1, Moeda = "BRL", MoedaCusto = "BRL", UltimoFornecimento = "Último fornecimento", Escopo = "Ventilador completo",
+                Aplicador = "Adriana S", MarketSegments = "Celulose e papel", Obs = "",
+            }
+            : new ReferenciaDeCusto
+            {
+                Proposta = "HSA2026-0147", Revisao = "2", Cliente = "Vale", Plantas = "São Luís", Estado = "MA", Intercompany = "HSA-SP",
+                PartNumber = "HW-NAC-A", Modelo = "VX 2025", SerialNumber = "SN-123456", Quantidade = 3, PrecoUnitLiquido = 3853.22m, PrecoTotalLiquido = 11559.66m,
+                Data = "2026-11-05", Valor = 2100m, Descricao = "Rolamento", NumeroAf = "AF-12345", VendaPor = "pacote", ValorPacote = 25000m, QtdItensPacote = 8,
+                BaseDoCusto = Cotacao, Moeda = "BRL", MoedaCusto = "BRL",
+            },
     });
 
     public const string Cotacao = "cotação";
@@ -414,4 +499,16 @@ public sealed class ReferenciaDeCustoRepository
             return DateTime.FromOADate(serie).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         return "";
     }
+}
+
+
+/// <summary>
+/// As referências de preço e custo dos ventiladores (entidade
+/// "referencias_ventiladores"): as propostas de ventilador salvam aqui, e não
+/// na base de partes e peças de compressor.
+/// </summary>
+public sealed class ReferenciaVentiladorRepository : ReferenciaDeCustoRepository
+{
+    public ReferenciaVentiladorRepository(ParquetStore store)
+        : base(store, "referencias_ventiladores", "referencias_ventiladores", ColunasVentiladores, true) { }
 }

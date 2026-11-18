@@ -96,6 +96,9 @@
                     <label class="vc-largo">Equipamento (modelo)
                         <input class="cell" placeholder="ex.: SIROCCO 1250 BC" value="@f.Equipamento" @onchange="e => Campo(() => f.Equipamento = Txt(e))" />
                     </label>
+                    @Texto("Part Number", "", f.PartNumber, v => f.PartNumber = v)
+                    @Texto("Serial Number", "", f.SerialNumber, v => f.SerialNumber = v)
+                    @Texto("Último fornecimento / Original", "UltimoFornecimento", f.UltimoFornecimento, v => f.UltimoFornecimento = v)
                     <label>Quantidade
                         <input class="cell num" type="number" min="1" step="1" value="@f.Quantidade" @onchange="e => Campo(() => f.Quantidade = Math.Max(1, (int)(Num(e) ?? 1)))" />
                     </label>

@@ -1,7 +1,9 @@
 @page "/referencias-custo"
 @attribute [Authorize]
 @rendermode InteractiveServer
-@inject ReferenciaDeCustoRepository Refs
+@inject ReferenciaDeCustoRepository RefsCompressores
+@inject ReferenciaVentiladorRepository RefsVentiladores
+@inject NavigationManager Nav
 @inject IJSRuntime JS
 @inject AuthenticationStateProvider Auth
 
@@ -10,13 +12,33 @@
 <div class="page-head">
     <div>
         <h1>Referências de preço e custo</h1>
-        <p class="subtitle">
-            O que já enviamos ao cliente para cada part number — vendido ou não, é referência. Com o Nº da AF, a linha fica como vendida
-            (por item ou no pacote); a base do custo diz se temos cotação ou se foi estimado. Nascem ao salvar uma proposta
-            (um registro por item) ou de uma planilha. Na Gerar Proposta, ao digitar o part number, o último preço enviado
-            aparece no item, com "meta = este preço".
-        </p>
+        @if (_ventiladores)
+        {
+            <p class="subtitle">
+                O que já enviamos ao cliente em propostas de ventiladores — vendido ou não, é referência. Nascem ao salvar uma proposta
+                de ventiladores centrífugos (um registro por aba / item) ou de uma planilha. Com o Nº da AF, a linha fica como vendida.
+            </p>
+        }
+        else
+        {
+            <p class="subtitle">
+                O que já enviamos ao cliente para cada part number — vendido ou não, é referência. Com o Nº da AF, a linha fica como vendida
+                (por item ou no pacote); a base do custo diz se temos cotação ou se foi estimado. Nascem ao salvar uma proposta
+                (um registro por item) ou de uma planilha. Na Gerar Proposta, ao digitar o part number, o último preço enviado
+                aparece no item, com "meta = este preço".
+            </p>
+        }
     </div>
+</div>
+
+@* duas bases: as partes e peças de compressor e os ventiladores (cada proposta salva na do seu tipo) *@
+<div class="ref-bases" role="tablist" aria-label="Base de referências">
+    <button role="tab" class="ref-base @(!_ventiladores ? "on" : "")" aria-selected="@(!_ventiladores)" @onclick="() => TrocarBase(false)">
+        <strong>Compressores</strong><span>partes e peças</span>
+    </button>
+    <button role="tab" class="ref-base @(_ventiladores ? "on" : "")" aria-selected="@_ventiladores" @onclick="() => TrocarBase(true)">
+        <strong>Ventiladores</strong><span>centrífugos e em geral</span>
+    </button>
 </div>
 
 <div class="ref-topo">
@@ -24,7 +46,7 @@
         <input class="cell" style="min-width:260px; flex:1" placeholder="Buscar por proposta, cliente, planta, part number, descrição…"
                value="@_busca" @oninput="e => _busca = e.Value?.ToString() ?? string.Empty" />
         <span class="chips">
-            @foreach (var (cod, nome) in new[] { ("", "Todas"), ("vendidas", "Vendidas (com AF)"), ("nao", "Não vendidas"), ("cotacao", "Custo de cotação"), ("estimado", "Custo estimado") })
+            @foreach (var (cod, nome) in Filtros)
             {
                 <button class="chip @(_filtro == cod ? "active" : "")" @onclick="() => _filtro = cod">@nome</button>
             }
@@ -46,7 +68,7 @@
         <InputFile OnChange="Importar" accept=".xlsx,.xlsm,.xls,.csv" />
         <span class="dz-ico">⇪</span>
         <span><strong>Arraste a planilha aqui</strong> ou clique para escolher<br />
-            <small>.xlsx, .xls ou .csv · as colunas do modelo; a mesma proposta, revisão, cliente, part number e serial atualiza em vez de duplicar</small></span>
+            <small>.xlsx, .xls ou .csv · as colunas do modelo @(_ventiladores ? "de ventiladores" : "de compressores"); a mesma proposta, revisão, cliente, part number@(_ventiladores ? ", modelo" : "") e serial atualiza em vez de duplicar</small></span>
     </label>
 </div>
 @if (_excluindo && _adm)
@@ -103,7 +125,7 @@
     <table class="grid grid-ordenavel">
         <thead>
             <tr>
-                @foreach (var c in Colunas)
+                @foreach (var c in ColunasDaTela)
                 {
                     <th class="@(c.Direita ? "right" : "") nowrap" @onclick="() => Ordenar(c.Nome)" title="Ordenar por @c.Nome">
                         @c.Nome <span class="seta">@(_ordem == c.Nome ? (_crescente ? "▲" : "▼") : "↕")</span>
@@ -144,11 +166,25 @@
                     </td>
                     <td class="right nowrap" title="O valor total líquido da proposta (gravado ao salvar a proposta)">@(r.ValorPacote > 0 ? Moedas.Dinheiro(r.MoedaDoPreco, r.ValorPacote) : "—")</td>
                     <td class="right" title="A quantidade total de itens da proposta">@(r.QtdItensPacote > 0 ? r.QtdItensPacote.ToString("0.##") : "—")</td>
-                    <td>
-                        <select class="cell ref-sel" value="@r.BaseDoCusto" @onchange="e => MudarBase(r, e)">
-                            <option value="">—</option><option value="@ReferenciaDeCustoRepository.Cotacao">cotação</option><option value="@ReferenciaDeCustoRepository.Estimado">estimado</option>
-                        </select>
-                    </td>
+                    @if (!_ventiladores)
+                    {
+                        <td>
+                            <select class="cell ref-sel" value="@r.BaseDoCusto" @onchange="e => MudarBase(r, e)">
+                                <option value="">—</option><option value="@ReferenciaDeCustoRepository.Cotacao">cotação</option><option value="@ReferenciaDeCustoRepository.Estimado">estimado</option>
+                            </select>
+                        </td>
+                    }
+                    else
+                    {
+                        <td>
+                            <input class="cell ref-uf" list="dl-ultimo-fornecimento" value="@r.UltimoFornecimento" placeholder="—"
+                                   title="De onde vem a referência do preço: último fornecimento ou original" @onchange="e => MudarUltimo(r, e)" />
+                        </td>
+                        <td>@Traco(r.Escopo)</td>
+                        <td class="nowrap">@Traco(r.Aplicador)</td>
+                        <td>@Traco(r.MarketSegments)</td>
+                        <td><input class="cell ref-obs" value="@r.Obs" placeholder="—" @onchange="e => MudarObs(r, e)" /></td>
+                    }
                     <td class="nowrap">
                         @if (r.Origem == ReferenciaDeCustoRepository.OrigemPlanilha)
                         {
@@ -159,11 +195,12 @@
             }
             @if (!Filtradas.Any())
             {
-                <tr><td colspan="@(Colunas.Length + 1)" class="empty">@(_todas.Count == 0 ? "Nenhuma referência ainda: salve uma proposta com itens ou arraste uma planilha aqui em cima." : "Nenhuma referência com esse texto.")</td></tr>
+                <tr><td colspan="@(ColunasDaTela.Length + 1)" class="empty">@(_todas.Count == 0 ? "Nenhuma referência ainda: salve uma proposta com itens ou arraste uma planilha aqui em cima." : "Nenhuma referência com esse texto.")</td></tr>
             }
         </tbody>
     </table>
 </div>
+<datalist id="dl-ultimo-fornecimento"><option value="Último fornecimento" /><option value="Original" /></datalist>
 @if (Filtradas.Count() > _limite)
 {
     <button class="btn-ghost" style="margin-top:10px" @onclick="() => _limite += 500">Mostrar mais (@(Filtradas.Count() - _limite) restantes)</button>
@@ -211,6 +248,53 @@
 
     private string _filtro = "";
 
+    // ---- as duas bases ----
+    /// <summary>?base=ventiladores abre direto a base de ventiladores.</summary>
+    [SupplyParameterFromQuery(Name = "base")] public string? BaseNaUrl { get; set; }
+
+    private bool _ventiladores;
+
+    private ReferenciaDeCustoRepository Refs => _ventiladores ? RefsVentiladores : RefsCompressores;
+
+    /// <summary>As colunas dos ventiladores: sem a base do custo, com as cinco da equipe no fim.</summary>
+    private static readonly Coluna[] ColunasVentiladores = Colunas.Where(c => c.Nome != "Base do custo")
+        .Concat(new Coluna[]
+        {
+            new("Último fornecimento / Original", r => Textos.Simples(r.UltimoFornecimento)),
+            new("Escopo", r => Textos.Simples(r.Escopo)),
+            new("Aplicador", r => Textos.Simples(r.Aplicador)),
+            new("Market Segments", r => Textos.Simples(r.MarketSegments)),
+            new("OBS", r => Textos.Simples(r.Obs)),
+        }).ToArray();
+
+    private Coluna[] ColunasDaTela => _ventiladores ? ColunasVentiladores : Colunas;
+
+    private (string Codigo, string Nome)[] Filtros => _ventiladores
+        ? new[] { ("", "Todas"), ("vendidas", "Vendidas (com AF)"), ("nao", "Não vendidas") }
+        : new[] { ("", "Todas"), ("vendidas", "Vendidas (com AF)"), ("nao", "Não vendidas"), ("cotacao", "Custo de cotação"), ("estimado", "Custo estimado") };
+
+    private void TrocarBase(bool ventiladores)
+    {
+        if (_ventiladores == ventiladores) return;
+        _ventiladores = ventiladores;
+        _filtro = ""; _msg = null; _avisos = new(); _excluindo = false; _restaurando = false; _limite = 500;
+        _todas = Refs.Todas();
+        if (_adm) _backups = Refs.Backups();
+        Nav.NavigateTo(ventiladores ? "/referencias-custo?base=ventiladores" : "/referencias-custo", replace: true);
+    }
+
+    private void MudarUltimo(ReferenciaDeCusto r, ChangeEventArgs e)
+    {
+        r.UltimoFornecimento = (e.Value?.ToString() ?? "").Trim();
+        Gravar(r);
+    }
+
+    private void MudarObs(ReferenciaDeCusto r, ChangeEventArgs e)
+    {
+        r.Obs = (e.Value?.ToString() ?? "").Trim();
+        Gravar(r);
+    }
+
     // ---- a venda e a base do custo, editadas na própria lista (a AF chega depois da proposta) ----
     private void Gravar(ReferenciaDeCusto r) { Refs.Gravar(r); _msg = null; }
 
@@ -236,6 +320,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        _ventiladores = Textos.Igual(BaseNaUrl, "ventiladores");
         _todas = Refs.Todas();
         var u = (await Auth.GetAuthenticationStateAsync()).User;
         _usuario = u.Identity?.Name ?? "";
@@ -256,8 +341,8 @@
                 "estimado" => r.BaseDoCusto == ReferenciaDeCustoRepository.Estimado,
                 _ => true,
             }).Where(r => termos.All(t => Textos.Simples(
-                $"{r.NumeroAf} {r.Proposta} {r.Revisao} {r.Cliente} {r.Plantas} {r.Estado} {r.Intercompany} {r.PartNumber} {r.Descricao} {r.Modelo} {r.SerialNumber} {r.Usuario}").Contains(t)));
-            var col = Colunas.FirstOrDefault(c => c.Nome == _ordem) ?? Colunas.First(c => c.Nome == "Data");
+                $"{r.NumeroAf} {r.Proposta} {r.Revisao} {r.Cliente} {r.Plantas} {r.Estado} {r.Intercompany} {r.PartNumber} {r.Descricao} {r.Modelo} {r.SerialNumber} {r.Usuario} {r.Escopo} {r.Aplicador} {r.MarketSegments} {r.Obs} {r.UltimoFornecimento}").Contains(t)));
+            var col = ColunasDaTela.FirstOrDefault(c => c.Nome == _ordem) ?? ColunasDaTela.First(c => c.Nome == "Data");
             // vazio (sem valor, sem texto) fica sempre no fim, nos dois sentidos
             var comVazio = lista.OrderBy(r => Vazio(col.Chave(r)));
             return _crescente ? comVazio.ThenBy(col.Chave) : comVazio.ThenByDescending(col.Chave);
@@ -313,13 +398,13 @@
     }
 
     private async Task BaixarModelo() =>
-        await JS.InvokeVoidAsync("appDownload", "modelo_referencias_de_preco.xlsx",
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", Convert.ToBase64String(ReferenciaDeCustoRepository.Modelo()));
+        await JS.InvokeVoidAsync("appDownload", _ventiladores ? "modelo_referencias_ventiladores.xlsx" : "modelo_referencias_de_preco.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", Convert.ToBase64String(Refs.Modelo()));
 
     private async Task Exportar()
     {
-        var bytes = ReferenciaDeCustoRepository.Planilha(Filtradas);
-        await JS.InvokeVoidAsync("appDownload", "referencias_de_preco.xlsx",
+        var bytes = Refs.Planilha(Filtradas);
+        await JS.InvokeVoidAsync("appDownload", _ventiladores ? "referencias_ventiladores.xlsx" : "referencias_de_preco.xlsx",
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", Convert.ToBase64String(bytes));
     }
 

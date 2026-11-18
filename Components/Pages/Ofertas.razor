@@ -3,6 +3,7 @@
 @rendermode InteractiveServer
 @inject OfferRepository OffersRepo
 @inject ReferenciaDeCustoRepository RefsCusto
+@inject ReferenciaVentiladorRepository RefsVentiladores
 @inject AuthenticationStateProvider Auth
 @inject FollowUpRepository FollowUpsRepo
 
@@ -258,7 +259,7 @@ else
         if (!Acessos.EhAdm((await Auth.GetAuthenticationStateAsync()).User) || _marcadas.Count == 0) return;
         var ids = _marcadas.ToList();
         OffersRepo.ApagarPropostas(ids);
-        var refs = RefsCusto.ApagarDasPropostas(ids);
+        var refs = RefsCusto.ApagarDasPropostas(ids) + RefsVentiladores.ApagarDasPropostas(ids);
         _msg = $"{ids.Count} proposta(s) excluída(s)" + (refs > 0 ? $", com {refs} referência(s) de preço." : ".");
         _marcadas.Clear();
         _confirmar = false;

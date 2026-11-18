@@ -16,6 +16,8 @@ public partial class NovaOferta
 {
     [Inject] private CondicoesComerciaisRepository Condicoes { get; set; } = default!;
     [Inject] private ReferenciaDeCustoRepository RefsCusto { get; set; } = default!;
+    /// <summary>A base de referências dos ventiladores: a proposta de ventiladores salva nela.</summary>
+    [Inject] private ReferenciaVentiladorRepository RefsVentiladores { get; set; } = default!;
 
     /// <summary>As referências de custo gravadas pelas propostas (lidas ao abrir e a cada salvar).</summary>
     private List<ReferenciaDeCusto> _refsCusto = new();
@@ -405,7 +407,10 @@ public partial class NovaOferta
     /// </summary>
     private void GravarReferenciasDeCusto(IEnumerable<string> itensApagados)
     {
-        var porId = _refsCusto.ToDictionary(r => r.Id);
+        // cada proposta salva na base do seu tipo: compressores (partes e peças) ou ventiladores
+        ReferenciaDeCustoRepository baseDasRefs = EhVentilador ? RefsVentiladores : RefsCusto;
+        ReferenciaDeCustoRepository outraBase = EhVentilador ? RefsCusto : RefsVentiladores;
+        var porId = (EhVentilador ? RefsVentiladores.Todas() : _refsCusto).ToDictionary(r => r.Id);
         var data = DateTime.TryParseExact(_o.OfferDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d)
             ? d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : DateTime.Today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
@@ -421,7 +426,10 @@ public partial class NovaOferta
         foreach (var it in _items.Where(i => i != _itemDemais && i.Id.Length > 0))
         {
             var custo = CustoBaseDoItem(it);
-            if (it.PartNumber.Trim().Length == 0 || (custo is not > 0m && it.UnitPrice <= 0m))
+            // peça de compressor precisa do part number; o ventilador vale pelo modelo (a aba)
+            var ficha = EhVentilador ? VentiladorCentrifugo.Ler(it) : null;
+            var semIdentificacao = EhVentilador ? ficha is null : it.PartNumber.Trim().Length == 0;
+            if (semIdentificacao || (custo is not > 0m && it.UnitPrice <= 0m))
             {
                 if (porId.ContainsKey(it.Id)) apagar.Add(it.Id);
                 continue;
@@ -443,17 +451,30 @@ public partial class NovaOferta
             nova.BaseDoCusto = it.BaseCusto;
             nova.ValorPacote = valorDoPacote;
             nova.QtdItensPacote = qtdDoPacote;
-            // a venda (AF, por item ou pacote) é marcada depois, nas Referências: fica a que já estava
+            if (ficha is not null)
+            {
+                // as colunas da base de ventiladores
+                nova.Descricao = it.Description.Trim();
+                nova.Escopo = ficha.TipoOferta;
+                nova.UltimoFornecimento = ficha.UltimoFornecimento.Trim();
+                nova.Aplicador = PropostaWord.Ou(_o.PreparedBy, _usuario);
+                nova.MarketSegments = _o.MarketSegments ?? "";
+                nova.BaseDoCusto = "";
+            }
+            // a venda (AF, por item ou pacote) e as observações são marcadas depois, nas Referências: fica o que já estava
             if (porId.TryGetValue(it.Id, out var antiga))
             {
-                nova.NumeroAf = antiga.NumeroAf; nova.VendaPor = antiga.VendaPor;
+                nova.NumeroAf = antiga.NumeroAf; nova.VendaPor = antiga.VendaPor; nova.Obs = antiga.Obs;
+                if (nova.UltimoFornecimento.Length == 0) nova.UltimoFornecimento = antiga.UltimoFornecimento;
                 if (Igual(antiga, nova)) continue;   // sem mudança, a referência fica como estava
             }
             gravar.Add(nova);
         }
         apagar.AddRange(itensApagados.Where(porId.ContainsKey));
-        if (gravar.Count > 0) RefsCusto.GravarVarias(gravar);
-        RefsCusto.ApagarVarias(apagar);
+        if (gravar.Count > 0) baseDasRefs.GravarVarias(gravar);
+        baseDasRefs.ApagarVarias(apagar);
+        // a proposta mudou de tipo (compressor ↔ ventilador): o que ela gravou na outra base sai de lá
+        if (_o.Id.Length > 0) outraBase.ApagarDasPropostas(new[] { _o.Id });
         LerReferenciasDeCusto();
     }
 
@@ -462,7 +483,8 @@ public partial class NovaOferta
         && a.Origem == b.Origem && a.Proposta == b.Proposta && a.Revisao == b.Revisao && a.Cliente == b.Cliente && a.Plantas == b.Plantas
         && a.Estado == b.Estado && a.Intercompany == b.Intercompany && a.Quantidade == b.Quantidade && a.PrecoUnitLiquido == b.PrecoUnitLiquido
         && a.Moeda == b.Moeda && a.Data == b.Data && a.Descricao == b.Descricao && a.BaseDoCusto == b.BaseDoCusto && a.MoedaDoCusto == b.MoedaDoCusto
-        && a.ValorPacote == b.ValorPacote && a.QtdItensPacote == b.QtdItensPacote;
+        && a.ValorPacote == b.ValorPacote && a.QtdItensPacote == b.QtdItensPacote
+        && a.UltimoFornecimento == b.UltimoFornecimento && a.Escopo == b.Escopo && a.Aplicador == b.Aplicador && a.MarketSegments == b.MarketSegments;
 
     /// <summary>
     /// O pacote da proposta: o valor total líquido que o cliente recebe (todas
