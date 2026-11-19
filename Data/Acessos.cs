@@ -37,7 +37,7 @@ public static class Acessos
     {
         new("dashboard", "Central de Inteligência", "Gestão de Vendas", new[] { "/dashboard", "/oportunidades", "/previsao", "/planejamento", "/pecas" }),
         new("carteira", "Plano de Ação Comercial", "Gestão de Vendas", new[] { "/carteira" }),
-        new("diretoria", "Painel Executivo", "Gestão de Vendas", new[] { "/diretoria" }),
+        new("diretoria", "Painel Executivo e Conversões", "Gestão de Vendas", new[] { "/diretoria", "/conversoes" }),
         new("visitas", "Ações em Campo", "Gestão de Vendas", new[] { "/visitas" }),
         new("alertas", "Alertas Preditivos", "Gestão de Vendas", new[] { "/alertas" }),
         new("gerar-proposta", "Gerar Proposta", "Comercial", new[] { "/gerar-proposta", "/ofertas/nova" }),

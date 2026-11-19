@@ -110,6 +110,7 @@ public static class BackendHost
         builder.Services.AddScoped<CondicoesComerciaisRepository>();
         builder.Services.AddScoped<ReferenciaDeCustoRepository>();
         builder.Services.AddScoped<ReferenciaVentiladorRepository>();
+        builder.Services.AddScoped<VendasMensaisRepository>();
         builder.Services.AddScoped<PosicaoDaPlantaRepository>();
         builder.Services.AddScoped<CotacaoIntercompanyRepository>();
         builder.Services.AddScoped<ListasCompartilhadasRepository>();
