@@ -23,7 +23,9 @@ public partial class NovaOferta
     private string? _emailAberto;
 
     private string AprovPara => _aprovParaDigitado ?? Config["Emails:AprovacaoPara"] ?? EmailsDaProposta.AprovadorPadrao;
-    private string AprovCc => _aprovCcDigitado ?? Config["Emails:AprovacaoCc"] ?? EmailsDaProposta.CopiaDaAprovacaoPadrao;
+    private string AprovCc => _aprovCcDigitado ?? (Consolidacao.Consolidada(_o)
+        ? Config["Emails:ConsolidacaoCc"] ?? EmailsDaProposta.CopiaDaConsolidacaoPadrao
+        : Config["Emails:AprovacaoCc"] ?? EmailsDaProposta.CopiaDaAprovacaoPadrao);
     private string PropPara => _propParaDigitado ?? _o.ContatoEmail ?? "";
 
     /// <summary>Cópia do envio ao cliente: os vendedores da proposta (e quem o appsettings mandar).</summary>

@@ -37,6 +37,8 @@ public static class EmailsDaProposta
     // os da macro da planilha; o appsettings (seção "Emails") pode trocar
     public const string AprovadorPadrao = "edson.geraldini@chartindustries.com";
     public const string CopiaDaAprovacaoPadrao = "marcos.pinto@chartindustries.com";
+    /// <summary>A cópia da aprovação do pricing CONSOLIDADO (proposta vendida): Thais e Rafael.</summary>
+    public const string CopiaDaConsolidacaoPadrao = "Thais.Trevine@chartindustries.com; Rafael.Toledo@chartindustries.com";
 
     private static readonly CultureInfo Br = new("pt-BR");
     private static string H(string? s) => WebUtility.HtmlEncode(s ?? "");
@@ -55,6 +57,14 @@ public static class EmailsDaProposta
     /// </summary>
     public static string AssuntoDaAprovacao(CommercialOffer o, string clienteCompleto)
     {
+        // consolidada: "HSABOC.AFM.000145-1 – CONSOLIDADO – PRICING – Petroperu S.A. – Piura – PC 13104884 – AF2424"
+        if (Consolidacao.Consolidada(o))
+        {
+            var num = $"{PropostaWord.Ou(o.OfferCode, o.NumeroCrm)}-{PropostaWord.Ou(o.Revisao, "0")}";
+            var pedido = (o.NumeroPedido ?? "").Trim();
+            return string.Join(" – ", new[] { num, "CONSOLIDADO", "PRICING", clienteCompleto, pedido.Length > 0 ? $"PC {pedido}" : "", o.Pv ?? "" }
+                .Select(p => (p ?? "").Trim()).Where(p => p.Length > 0));
+        }
         var numero = $"{PropostaWord.Ou(o.OfferCode, o.NumeroCrm)}-{PropostaWord.Ou(o.Revisao, "0")}";
         var partes = new[] { numero, "PRICING", clienteCompleto, o.SuaReferencia, "APROVAÇÃO DE PRICING DE PROPOSTA" }
             .Select(p => (p ?? "").Trim()).Where(p => p.Length > 0);
@@ -84,7 +94,10 @@ public static class EmailsDaProposta
         var moeda = Cambio.MoedaDoPreco(o).Rotulo();
         var nome = PrimeiroNome(para);
         var saudacao = nome.Length > 0 ? $"Prezado {nome}," : "Prezados,";
-        const string Pedido = "Por gentileza, poderia verificar e liberar o envio da oferta conforme dados abaixo:";
+        var consolidada = Consolidacao.Consolidada(o);
+        var Pedido = consolidada
+            ? $"Por gentileza, poderia verificar e liberar a consolidação para o projeto {PropostaWord.Ou(o.Pv, "—")} conforme dados abaixo:"
+            : "Por gentileza, poderia verificar e liberar o envio da oferta conforme dados abaixo:";
         var quadro = new List<(string Rotulo, string Valor, string Unidade)>
         {
             ("GM:", r.VendaLiquida > 0m ? Num(r.Margem * 100m) : "—", "%"),
@@ -93,7 +106,9 @@ public static class EmailsDaProposta
             ("Garantia:", Num(CalculoPricing.GarantiaDoProjeto * 100m), "%"),
             ("Risco:", Num(o.RiscoAdicional * 100m), "%"),
             ("Protected Margin:", Num((o.ProtectedMargin ?? 0m) * 100m), "%"),
-            ("Prazo de entrega:", PropostaWord.Ou(d.PrazoDias, "—"), "Dias"),
+            consolidada && Consolidacao.Data(o.DataEntrega) is DateOnly entrega
+                ? ("Data de entrega:", entrega.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture), "")
+                : ("Prazo de entrega:", PropostaWord.Ou(d.PrazoDias, "—"), "Dias"),
             d.Cambio is { Length: > 0 } cambio
                 ? ("Câmbio:", cambio, "")
                 : ("Dólar:", d.Dolar is decimal usd && usd > 0m ? usd.ToString("N4", Br) : "—", "R$"),
@@ -103,6 +118,7 @@ public static class EmailsDaProposta
         var sb = new StringBuilder("<div style=\"font-family:Calibri,Arial,Helvetica,sans-serif;font-size:14px;color:#1f2937;line-height:1.45\">");
         sb.Append($"<p>{H(saudacao)}</p><p>{H(Pedido)}</p>");
         sb.Append($"<p style=\"margin:4px 0\"><span style=\"{Rot}\">Cliente:</span> {H(d.ClienteCompleto)}</p>");
+        if (consolidada) sb.Append($"<p style=\"margin:4px 0\"><span style=\"{Rot}\">Pedido de compra:</span> {H(PropostaWord.Ou(o.NumeroPedido, "—"))}</p>");
         sb.Append($"<p style=\"margin:4px 0\"><span style=\"{Rot}\">Projeto:</span> {H(PropostaWord.Ou(o.Project, "—"))}</p>");
         sb.Append($"<p style=\"margin:4px 0\"><span style=\"{Rot}\">Escopo:</span> Partes e peças para compressor</p>");
         if (d.Escopo.Count > 0) sb.Append("<ul style=\"margin:2px 0 6px\">" + string.Concat(d.Escopo.Select(e => $"<li>{H(e)}</li>")) + "</ul>");
@@ -145,7 +161,9 @@ public static class EmailsDaProposta
 
         var texto = new StringBuilder();
         texto.AppendLine(saudacao).AppendLine().AppendLine(Pedido).AppendLine();
-        texto.AppendLine($"Cliente: {d.ClienteCompleto}").AppendLine($"Projeto: {PropostaWord.Ou(o.Project, "—")}").AppendLine("Escopo: Partes e peças para compressor");
+        texto.AppendLine($"Cliente: {d.ClienteCompleto}");
+        if (consolidada) texto.AppendLine($"Pedido de compra: {PropostaWord.Ou(o.NumeroPedido, "—")}");
+        texto.AppendLine($"Projeto: {PropostaWord.Ou(o.Project, "—")}").AppendLine("Escopo: Partes e peças para compressor");
         foreach (var e in d.Escopo) texto.AppendLine($"  • {e}");
         if (d.Nota.Trim().Length > 0) texto.AppendLine($"Nota: {d.Nota.Trim()}");
         texto.AppendLine();

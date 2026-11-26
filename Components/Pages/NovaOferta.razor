@@ -79,6 +79,7 @@
                 }
                 else
                 {
+                    <button class="btn-ghost" disabled="@_gerandoEmail" title="Abre no Outlook a aprovação do pricing consolidado (para o Edson, cópia Thais e Rafael), com o pricing anexo" @onclick="EmlDeAprovacao">✉ Aprovação da consolidação</button>
                     <button class="btn-ghost" title="Voltar a proposta como estava antes de consolidar" @onclick="() => _cConfirmarDesfazer = true">↶ Desfazer consolidação</button>
                 }
             }
@@ -222,6 +223,7 @@
                             <div class="seg">
                                 <button class='@(_cMnDestino == "ta" ? "on" : "")' @onclick='() => { _cMnDestino = "ta"; _cErro = null; }'>No TA</button>
                                 <button class='@(_cMnDestino == "frete" ? "on" : "")' @onclick='() => { _cMnDestino = "frete"; _cErro = null; }'>No frete</button>
+                                <button class='@(_cMnDestino == "dividir" ? "on" : "")' @onclick='() => { _cMnDestino = "dividir"; _cErro = null; }'>Dividir</button>
                                 <button class='@(_cMnDestino == "nao" ? "on" : "")' @onclick='() => { _cMnDestino = "nao"; _cErro = null; }'>Não</button>
                             </div>
                         </div>
@@ -234,11 +236,31 @@
                             {
                                 <span>O valor da margem de negociação entra no frete da proposta@(_o.FreteCusto > 0m ? $" (hoje {Cambio.DinheiroDoCusto(_o, _o.FreteCusto)})" : "")</span><span>, que se divide pelos itens pelo valor de cada um. O preço de venda não muda e a margem total do projeto fica a mesma.</span>
                             }
+                            else if (_cMnDestino == "dividir")
+                            {
+                                <span>O valor da margem de negociação é dividido: uma parte vira TA nos itens (na proporção do custo de cada um) e a outra entra no frete. As partes somam 100%; o preço de venda não muda e a margem total fica a mesma.</span>
+                            }
                             else if (_cMnDestino == "nao")
                             {
                                 <span>A margem de negociação vai a zero e o preço de venda não muda: a margem total do projeto sobe @Pct(_o.MargemNegociacao).</span>
                             }
                         </p>
+                    }
+                    @if (_cZerarMn == true && _cMnDestino == "dividir")
+                    {
+                        var valorMn = ValorDaMn(prC);
+                        <div class="cs-divisao">
+                            <label class="cs-campo">% no TA
+                                <input class="cell num" type="number" min="0" max="100" step="1" value="@_cPctTa.ToString(CultureInfo.InvariantCulture)" @onchange="MudarPctTa" />
+                                <small>≈ @Cambio.DinheiroDoCusto(_o, valorMn * _cPctTa / 100m)</small>
+                            </label>
+                            <span class="cs-mais">+</span>
+                            <label class="cs-campo">% no frete
+                                <input class="cell num" type="number" min="0" max="100" step="1" value="@_cPctFrete.ToString(CultureInfo.InvariantCulture)" @onchange="MudarPctFrete" />
+                                <small>≈ @Cambio.DinheiroDoCusto(_o, valorMn * _cPctFrete / 100m)</small>
+                            </label>
+                            <span class="cs-soma @(_cPctTa + _cPctFrete == 100m ? "ok" : "erro")">= @((_cPctTa + _cPctFrete).ToString("0.##", PtBr))%</span>
+                        </div>
                     }
                     else if (_cZerarMn == false)
                     {
@@ -2047,7 +2069,7 @@ else
     <div class="emails-grade">
         @{ var aprov = EmailDeAprovacao(Remetente); var cli = EmailAoCliente(Remetente); }
         <div class="email-card">
-            <div class="email-titulo">✔ Aprovação do pricing</div>
+            <div class="email-titulo">✔ Aprovação do pricing@(Consolidacao.Consolidada(_o) ? " consolidado" : "")</div>
             <label>Para<input class="cell" value="@AprovPara" @onchange="e => _aprovParaDigitado = e.Value?.ToString() ?? string.Empty" /></label>
             <label>Cc<input class="cell" value="@AprovCc" @onchange="e => _aprovCcDigitado = e.Value?.ToString() ?? string.Empty" /></label>
             <div class="email-assunto"><span>Assunto</span>@aprov.Assunto</div>

@@ -1929,3 +1929,10 @@ a.btn-mini.btn-consolidar:hover, .btn-consolidar:hover { background: #1f6f43; co
 
 .tp-parcial { display: inline-block; margin-top: 2px; font-size: 10.5px; font-weight: 600; color: #92400e; background: #fff7ed; border-radius: 999px; padding: 1px 7px; }
 tr.tp-sem td { color: var(--muted); }
+.cs-divisao { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 14px; border: 1px dashed var(--border); border-radius: 12px; }
+.cs-divisao .cs-campo { flex: 0 0 150px; }
+.cs-divisao .cs-campo small { font-weight: 400; }
+.cs-mais { font-size: 20px; color: var(--muted); }
+.cs-soma { font-size: 16px; font-weight: 700; padding: 6px 12px; border-radius: 999px; }
+.cs-soma.ok { background: #ecfdf3; color: #166534; }
+.cs-soma.erro { background: #fef2f2; color: #b91c1c; }
