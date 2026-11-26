@@ -1941,3 +1941,9 @@ tr.tp-sem td { color: var(--muted); }
 .prop-head { flex-wrap: wrap; }
 .prop-head .prop-titulo { flex: 1 1 280px; min-width: 0; }
 .prop-head .page-actions { flex: 0 1 auto; flex-wrap: wrap; justify-content: flex-end; }
+
+.cs-conversao { padding: 12px 14px; border: 1px dashed var(--border); border-radius: 12px; display: flex; flex-direction: column; gap: 8px; }
+.cs-conversao .cs-taxa { flex: 0 0 220px; min-width: 200px; }
+.cs-moeda-bu { font-weight: 700; padding-bottom: 10px; }
+.cs-valor-bu { padding-bottom: 10px; font-size: 13.5px; }
+.side-item.side-bu span small { display: block; font-size: 11px; color: var(--muted); }

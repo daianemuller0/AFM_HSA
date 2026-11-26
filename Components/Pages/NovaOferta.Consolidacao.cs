@@ -63,6 +63,7 @@ public partial class NovaOferta
     }
     private decimal? _cValor;
     private string _cMoeda = "";
+    private decimal? _cTaxaBu;        // HCHL/HPU: 1 da moeda da proposta = X CLP/PEN
     private bool _cConferido;          // o valor foi conferido (bate, ou os preços por item fecham)
     private bool _cNaoBate;            // conferiu e não bateu: revisar o valor ou ajustar os itens
     private bool _cAjustarItens;
@@ -118,6 +119,7 @@ public partial class NovaOferta
         _cValor = null;
         _cMoeda = MoedaDaProposta.Codigo();
         _cConferido = _cNaoBate = _cAjustarItens = false;
+        _cTaxaBu = null;
         _cPrecos.Clear();
         var hoje = DateOnly.FromDateTime(DateTime.Today);
         var itens = ItensDoPedido();
@@ -182,6 +184,8 @@ public partial class NovaOferta
             case 3:
                 if (!_cConferido) { ConferirValor(); if (!_cConferido) return; }
                 if (_cAjustarItens && SomaDosPrecosNovos() is var soma && !Bate(soma)) { _cErro = $"Os preços por item somam {DinheiroC(soma)}; o pedido é {DinheiroC(_cValor ?? 0m)}."; return; }
+                if (Consolidacao.PedeConversao(_o) && _cTaxaBu is not > 0m)
+                { _cErro = $"Informe a conversão: 1 {MoedaDaProposta.Codigo()} = quantos {Consolidacao.MoedaDaBu(_o)!.Value.Codigo()}."; return; }
                 _passoC = 4;
                 return;
             case 4:
@@ -238,6 +242,12 @@ public partial class NovaOferta
         __builder.AddContent(4, " · " + comparacao);
         __builder.CloseElement();
     };
+
+    private void MudarTaxaBu(Microsoft.AspNetCore.Components.ChangeEventArgs e)
+    {
+        _cTaxaBu = Numero(e) is decimal v && v > 0m ? v : null;
+        _cErro = null;
+    }
 
     private bool Bate(decimal valor) => _cValor is decimal v && Math.Abs(v - valor) <= ToleranciaC();
 
@@ -408,6 +418,7 @@ public partial class NovaOferta
 
         // a marca
         _o.ValorPedido = _cValor ?? 0m;
+        _o.TaxaMoedaBu = Consolidacao.PedeConversao(_o) ? _cTaxaBu ?? 0m : 0m;
         _o.MoedaPedido = Moedas.Ler(_cMoeda).Codigo();
         _o.ConsolidadaEm = DateTime.Now.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
         _o.ConsolidadaPor = _usuario;

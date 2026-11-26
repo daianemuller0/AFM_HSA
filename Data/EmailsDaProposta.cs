@@ -20,7 +20,8 @@ public sealed record AnexoDoEmail(string Nome, string TipoMime, byte[] Conteudo)
 public sealed record ResumoDaAprovacao(
     string ClienteCompleto, IReadOnlyList<string> Escopo,
     IReadOnlyList<(string Item, string Produto, string Modelo, int Qtd, string UnitSemImpostos, string Total)> Itens,
-    string TotalSemImpostos, string PrazoDias, decimal? Dolar, string Seguros, string Nota, string? Cambio = null);
+    string TotalSemImpostos, string PrazoDias, decimal? Dolar, string Seguros, string Nota, string? Cambio = null,
+    string? TotalNaMoedaDaBu = null, string? TaxaDaBu = null, string MoedaDaBu = "");
 
 /// <summary>
 /// Os dois e-mails da proposta, os mesmos da aba "EMAILS AUTOMÁTICOS" da
@@ -137,6 +138,7 @@ public static class EmailsDaProposta
                 : (tx.Dolar, d.Dolar is decimal usd && usd > 0m ? usd.ToString("N4", Br) : "—", "R$"),
         };
 
+        if (d.TaxaDaBu is { } taxaBu) quadro.Add((idioma == "es" ? "Conversión:" : "Conversão:", taxaBu, ""));
         const string Rot = "font-weight:bold";
         var sb = new StringBuilder("<div style=\"font-family:Calibri,Arial,Helvetica,sans-serif;font-size:14px;color:#1f2937;line-height:1.45\">");
         sb.Append($"<p>{H(saudacao)}</p><p>{H(Pedido)}</p>");
@@ -162,6 +164,8 @@ public static class EmailsDaProposta
             sb.Append("</tr>");
         }
         sb.Append($"<tr><td colspan=\"4\" style=\"{Td}\"></td><td style=\"{Td};font-weight:bold;text-align:right\">{H(tx.Total)}</td><td style=\"{Td};font-weight:bold;text-align:right;white-space:nowrap\">{H(d.TotalSemImpostos)}</td></tr>");
+        if (d.TotalNaMoedaDaBu is { } totalBu)
+            sb.Append($"<tr><td colspan=\"4\" style=\"{Td}\"></td><td style=\"{Td};font-weight:bold;text-align:right;white-space:nowrap\">{H(tx.Total)} {H(d.MoedaDaBu)}</td><td style=\"{Td};font-weight:bold;text-align:right;white-space:nowrap;background:#fff7d6\">{H(totalBu)}</td></tr>");
         sb.Append("</table>");
         // uma linha em branco entre as duas tabelas (o Outlook ignora a margem da tabela)
         sb.Append("<p style=\"margin:0\">&nbsp;</p>");
@@ -192,7 +196,9 @@ public static class EmailsDaProposta
         texto.AppendLine();
         texto.AppendLine(string.Join(" | ", tx.Cabecalho));
         foreach (var i in d.Itens) texto.AppendLine($"{i.Item} | {i.Produto} | {i.Modelo} | {i.Qtd} | {i.UnitSemImpostos} | {i.Total}");
-        texto.AppendLine($"{tx.Total}: {d.TotalSemImpostos}").AppendLine();
+        texto.AppendLine($"{tx.Total}: {d.TotalSemImpostos}");
+        if (d.TotalNaMoedaDaBu is { } tbu) texto.AppendLine($"{tx.Total} {d.MoedaDaBu}: {tbu}");
+        texto.AppendLine();
         foreach (var (rot, valor, unidade) in quadro) texto.AppendLine($"{rot} {valor} {unidade}");
         texto.AppendLine().AppendLine($"{tx.Condicoes} {PropostaWord.Ou(o.PaymentTerms, "—")}").AppendLine();
         texto.AppendLine(tx.GarantiaDoProjeto).AppendLine($"{tx.Padrao} {tx.GarantiaTexto}").AppendLine();

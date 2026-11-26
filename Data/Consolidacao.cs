@@ -41,6 +41,30 @@ public static class Consolidacao
         return dias > 0 ? hoje.AddDays(dias) : null;
     }
 
+    // ---- moeda da BU (HCHL em CLP, HPU em PEN) ----
+
+    /// <summary>A moeda em que a BU de fora precisa ver o valor consolidado: HCHL → CLP, HPU → PEN; null = BU do Brasil.</summary>
+    public static Moeda? MoedaDaBu(CommercialOffer o)
+    {
+        var bu = (o.Bu ?? "").Trim();
+        if (bu.StartsWith("HCHL", StringComparison.OrdinalIgnoreCase)) return Moeda.Clp;
+        if (bu.Equals("HPU", StringComparison.OrdinalIgnoreCase)) return Moeda.Pen;
+        return null;
+    }
+
+    /// <summary>A consolidação pede a conversão: BU HCHL/HPU com a proposta em outra moeda (já em CLP/PEN não precisa).</summary>
+    public static bool PedeConversao(CommercialOffer o) => MoedaDaBu(o) is Moeda m && Cambio.MoedaDoPreco(o) != m;
+
+    /// <summary>"1 USD = 950,2500 CLP"; null = sem conversão.</summary>
+    public static string? TextoDaTaxa(CommercialOffer o) =>
+        PedeConversao(o) && o.TaxaMoedaBu > 0m
+            ? $"1 {Cambio.MoedaDoPreco(o).Codigo()} = {o.TaxaMoedaBu.ToString("#,##0.####", new System.Globalization.CultureInfo("pt-BR"))} {MoedaDaBu(o)!.Value.Codigo()}"
+            : null;
+
+    /// <summary>Um valor na moeda da proposta, na moeda da BU ("CLP 123.456.789"); null = sem conversão.</summary>
+    public static string? NaMoedaDaBu(CommercialOffer o, decimal valor) =>
+        PedeConversao(o) && o.TaxaMoedaBu > 0m ? Moedas.Dinheiro(MoedaDaBu(o)!.Value, Math.Round(valor * o.TaxaMoedaBu, 2)) : null;
+
     // ---- desfazer ----
 
     public sealed record Retrato(CommercialOffer Oferta, List<CommercialOfferItem> Itens);
@@ -65,6 +89,7 @@ public static class Consolidacao
     {
         (para.ConsolidadaEm, para.ConsolidadaPor, para.NumeroPedido, para.ValorPedido, para.MoedaPedido, para.DataEntrega, para.ConsolidacaoAntes) =
             (de.ConsolidadaEm, de.ConsolidadaPor, de.NumeroPedido, de.ValorPedido, de.MoedaPedido, de.DataEntrega, de.ConsolidacaoAntes);
+        para.TaxaMoedaBu = de.TaxaMoedaBu;
     }
 
     /// <summary>Tira as marcas da consolidação (revisão nova feita a partir de uma consolidada, cópia…).</summary>
@@ -72,6 +97,7 @@ public static class Consolidacao
     {
         o.ConsolidadaEm = o.ConsolidadaPor = o.NumeroPedido = o.MoedaPedido = o.DataEntrega = o.ConsolidacaoAntes = "";
         o.ValorPedido = 0m;
+        o.TaxaMoedaBu = 0m;
         foreach (var it in itens) it.DataEntrega = "";
     }
 }

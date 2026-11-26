@@ -76,7 +76,12 @@ public partial class NovaOferta
         if (Cambio.MoedaDoCusto(_o) != Moeda.Brl && Cambio.Converte(_o) && !Cambio.FaltaTaxa(_o))
             cambio = $"1 {Cambio.MoedaDoPreco(_o).Rotulo()} = {Cambio.Efetivo(_o).ToString("#,##0.####", PtBr)} {Cambio.MoedaDoCusto(_o).Rotulo()}" +
                      (Cambio.Seguranca(_o) > 0m ? (es ? $" (con {Cambio.Seguranca(_o).ToString("0.##", PtBr)}% de seguridad)" : $" (com {Cambio.Seguranca(_o).ToString("0.##", PtBr)}% de segurança)") : "");
-        return new ResumoDaAprovacao(cliente.Length > 0 ? cliente : "—", escopo, itens, total, prazo, dolar, Seguros(), _notaAprovacao, cambio);
+        // HCHL / HPU consolidada: o total também na moeda da BU (CLP / PEN), com a taxa informada na consolidação
+        var liquido = Math.Round(_items.Sum(i => i.TotalPrice) * paraLiquido, 2);
+        var totalBu = Consolidacao.Consolidada(_o) ? Consolidacao.NaMoedaDaBu(_o, liquido) : null;
+        var taxaBu = totalBu is null ? null : Consolidacao.TextoDaTaxa(_o);
+        return new ResumoDaAprovacao(cliente.Length > 0 ? cliente : "—", escopo, itens, total, prazo, dolar, Seguros(), _notaAprovacao, cambio,
+            totalBu, taxaBu, Consolidacao.MoedaDaBu(_o)?.Codigo() ?? "");
     }
 
     /// <summary>"Seguros:" do e-mail: o seguro garantia / carta fiança e as outras garantias da proposta.</summary>

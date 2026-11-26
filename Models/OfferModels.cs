@@ -182,6 +182,8 @@ public class CommercialOffer
     public string DataEntrega { get; set; } = "";
     /// <summary>A proposta como estava antes de consolidar (JSON com a proposta e os itens): para desfazer.</summary>
     public string ConsolidacaoAntes { get; set; } = "";
+    /// <summary>HCHL / HPU: quanto vale 1 da moeda da proposta na moeda da BU (CLP / PEN), informado na consolidação; 0 = não se aplica.</summary>
+    public decimal TaxaMoedaBu { get; set; }
     // Resultado do pricing no momento em que a proposta foi salva (para consulta).
     public decimal PricingCusto { get; set; }
     public decimal PricingMarkup { get; set; }

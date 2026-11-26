@@ -34,7 +34,7 @@ public class OfferRepository
         "tipo_outras_garantias, outras_garantias, pricing_custos, moeda_venda, cambio_taxa, cambio_direcao, " +
         "cambio_seguranca, total_reais, contato_email, contato_telefone, sua_referencia, incoterm, incoterm_local, " +
         "plantas, equipamentos_proposta, impostos_no_preco, vendedor, idioma, frete_custo, numero_crm, moeda_custo, vendedor2, cambio_conferido, total_liquido, protected_margin, preco_meta_nivel, importacoes, notas, custos_adicionais, base_custos_adicionais, tipo_equipamento, " +
-        "consolidada_em, consolidada_por, numero_pedido, valor_pedido, moeda_pedido, data_entrega, consolidacao_antes";
+        "consolidada_em, consolidada_por, numero_pedido, valor_pedido, moeda_pedido, data_entrega, consolidacao_antes, taxa_moeda_bu";
 
     private static CommercialOffer LerOferta(IDataReader r) => new CommercialOffer
         {
@@ -83,7 +83,7 @@ public class OfferRepository
             TipoEquipamento = Fmt.S(r, 88),
             ConsolidadaEm = Fmt.S(r, 89), ConsolidadaPor = Fmt.S(r, 90), NumeroPedido = Fmt.S(r, 91),
             ValorPedido = Fmt.Dec(Fmt.S(r, 92)), MoedaPedido = Fmt.S(r, 93), DataEntrega = Fmt.S(r, 94),
-            ConsolidacaoAntes = Fmt.S(r, 95),
+            ConsolidacaoAntes = Fmt.S(r, 95), TaxaMoedaBu = Fmt.Dec(Fmt.S(r, 96)),
         };
 
     public List<CommercialOffer> All() => _s.ReadLatest("commercialOffers", ColunasDaOferta, LerOferta, orderBy: "created_at DESC");
@@ -126,7 +126,7 @@ public class OfferRepository
         new("tipo_equipamento", o.TipoEquipamento),
         new("consolidada_em", o.ConsolidadaEm), new("consolidada_por", o.ConsolidadaPor), new("numero_pedido", o.NumeroPedido),
         new("valor_pedido", D(o.ValorPedido)), new("moeda_pedido", o.MoedaPedido), new("data_entrega", o.DataEntrega),
-        new("consolidacao_antes", o.ConsolidacaoAntes),
+        new("consolidacao_antes", o.ConsolidacaoAntes), new("taxa_moeda_bu", D(o.TaxaMoedaBu)),
         new("risco_adicional", D(o.RiscoAdicional)), new("margem_negociacao", D(o.MargemNegociacao)),
         new("pricing_modo", o.PricingModo), new("margem_alvo", D(o.MargemAlvo)), new("preco_meta", D(o.PrecoMeta)),
         new("pricing_custo", D(o.PricingCusto)), new("pricing_markup", D(o.PricingMarkup)),

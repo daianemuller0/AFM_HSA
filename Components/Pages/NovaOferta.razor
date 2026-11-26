@@ -286,6 +286,22 @@
                     {
                         <div class="cs-ok">✓ O valor do pedido bate com a proposta (@DinheiroC(_cValor ?? 0m)).</div>
                     }
+                    @if (_cConferido && Consolidacao.PedeConversao(_o) && Consolidacao.MoedaDaBu(_o) is Moeda moedaBu)
+                    {
+                        <div class="cs-conversao">
+                            <div class="cs-nota">A @_o.Bu precisa do valor em <strong>@moedaBu.Codigo()</strong> (só no pricing; a proposta ao cliente não muda).</div>
+                            <div class="cs-linha">
+                                <label class="cs-campo cs-taxa">Conversão: 1 @MoedaDaProposta.Codigo() =
+                                    <input class="cell num" type="number" min="0" step="0.0001" value="@(_cTaxaBu?.ToString(CultureInfo.InvariantCulture))" @onchange="MudarTaxaBu" />
+                                </label>
+                                <span class="cs-moeda-bu">@moedaBu.Codigo()</span>
+                                @if (_cTaxaBu is decimal tx && _cValor is decimal vp)
+                                {
+                                    <span class="cs-valor-bu">Pedido em @moedaBu.Codigo(): <strong>@Moedas.Dinheiro(moedaBu, Math.Round(vp * tx, 2))</strong></span>
+                                }
+                            </div>
+                        </div>
+                    }
                     @if (_cNaoBate && !_cAjustarItens)
                     {
                         var dif = (_cValor ?? 0m) - Total;
@@ -399,6 +415,10 @@
                                 <tr><th>Pedido (Sua referência)</th><td>@_o.NumeroPedido</td></tr>
                                 <tr><th>Valor</th><td>pedido @DinheiroC(_o.ValorPedido) · proposta @DinheiroC(res.TotalDepois)
                                     @if (Bate(res.TotalDepois)) { <span class="cs-ok-mini">✓ bate</span> } else { <span class="cs-erro-mini">diferença @DinheiroC(res.TotalDepois - _o.ValorPedido)</span> }</td></tr>
+                                @if (Consolidacao.TextoDaTaxa(_o) is { } taxaBu)
+                                {
+                                    <tr><th>Valor em @Consolidacao.MoedaDaBu(_o)!.Value.Codigo()</th><td><strong>@Consolidacao.NaMoedaDaBu(_o, _o.ValorPedido)</strong> · taxa @taxaBu</td></tr>
+                                }
                                 <tr><th>Margem de negociação</th><td>@Pct(res.MnAntes) → @Pct(_o.MargemNegociacao)@TextoDoDestinoDaMn(res)</td></tr>
                                 @if (res.TaDoAjuste > 0.005m)
                                 {
@@ -2224,6 +2244,10 @@ else
         @if (temPricingLado && prLado.PrecoAoCliente is decimal pacLado && !prLado.SemImpostos)
         {
             <div class="side-item"><span>Preço c/ impostos (pricing)</span><strong>@VendaDe(pacLado)</strong></div>
+        }
+        @if (Consolidacao.Consolidada(_o) && Consolidacao.TextoDaTaxa(_o) is { } taxaLado)
+        {
+            <div class="side-item side-bu" title="Valor consolidado na moeda da BU (só no pricing)"><span>Valor em @Consolidacao.MoedaDaBu(_o)!.Value.Codigo()<small>@taxaLado</small></span><strong>@Consolidacao.NaMoedaDaBu(_o, Total)</strong></div>
         }
         <div class="side-item"><span>Itens</span><strong>@(_items.Count == 0 ? "—" : $"{Plural(_items.Count, "item", "itens")} · {_items.Sum(i => i.Quantity)} un.")</strong></div>
     </div>
