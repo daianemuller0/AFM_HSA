@@ -19,6 +19,9 @@ namespace AfmHsa.Components.Pages;
 /// <item>levar a margem de negociação ao TA: o valor dela vira custo nos itens
 ///   (TA), na proporção do custo de cada um — o preço de cada item não muda e
 ///   a margem total fica a mesma;</item>
+/// <item>levar a margem de negociação ao frete: o valor dela entra no frete da
+///   proposta (dividido pelos itens pelo valor de cada um) — o total não muda e
+///   a margem total fica a mesma;</item>
 /// <item>preço novo por item (o pedido não bateu): o TA de cada item é
 ///   ajustado para o preço dele cair exatamente no valor do pedido.</item>
 /// </list>
@@ -31,7 +34,9 @@ public partial class NovaOferta
     private static readonly string[] NomesDosPassosC = { "Projeto e pedido", "Margem de negociação", "Valor do pedido", "Entrega", "Pagamento", "Resumo" };
 
     private string _cProjeto = "", _cPedido = "";
-    private bool? _cZerarMn, _cMnNoTa;
+    private bool? _cZerarMn;
+    /// <summary>Para onde vai a margem de negociação zerada: "ta" (TA dos itens), "frete" (frete da proposta), "nao" (a margem total sobe); null = sem resposta.</summary>
+    private string? _cMnDestino;
     private decimal? _cValor;
     private string _cMoeda = "";
     private bool _cConferido;          // o valor foi conferido (bate, ou os preços por item fecham)
@@ -48,10 +53,11 @@ public partial class NovaOferta
     private ResultadoDaConsolidacao? _cResultado;
     private bool _cConfirmarDesfazer;
 
-    /// <param name="TaDaMn">o valor da margem de negociação levado ao TA (moeda do custo), somando todos os itens</param>
+    /// <param name="CustoDaMn">o valor da margem de negociação levado ao custo (TA dos itens ou frete), na moeda do custo</param>
+    /// <param name="MnDestino">"ta", "frete" ou "nao"</param>
     /// <param name="TaDoAjuste">o TA acrescentado para os itens caírem nos preços do pedido (moeda do custo)</param>
     private sealed record ResultadoDaConsolidacao(decimal TotalAntes, decimal TotalDepois, decimal MargemAntes, decimal MargemDepois,
-        decimal MnAntes, decimal MnValor, decimal TaDaMn, decimal TaDoAjuste, List<(int Indice, decimal Antes, decimal Depois, decimal? Alvo)> Itens);
+        decimal MnAntes, decimal MnValor, decimal CustoDaMn, string MnDestino, decimal TaDoAjuste, List<(int Indice, decimal Antes, decimal Depois, decimal? Alvo)> Itens);
 
     /// <summary>Os itens que o pedido paga (sem a linha de demais custos e sem quantidade zero).</summary>
     private List<(int Indice, CommercialOfferItem It)> ItensDoPedido() =>
@@ -83,7 +89,7 @@ public partial class NovaOferta
         _cProjeto = _o.Pv ?? "";
         _cPedido = _o.NumeroPedido.Length > 0 ? _o.NumeroPedido : "";
         _cZerarMn = _o.MargemNegociacao > 0m ? null : false;
-        _cMnNoTa = null;
+        _cMnDestino = null;
         _cValor = null;
         _cMoeda = MoedaDaProposta.Codigo();
         _cConferido = _cNaoBate = _cAjustarItens = false;
@@ -144,7 +150,7 @@ public partial class NovaOferta
                 return;
             case 2:
                 if (_cZerarMn is null) { _cErro = "Responda: zerar a margem de negociação?"; return; }
-                if (_cZerarMn == true && _cMnNoTa is null) { _cErro = "Responda: adicionar a margem de negociação no TA?"; return; }
+                if (_cZerarMn == true && _cMnDestino is null) { _cErro = "Responda: adicionar a margem de negociação no TA, no frete, ou não?"; return; }
                 _passoC = 3;
                 return;
             case 3:
@@ -166,6 +172,12 @@ public partial class NovaOferta
                 return;
         }
     }
+
+    private string TextoDoDestinoDaMn(ResultadoDaConsolidacao r) =>
+        r.MnAntes <= _o.MargemNegociacao ? ""
+        : r.MnDestino == "ta" && r.CustoDaMn > 0.005m ? $" · {Cambio.DinheiroDoCusto(_o, r.CustoDaMn)} levados ao TA dos itens"
+        : r.MnDestino == "frete" && r.CustoDaMn > 0.005m ? $" · {Cambio.DinheiroDoCusto(_o, r.CustoDaMn)} levados ao frete (agora {Cambio.DinheiroDoCusto(_o, _o.FreteCusto)})"
+        : " · a margem total sobe";
 
     private bool Bate(decimal valor) => _cValor is decimal v && Math.Abs(v - valor) <= ToleranciaC();
 
@@ -287,11 +299,12 @@ public partial class NovaOferta
         }
 
         var taDepoisDoAjuste = _items.Sum(i => i.CustoTa * i.Quantity);
+        var freteAntes = _o.FreteCusto;
 
         // a margem de negociação
         if (_cZerarMn == true && mnAntes > 0m)
         {
-            if (_cMnNoTa == true)
+            if (_cMnDestino == "ta")
             {
                 // o valor dela vira custo (TA) na proporção do custo de cada item, até a margem total ficar a mesma
                 var alvoMargem = PricingAtual(Custos).MargemTotal;
@@ -319,6 +332,29 @@ public partial class NovaOferta
                     foreach (var (it, _) in custo) it.TaManual = it.CustoTa > 0m;
                 }
             }
+            else if (_cMnDestino == "frete")
+            {
+                // o valor dela entra no frete da proposta (que se divide pelos itens pelo valor de cada um), até a margem total ficar a mesma
+                var alvoMargem = PricingAtual(Custos).MargemTotal;
+                var freteBase = _o.FreteCusto;
+                _o.MargemNegociacao = 0m;
+                decimal Diferenca(decimal d)
+                {
+                    _o.FreteCusto = freteBase + d;
+                    return PricingAtual(Custos).MargemTotal - alvoMargem;
+                }
+                decimal d0 = 0m, f0 = Diferenca(0m);
+                decimal d1 = mnValor, f1 = Diferenca(d1);
+                for (var volta = 0; volta < 40 && Math.Abs(f1) > 0.0000001m && f1 != f0; volta++)
+                {
+                    var d2 = d1 - f1 * (d1 - d0) / (f1 - f0);
+                    if (d2 < 0m) d2 = d1 / 2m;
+                    (d0, f0) = (d1, f1);
+                    d1 = d2;
+                    f1 = Diferenca(d1);
+                }
+                _o.FreteCusto = Math.Round(freteBase + d1, 2);
+            }
             else _o.MargemNegociacao = 0m;
         }
 
@@ -343,8 +379,9 @@ public partial class NovaOferta
         var itens = ItensDoPedido().Select(x => (x.Indice, precosAntes[x.Indice], x.It.UnitPrice,
             _cAjustarItens ? _cPrecos.GetValueOrDefault(x.Indice) : (decimal?)null)).ToList();
         _cResultado = new ResultadoDaConsolidacao(totalAntes, Total, margemAntes, rDepois.MargemTotal, mnAntes, mnValor,
-            _items.Sum(i => i.CustoTa * i.Quantity) - taDepoisDoAjuste, taDepoisDoAjuste - taAntes, itens);
-        if (demais && (_cAjustarItens || _cMnNoTa == true))
+            _items.Sum(i => i.CustoTa * i.Quantity) - taDepoisDoAjuste + (_o.FreteCusto - freteAntes), _cMnDestino ?? "nao",
+            taDepoisDoAjuste - taAntes, itens);
+        if (demais && (_cAjustarItens || _cMnDestino is "ta" or "frete"))
             _cErro = "Esta proposta tem a linha \"Serviços e demais custos\": o total bate com o pedido, mas a divisão entre os itens pode mudar alguns centavos. Confira no resumo.";
     }
 

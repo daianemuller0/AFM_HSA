@@ -212,24 +212,29 @@
                         <strong>Zerar margem de negociação?</strong>
                         <div class="seg">
                             <button class="@(_cZerarMn == true ? "on" : "")" @onclick="() => { _cZerarMn = true; _cErro = null; }">Sim</button>
-                            <button class="@(_cZerarMn == false ? "on" : "")" @onclick="() => { _cZerarMn = false; _cMnNoTa = null; _cErro = null; }">Não</button>
+                            <button class="@(_cZerarMn == false ? "on" : "")" @onclick="() => { _cZerarMn = false; _cMnDestino = null; _cErro = null; }">Não</button>
                         </div>
                     </div>
                     @if (_cZerarMn == true)
                     {
                         <div class="cs-pergunta">
-                            <strong>Adicionar margem de negociação no TA?</strong>
+                            <strong>Adicionar margem de negociação no TA ou no frete?</strong>
                             <div class="seg">
-                                <button class="@(_cMnNoTa == true ? "on" : "")" @onclick="() => { _cMnNoTa = true; _cErro = null; }">Sim</button>
-                                <button class="@(_cMnNoTa == false ? "on" : "")" @onclick="() => { _cMnNoTa = false; _cErro = null; }">Não</button>
+                                <button class='@(_cMnDestino == "ta" ? "on" : "")' @onclick='() => { _cMnDestino = "ta"; _cErro = null; }'>No TA</button>
+                                <button class='@(_cMnDestino == "frete" ? "on" : "")' @onclick='() => { _cMnDestino = "frete"; _cErro = null; }'>No frete</button>
+                                <button class='@(_cMnDestino == "nao" ? "on" : "")' @onclick='() => { _cMnDestino = "nao"; _cErro = null; }'>Não</button>
                             </div>
                         </div>
                         <p class="cs-nota">
-                            @if (_cMnNoTa == true)
+                            @if (_cMnDestino == "ta")
                             {
                                 <span>O valor da margem de negociação vira custo (TA) nos itens, na proporção do custo de cada um. O preço de venda não muda e a margem total do projeto fica a mesma.</span>
                             }
-                            else if (_cMnNoTa == false)
+                            else if (_cMnDestino == "frete")
+                            {
+                                <span>O valor da margem de negociação entra no frete da proposta@(_o.FreteCusto > 0m ? $" (hoje {Cambio.DinheiroDoCusto(_o, _o.FreteCusto)})" : "")</span><span>, que se divide pelos itens pelo valor de cada um. O preço de venda não muda e a margem total do projeto fica a mesma.</span>
+                            }
+                            else if (_cMnDestino == "nao")
                             {
                                 <span>A margem de negociação vai a zero e o preço de venda não muda: a margem total do projeto sobe @Pct(_o.MargemNegociacao).</span>
                             }
@@ -366,7 +371,7 @@
                                 <tr><th>Pedido (Sua referência)</th><td>@_o.NumeroPedido</td></tr>
                                 <tr><th>Valor</th><td>pedido @DinheiroC(_o.ValorPedido) · proposta @DinheiroC(res.TotalDepois)
                                     @if (Bate(res.TotalDepois)) { <span class="cs-ok-mini">✓ bate</span> } else { <span class="cs-erro-mini">diferença @DinheiroC(res.TotalDepois - _o.ValorPedido)</span> }</td></tr>
-                                <tr><th>Margem de negociação</th><td>@Pct(res.MnAntes) → @Pct(_o.MargemNegociacao)@(res.TaDaMn > 0.005m ? $" · {Cambio.DinheiroDoCusto(_o, res.TaDaMn)} levados ao TA dos itens" : res.MnAntes > _o.MargemNegociacao ? " · a margem total sobe" : "")</td></tr>
+                                <tr><th>Margem de negociação</th><td>@Pct(res.MnAntes) → @Pct(_o.MargemNegociacao)@TextoDoDestinoDaMn(res)</td></tr>
                                 @if (res.TaDoAjuste > 0.005m)
                                 {
                                     <tr><th>Preços do pedido</th><td>@Cambio.DinheiroDoCusto(_o, res.TaDoAjuste) de TA nos itens para cada um cair no preço do pedido</td></tr>
