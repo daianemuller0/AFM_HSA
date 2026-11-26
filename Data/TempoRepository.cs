@@ -113,10 +113,44 @@ public sealed class TempoRepository
     /// revisão. Gerar de novo depois (para corrigir uma vírgula) não conta
     /// como outra proposta montada.
     /// </summary>
-    public static List<TempoProposta> PrimeiraDeCada(IEnumerable<TempoProposta> tempos) => tempos
+    public static List<TempoProposta> PrimeiraDeCada(IEnumerable<TempoProposta> tempos) => Medicoes(tempos)
+        .Where(t => t.Evento != Salvo)
+        .ToList();
+
+    /// <summary>O evento gravado ao salvar a proposta (sem gerar documento).</summary>
+    public const string Salvo = "salvar";
+
+    /// <summary>
+    /// A medição de cada número e revisão. Cada vez que a Gerar Proposta é
+    /// aberta conta uma sessão (o "Inicio"); a medição soma as sessões até o
+    /// primeiro documento (Word ou PDF) — quem salvou num dia e gerou no
+    /// outro tem as duas partes somadas. Sem documento ainda, soma o que foi
+    /// trabalhado até o último salvar (Evento = "salvar": medição parcial).
+    /// </summary>
+    public static List<TempoProposta> Medicoes(IEnumerable<TempoProposta> tempos) => tempos
         .Where(t => t.Numero.Length > 0)
         .GroupBy(t => (t.Numero, t.Revisao.Trim()))
-        .Select(g => g.OrderBy(t => t.Fim).First())
+        .Select(g =>
+        {
+            var doc = g.Where(t => t.Evento != Salvo).OrderBy(t => t.Fim, StringComparer.Ordinal).FirstOrDefault();
+            // as sessões até o documento (ou todas, sem documento): a maior marca de cada uma
+            var sessoes = g.Where(t => doc is null || string.CompareOrdinal(t.Fim, doc.Fim) <= 0)
+                .GroupBy(t => t.Inicio)
+                .Select(s => doc is not null && s.Key == doc.Inicio ? doc : s.OrderByDescending(t => t.SegundosAtivos).First())
+                .OrderBy(t => t.Inicio, StringComparer.Ordinal).ToList();
+            var ultima = doc ?? sessoes.OrderBy(t => t.Fim, StringComparer.Ordinal).Last();
+            var etapas = new Dictionary<string, int>();
+            foreach (var t in sessoes)
+                foreach (var (k, v) in t.PorEtapaComoMapa) etapas[k] = etapas.GetValueOrDefault(k) + v;
+            return new TempoProposta
+            {
+                Id = ultima.Id, PropostaId = ultima.PropostaId, Numero = ultima.Numero, Revisao = ultima.Revisao,
+                Usuario = ultima.Usuario, Inicio = sessoes[0].Inicio, Fim = ultima.Fim,
+                SegundosAtivos = sessoes.Sum(t => t.SegundosAtivos), Interacoes = sessoes.Sum(t => t.Interacoes),
+                Evento = doc is null ? Salvo : doc.Evento,
+                PorEtapa = JsonSerializer.Serialize(etapas), Origem = sessoes[0].Origem, Itens = ultima.Itens,
+            };
+        })
         .OrderByDescending(t => t.Fim)
         .ToList();
 

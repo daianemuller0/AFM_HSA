@@ -115,7 +115,7 @@ public static class RelatorioSemanal
         IReadOnlyDictionary<string, FollowUpDaProposta> followUps, DateTime ate)
     {
         var inicio = InicioDaSemana(ate);
-        var primeiras = TempoRepository.PrimeiraDeCada(tempos);
+        var primeiras = TempoRepository.PrimeiraDeCada(tempos);   // só as que já geraram documento
         bool Na(TempoProposta t, DateTime de, DateTime a) => t.FimComoData is { } d && d >= de && d <= a;
         var clientes = ofertas.GroupBy(o => o.Id).ToDictionary(g => g.Key, g => g.First().ClientName);
         var semana = primeiras.Where(t => Na(t, inicio, ate)).OrderBy(t => t.Fim, StringComparer.Ordinal)

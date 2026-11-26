@@ -3,6 +3,7 @@
 @rendermode InteractiveServer
 @using System.Globalization
 @inject TempoRepository Tempos
+@inject OfferRepository Ofertas
 @inject RelatorioSemanalRepository RelatorioRepo
 @inject RelatorioSemanalService RelatorioServico
 @inject OutlookLocal Outlook
@@ -17,8 +18,9 @@
     <div>
         <h1>Tempo das propostas</h1>
         <p class="subtitle">
-            Medido pela própria Gerar Proposta (o cronômetro da barra de etapas): tempo de trabalho até o primeiro Word
-            de cada número e revisão — pausas de mais de 3 minutos não contam. A meta é metade do tempo de antes.
+            Medido pela própria Gerar Proposta (o cronômetro da barra de etapas): tempo de trabalho de cada número e revisão
+            até o primeiro documento (Word, PDF ou e-mail ao cliente), somando as vezes em que ela foi aberta — pausas de
+            mais de 3 minutos não contam. A meta é metade do tempo de antes.
         </p>
     </div>
     <div class="page-actions">
@@ -33,8 +35,13 @@
 @if (_msg is not null) { <div class="@(_msgOk ? "alert-ok" : "alert-error")" style="margin-bottom:12px">@_msg</div> }
 
 @{
-    var medidas = _primeiras.Where(t => _origem == "" || t.Origem == _origem).ToList();
+    var todas = _primeiras.Where(t => _origem == "" || t.Origem == _origem).ToList();
+    var medidas = todas.Where(t => t.Evento != TempoRepository.Salvo).ToList();
+    var parciais = todas.Count - medidas.Count;
+    var semMedicao = _origem == "" ? _semMedicao : new List<CommercialOffer>();
     var mediana = TempoRepository.Mediana(medidas.Select(t => (double)t.SegundosAtivos));
+    var novas = medidas.Where(t => t.Origem == "nova").ToList();
+    var medianaNova = TempoRepository.Mediana(novas.Select(t => (double)t.SegundosAtivos));
     var ultimos30 = medidas.Where(t => t.FimComoData is { } d && d >= DateTime.Now.AddDays(-30)).ToList();
     var mediana30 = TempoRepository.Mediana(ultimos30.Select(t => (double)t.SegundosAtivos));
     var metaSeg = _referencia * 60 * (double)TempoRepository.Meta;
@@ -50,14 +57,14 @@
             <option value="aberta">aberta para corrigir</option>
         </select>
     </label>
-    <span class="nota">A meta vale para a proposta <strong>nova</strong>: cópia e revisão são mais rápidas e puxam a mediana para baixo.</span>
+    <span class="nota">A meta compara só a proposta <strong>nova</strong> (do zero): cópia e revisão são mais rápidas e puxariam a mediana para baixo.</span>
 </div>
 
 <div class="kpis" style="margin-bottom:16px">
     <div class="kpi">
         <div class="kpi-label">Propostas medidas</div>
         <div class="kpi-value">@medidas.Count</div>
-        <div class="kpi-sub">primeiro Word de cada número e revisão</div>
+        <div class="kpi-sub">com documento gerado@(parciais > 0 ? $" · {parciais} só salva(s)" : "")@(semMedicao.Count > 0 ? $" · {semMedicao.Count} sem medição" : "")</div>
     </div>
     <div class="kpi">
         <div class="kpi-label">Mediana</div>
@@ -77,17 +84,17 @@
             {
                 <span>informe o tempo de antes, abaixo</span>
             }
-            else if (medidas.Count < MinimoParaComparar)
+            else if (novas.Count < MinimoParaComparar)
             {
-                <span>poucos dados: @medidas.Count de @MinimoParaComparar propostas</span>
+                <span>poucos dados: @novas.Count de @MinimoParaComparar propostas novas</span>
             }
-            else if (mediana <= metaSeg)
+            else if (medianaNova <= metaSeg)
             {
-                <span style="color:#166534;font-weight:600">atingida: @Reducao(mediana) menos que antes</span>
+                <span style="color:#166534;font-weight:600">atingida pela nova (@Minutos(medianaNova)): @Reducao(medianaNova) menos que antes</span>
             }
             else
             {
-                <span style="color:#92400e;font-weight:600">faltam @Minutos(mediana - metaSeg) · hoje @Reducao(mediana) menos</span>
+                <span style="color:#92400e;font-weight:600">proposta nova em @Minutos(medianaNova): faltam @Minutos(medianaNova - metaSeg)</span>
             }
         </div>
     </div>
@@ -143,7 +150,7 @@
     <div class="dash-title">Onde a proposta demora <span class="dash-sub">mediana do tempo em cada etapa</span></div>
     @if (medidas.Count == 0)
     {
-        <div class="empty" style="padding:8px 0">Nenhuma proposta medida ainda: o tempo é gravado quando a Gerar Proposta gera o Word.</div>
+        <div class="empty" style="padding:8px 0">Nenhuma proposta medida ainda: o tempo é gravado quando a Gerar Proposta salva ou gera o documento.</div>
     }
     else
     {
@@ -167,7 +174,7 @@
 </div>
 
 <div class="panel">
-    <div class="dash-title">Medições <span class="dash-sub">@medidas.Count proposta(s)@(_adm ? " · marque as de teste para excluir" : "")</span></div>
+    <div class="dash-title">Medições <span class="dash-sub">@(todas.Count + semMedicao.Count) proposta(s): @medidas.Count com documento@(parciais > 0 ? $", {parciais} só salva(s)" : "")@(semMedicao.Count > 0 ? $", {semMedicao.Count} sem medição" : "")@(_adm ? " · marque as de teste para excluir" : "")</span></div>
     @if (_adm && _marcadas.Count > 0)
     {
         <div class="excluir-barra" style="margin-bottom:10px">
@@ -189,12 +196,12 @@
     <div class="tabela-rolante" style="max-height:520px">
         <table class="grid">
             <thead><tr>
-                @if (_adm) { <th style="width:28px"><input type="checkbox" title="Selecionar todas" checked="@(medidas.Count > 0 && medidas.All(t => _marcadas.Contains(Chave(t))))" @onchange="e => MarcarTodas(medidas, e)" /></th> }
+                @if (_adm) { <th style="width:28px"><input type="checkbox" title="Selecionar todas" checked="@(todas.Count > 0 && todas.All(t => _marcadas.Contains(Chave(t))))" @onchange="e => MarcarTodas(todas, e)" /></th> }
                 <th>Quando</th><th>Proposta</th><th>Quem</th><th>Origem</th><th class="right">Itens</th><th class="right">Tempo</th><th class="right">Interações</th><th>Por etapa</th>
                 @if (_adm) { <th></th> }
             </tr></thead>
             <tbody>
-                @foreach (var t in medidas)
+                @foreach (var t in todas)
                 {
                     var chave = Chave(t);
                     <tr class="@(_marcadas.Contains(chave) ? "linha-marcada" : "")">
@@ -204,13 +211,28 @@
                         <td>@t.Usuario</td>
                         <td>@t.Origem</td>
                         <td class="right">@t.Itens</td>
-                        <td class="right nowrap"><strong>@Minutos(t.SegundosAtivos)</strong></td>
+                        <td class="right nowrap"><strong>@Minutos(t.SegundosAtivos)</strong>@if (t.Evento == TempoRepository.Salvo) { <div class="tp-parcial" title="Ainda sem documento gerado: o tempo até o último salvar">só salva</div> }</td>
                         <td class="right">@t.Interacoes</td>
                         <td class="nota">@string.Join(" · ", t.PorEtapaComoMapa.OrderBy(p => p.Key).Select(p => $"{p.Key}: {Segundos(p.Value)}"))</td>
                         @if (_adm) { <td><button class="btn-link perigo" title="Excluir esta medição (teste)" @onclick="() => ExcluirUma(chave)">excluir</button></td> }
                     </tr>
                 }
-                @if (medidas.Count == 0)
+                @foreach (var o in semMedicao)
+                {
+                    <tr class="tp-sem">
+                        @if (_adm) { <td></td> }
+                        <td class="nowrap">@Fmt.Date(o.CreatedAt.Length > 0 ? o.CreatedAt : o.OfferDate)</td>
+                        <td class="nowrap"><a class="btn-link" href="@($"/gerar-proposta/{o.Id}")">@o.OfferCode rev @PropostaWord.Ou(o.Revisao, "0")</a></td>
+                        <td>@o.PreparedBy</td>
+                        <td>—</td>
+                        <td class="right">—</td>
+                        <td class="right nowrap"><span class="tp-parcial">sem medição</span></td>
+                        <td></td>
+                        <td class="nota">@MotivoSemMedicao(o)</td>
+                        @if (_adm) { <td></td> }
+                    </tr>
+                }
+                @if (todas.Count + semMedicao.Count == 0)
                 {
                     <tr><td colspan="@(_adm ? 10 : 8)" class="empty">Nenhuma medição.</td></tr>
                 }
@@ -229,7 +251,28 @@
     private List<TempoProposta> _primeiras = new();
     private int _referencia;
     private int? _referenciaDigitada;
-    private string _origem = "nova";
+    private string _origem = "";
+    private List<CommercialOffer> _semMedicao = new();
+    private string _primeiraMedicao = "";
+
+    /// <summary>As propostas (cada número e revisão) sem nenhum tempo gravado.</summary>
+    private void Carregar()
+    {
+        var registros = Tempos.Todos();
+        _primeiras = TempoRepository.Medicoes(registros);
+        _primeiraMedicao = registros.Select(t => t.Fim).Where(f => f.Length >= 10).DefaultIfEmpty("").Min(StringComparer.Ordinal) ?? "";
+        var medidas = _primeiras.Select(Chave).ToHashSet();
+        _semMedicao = Ofertas.All().Where(o => o.OfferCode.Trim().Length > 0 && !medidas.Contains((o.OfferCode, PropostaWord.Ou(o.Revisao, "0").Trim())))
+            .OrderByDescending(o => o.CreatedAt, StringComparer.Ordinal).ToList();
+    }
+
+    private string MotivoSemMedicao(CommercialOffer o)
+    {
+        var criada = o.CreatedAt.Length >= 10 ? o.CreatedAt[..10] : o.OfferDate.Length >= 10 ? o.OfferDate[..10] : "";
+        if (_primeiraMedicao.Length == 0 || (criada.Length > 0 && string.CompareOrdinal(criada, _primeiraMedicao[..10]) < 0))
+            return "feita antes do cronômetro existir";
+        return "documento gerado fora da Gerar Proposta (ou importada): abra, trabalhe e salve para medir";
+    }
     private bool _salvo;
 
     private bool _adm, _podeConfigurar, _confirmar, _gerando, _msgOk;
@@ -260,7 +303,7 @@
         _msg = $"{_marcadas.Count} medição(ões) excluída(s) ({n} registro(s) de Word gerado).";
         _marcadas.Clear();
         _confirmar = false;
-        _primeiras = TempoRepository.PrimeiraDeCada(Tempos.Todos());
+        Carregar();
     }
 
     private void ExcluirUma((string Numero, string Revisao) chave)
@@ -325,7 +368,7 @@
         _podeConfigurar = perfil is Acessos.Adm or Acessos.Gestao;
         _cfg = RelatorioRepo.Config();
         _envios = RelatorioRepo.Envios();
-        _primeiras = TempoRepository.PrimeiraDeCada(Tempos.Todos());
+        Carregar();
         _referencia = Tempos.MinutosDeReferencia();
         _referenciaDigitada = _referencia > 0 ? _referencia : null;
     }

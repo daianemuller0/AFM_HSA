@@ -306,6 +306,8 @@ public partial class NovaOferta : IDisposable
         _anteriores = OffersRepo.All();
         _revisaoDe = null;   // a revisão nova já é um registro dela
         if (explicito) _msg = $"Salvo às {now:HH:mm}.";
+        // o tempo trabalhado até aqui também conta (proposta que ainda não gerou documento, ou gerou em outra tela)
+        if (explicito && _cronSegundos >= 20) RegistrarTempo(TempoRepository.Salvo);
         if (nova) _ = TrocarUrl();
         return true;
     }

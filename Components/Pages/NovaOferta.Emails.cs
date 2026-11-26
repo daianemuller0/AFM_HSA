@@ -141,7 +141,10 @@ public partial class NovaOferta
         {
             var anexos = new List<AnexoDoEmail>();
             if (WordEmBytes() is { } word)
+            {
                 anexos.Add(new(PropostaWord.NomeDoArquivo(_o), "application/vnd.openxmlformats-officedocument.wordprocessingml.document", word));
+                RegistrarTempo("word");   // o documento saiu pelo e-mail: conta como gerado
+            }
             _msg = await BaixarEml(EmailAoCliente, anexos)
                 ? "E-mail ao cliente aberto no Outlook, com a proposta em Word anexa: anexe a T&C e envie."
                 : "E-mail ao cliente pronto, com a proposta em Word anexa: abra o arquivo baixado no Outlook, anexe a T&C e envie.";
