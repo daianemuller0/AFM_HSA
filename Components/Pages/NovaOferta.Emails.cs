@@ -40,9 +40,8 @@ public partial class NovaOferta
     /// <summary>Cliente com a planta, escopo por equipamento, itens com preço sem impostos, prazo, dólar e seguros.</summary>
     private ResumoDaAprovacao ResumoParaAprovacao(CalculoPricing.Resultado r)
     {
-        var plantas = string.Join("; ", _o.Plantas.Select(PlantasDaProposta.Rotulo).Where(t => t.Length > 0));
-        if (plantas.Length == 0) plantas = (_o.City ?? "").Trim();
-        var cliente = string.Join(" – ", new[] { _o.ClientName, plantas }.Select(x => (x ?? "").Trim()).Where(x => x.Length > 0));
+        // "Altonorte - Antofagasta (Chile)": o cliente e o lugar, sem o nome da planta (que repetia o cliente)
+        var cliente = PlantasDaProposta.ClienteComLugar(_o);
 
         var reais = _items.Where(i => i != _itemDemais).ToList();
         // escopo: um item de lista por equipamento, com quantos itens são dele

@@ -34,6 +34,48 @@ public static class PlantasDaProposta
         return lugar.Length > 0 ? $"{nome} – {lugar}" : nome;
     }
 
+    private static readonly Dictionary<string, string> Paises = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["CHI"] = "Chile", ["CL"] = "Chile", ["CHL"] = "Chile", ["CHILE"] = "Chile",
+        ["PER"] = "Peru", ["PERU"] = "Peru", ["PERÚ"] = "Peru",
+        ["COL"] = "Colombia", ["CO"] = "Colombia", ["COLOMBIA"] = "Colombia",
+        ["ARG"] = "Argentina", ["AR"] = "Argentina", ["ARGENTINA"] = "Argentina",
+        ["BOL"] = "Bolivia", ["BOLIVIA"] = "Bolivia", ["ECU"] = "Ecuador", ["EC"] = "Ecuador", ["ECUADOR"] = "Ecuador",
+        ["MEX"] = "México", ["MX"] = "México", ["MEXICO"] = "México", ["MÉXICO"] = "México",
+        ["URU"] = "Uruguay", ["URY"] = "Uruguay", ["PAR"] = "Paraguay", ["PRY"] = "Paraguay", ["VEN"] = "Venezuela",
+        ["PAN"] = "Panamá", ["PANAMA"] = "Panamá", ["USA"] = "EUA", ["US"] = "EUA",
+    };
+
+    private static readonly HashSet<string> Ufs = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "AC", "AL", "AM", "AP", "BA", "CE", "DF", "ES", "GO", "MA", "MG", "MS", "MT", "PA", "PB",
+        "PE", "PI", "PR", "RJ", "RN", "RO", "RR", "RS", "SC", "SE", "SP", "TO",
+    };
+
+    /// <summary>
+    /// O lugar da planta, curto, para assuntos e e-mails: no Brasil "São Luís/MA";
+    /// fora, "Antofagasta (Chile)". Sem o nome da planta (que costuma repetir o cliente).
+    /// </summary>
+    public static string LugarCurto(PlantaDaProposta p)
+    {
+        var cidade = (p.Cidade ?? "").Trim();
+        var uf = (p.Estado ?? "").Trim();
+        if (uf.Length == 0) return cidade;
+        if (Ufs.Contains(uf)) return cidade.Length > 0 ? $"{cidade}/{uf.ToUpperInvariant()}" : uf.ToUpperInvariant();
+        var pais = Paises.GetValueOrDefault(uf) ?? uf;
+        return cidade.Length > 0 ? $"{cidade} ({pais})" : pais;
+    }
+
+    /// <summary>O cliente com os lugares das plantas, sem repetir: "Altonorte - Antofagasta (Chile)".</summary>
+    public static string ClienteComLugar(CommercialOffer o)
+    {
+        var lugares = o.Plantas.Select(LugarCurto).Where(l => l.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        if (lugares.Count == 0 && (o.City ?? "").Trim().Length > 0) lugares.Add(o.City.Trim());
+        var cliente = (o.ClientName ?? "").Trim();
+        lugares = lugares.Where(l => !Textos.Igual(l, cliente)).ToList();
+        return string.Join(" - ", new[] { cliente }.Concat(lugares.Count > 0 ? new[] { string.Join(" / ", lugares) } : Array.Empty<string>()).Where(x => x.Length > 0));
+    }
+
     /// <summary>A cidade da capa: as cidades das plantas, sem repetir ("São Luís / Itabira").</summary>
     public static string CidadesDaCapa(CommercialOffer o) => string.Join(" / ", o.Plantas
         .Select(p => (p.Cidade ?? "").Trim()).Where(c => c.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase));
