@@ -247,7 +247,9 @@ internal sealed class PreenchimentoDaProposta
 
         // só a comercial: o subtítulo perde o "Técnica"
         if (capa.Descendants<Paragraph>().FirstOrDefault(p => Texto(p).Trim() == "Proposta Técnica Comercial") is { } sub)
-            Escrever(sub, "Proposta Comercial");
+            Escrever(sub, Consolidacao.Consolidada(_o)
+                ? $"Proposta Comercial · Projeto {PropostaWord.Ou(_o.Pv, "—")} · Consolidada"
+                : "Proposta Comercial");
     }
 
     /// <summary>

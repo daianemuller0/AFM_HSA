@@ -49,8 +49,9 @@ public static class PropostaWord
     /// "HSA123.AFM.000045-C0". O pricing sai como P_&lt;referência&gt; e o custo
     /// como R_&lt;referência&gt;: os três com o mesmo código.
     /// </summary>
+    /// Consolidada, termina em " - Consolidado" (o Word, o PDF, o pricing e o custo saem assim).
     public static string Referencia(CommercialOffer o) =>
-        $"{Ou(o.OfferCode, "SEM-NUMERO")}-C{Ou(o.Revisao, "0")}";
+        $"{Ou(o.OfferCode, "SEM-NUMERO")}-C{Ou(o.Revisao, "0")}" + (Consolidacao.Consolidada(o) ? $" - {Consolidacao.Selo}" : "");
 
     /// <summary>"0" → "00", "1" → "01"; o que não for número fica como está.</summary>
     public static string Revisao2(string? revisao)

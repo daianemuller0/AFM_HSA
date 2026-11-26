@@ -1921,3 +1921,8 @@ a.btn-mini.btn-consolidar:hover, .btn-consolidar:hover { background: #1f6f43; co
 .rs-campo small { font-weight: 400; }
 .rs-campo.rs-hora { flex: 0 0 150px; }
 .rs-check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding-bottom: 8px; }
+.cs-prazo { display: inline-block; font-size: 13px; padding: 8px 12px; border-radius: 10px; background: #f3f5f8; color: var(--text); }
+.cs-prazo.curto { padding: 2px 8px; font-size: 12px; border-radius: 999px; white-space: nowrap; }
+.cs-prazo.igual { background: #ecfdf3; color: #166534; }
+.cs-prazo.menos { background: #fff7ed; color: #9a3412; }
+.cs-prazo.mais { background: #eff6ff; color: #1e40af; }

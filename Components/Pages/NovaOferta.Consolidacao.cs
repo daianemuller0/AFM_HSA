@@ -1,6 +1,7 @@
 using System.Globalization;
 using AfmHsa.Data;
 using AfmHsa.Models;
+using Microsoft.AspNetCore.Components;
 
 namespace AfmHsa.Components.Pages;
 
@@ -178,6 +179,31 @@ public partial class NovaOferta
         : r.MnDestino == "ta" && r.CustoDaMn > 0.005m ? $" · {Cambio.DinheiroDoCusto(_o, r.CustoDaMn)} levados ao TA dos itens"
         : r.MnDestino == "frete" && r.CustoDaMn > 0.005m ? $" · {Cambio.DinheiroDoCusto(_o, r.CustoDaMn)} levados ao frete (agora {Cambio.DinheiroDoCusto(_o, _o.FreteCusto)})"
         : " · a margem total sobe";
+
+    /// <summary>
+    /// Quantos dias faltam até a data de entrega e a comparação com o prazo
+    /// da proposta original ("faltam 75 dias · 15 a menos que a proposta (90)").
+    /// </summary>
+    private RenderFragment Prazo(DateOnly data, int diasDaProposta, bool curto) => __builder =>
+    {
+        var faltam = data.DayNumber - DateOnly.FromDateTime(DateTime.Today).DayNumber;
+        var dif = faltam - diasDaProposta;
+        var classe = diasDaProposta <= 0 ? "" : dif < 0 ? "menos" : dif > 0 ? "mais" : "igual";
+        var comparacao = curto
+            ? (diasDaProposta <= 0 ? "sem prazo na proposta" : dif == 0 ? "= proposta" : dif < 0 ? $"{-dif} a menos" : $"{dif} a mais")
+            : diasDaProposta <= 0 ? "sem prazo na proposta para comparar"
+            : dif == 0 ? $"igual ao prazo da proposta ({diasDaProposta} dias)"
+            : dif < 0 ? $"{-dif} {(dif == -1 ? "dia" : "dias")} a menos que a proposta ({diasDaProposta})"
+            : $"{dif} {(dif == 1 ? "dia" : "dias")} a mais que a proposta ({diasDaProposta})";
+        var quanto = faltam > 0 ? $"faltam {faltam} {(faltam == 1 ? "dia" : "dias")}" : faltam == 0 ? "é hoje" : $"já passou ({-faltam} dias)";
+        __builder.OpenElement(0, "span");
+        __builder.AddAttribute(1, "class", $"cs-prazo {classe} {(curto ? "curto" : "")}");
+        __builder.OpenElement(2, "strong");
+        __builder.AddContent(3, quanto);
+        __builder.CloseElement();
+        __builder.AddContent(4, " · " + comparacao);
+        __builder.CloseElement();
+    };
 
     private bool Bate(decimal valor) => _cValor is decimal v && Math.Abs(v - valor) <= ToleranciaC();
 

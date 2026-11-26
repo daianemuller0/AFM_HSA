@@ -320,11 +320,15 @@
                         </label>
                         <label class="cs-check"><input type="checkbox" checked="@_cDatasPorItem" @onchange="e => _cDatasPorItem = e.Value is true" /> datas diferentes por item</label>
                     </div>
+                    @if (_cDataTodos is DateOnly dt)
+                    {
+                        @Prazo(dt, PricingDaProposta.PrazoEmDias(_o.PrazoEntrega), false)
+                    }
                     @if (_cDatasPorItem)
                     {
                         <div class="cs-tabela-rolante">
                         <table class="grid cs-itens">
-                            <thead><tr><th>Item</th><th class="right">Prazo</th><th>Data de entrega</th></tr></thead>
+                            <thead><tr><th>Item</th><th class="right">Prazo na proposta</th><th>Data de entrega</th><th>Faltam</th></tr></thead>
                             <tbody>
                                 @foreach (var (i, it) in itensC)
                                 {
@@ -334,6 +338,7 @@
                                         <td class="cs-desc">@(it.PartNumber.Length > 0 ? $"{it.PartNumber} — " : "")@it.Description</td>
                                         <td class="right nowrap">@(dias > 0 ? $"{dias} dias" : "—")</td>
                                         <td><input class="cell" type="date" value="@Consolidacao.Texto(_cDatas.GetValueOrDefault(idx))" @onchange="e => { _cDatas[idx] = Consolidacao.Data(e.Value?.ToString()); _cErro = null; }" /></td>
+                                        <td>@if (_cDatas.GetValueOrDefault(idx) is DateOnly di) { @Prazo(di, dias, true) } else { <span class="cs-nota">—</span> }</td>
                                     </tr>
                                 }
                             </tbody>
@@ -377,7 +382,7 @@
                                     <tr><th>Preços do pedido</th><td>@Cambio.DinheiroDoCusto(_o, res.TaDoAjuste) de TA nos itens para cada um cair no preço do pedido</td></tr>
                                 }
                                 <tr><th>Margem total</th><td>@Pct(res.MargemAntes) → <strong>@Pct(res.MargemDepois)</strong></td></tr>
-                                <tr><th>Entrega</th><td>@(_cDatasPorItem ? "por item (abaixo)" : Consolidacao.Data(_o.DataEntrega)?.ToString("dd/MM/yyyy") ?? "—")</td></tr>
+                                <tr><th>Entrega</th><td>@if (_cDatasPorItem) { <span>por item (abaixo)</span> } else if (Consolidacao.Data(_o.DataEntrega) is DateOnly de) { <span>@de.ToString("dd/MM/yyyy") · </span>@Prazo(de, PricingDaProposta.PrazoEmDias(_o.PrazoEntrega), true) } else { <span>—</span> }</td></tr>
                                 <tr><th>Pagamento</th><td>@(string.IsNullOrWhiteSpace(_o.PaymentTerms) ? "—" : _o.PaymentTerms)</td></tr>
                             </tbody>
                         </table>
@@ -394,7 +399,7 @@
                                         <td class="right nowrap">@DinheiroC(antes)</td>
                                         <td class="right nowrap @(difItem ? "cs-mudou" : "")">@DinheiroC(depois)</td>
                                         <td class="right nowrap">@(it.CustoTa > 0m ? Math.Round(it.CustoTa, 2).ToString("N2", PtBr) : "—")</td>
-                                        @if (_cDatasPorItem) { <td class="nowrap">@(Consolidacao.Data(it.DataEntrega)?.ToString("dd/MM/yyyy") ?? "—")</td> }
+                                        @if (_cDatasPorItem) { <td class="nowrap">@(Consolidacao.Data(it.DataEntrega)?.ToString("dd/MM/yyyy") ?? "—") @if (Consolidacao.Data(it.DataEntrega) is DateOnly dr) { @Prazo(dr, it.PrazoEntregaDias > 0 ? it.PrazoEntregaDias : PricingDaProposta.PrazoEmDias(_o.PrazoEntrega), true) }</td> }
                                     </tr>
                                 }
                             </tbody>

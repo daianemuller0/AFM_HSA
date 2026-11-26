@@ -283,6 +283,10 @@ public static class TraducaoDaProposta
             // o rótulo em negrito e o valor normal: duas partes
             new(R(@"NCM: ?(.+)"), (m, en) => "NCM: " + Parte + Ncm(m.Groups[1].Value, en)),
             new(R(@"Prazo de entrega: ?a confirmar"), (m, en) => en ? $"Delivery time:{Parte} to be confirmed" : $"Plazo de entrega:{Parte} a confirmar"),
+            new(R(@"Proposta Comercial · Projeto (.+) · Consolidada"), (m, en) => en
+                ? $"Commercial Proposal · Project {m.Groups[1].Value} · Consolidated"
+                : $"Oferta Comercial · Proyecto {m.Groups[1].Value} · Consolidada"),
+            new(R(@"(.+-C\d+) - Consolidado"), (m, en) => m.Groups[1].Value + (en ? " - Consolidated" : " - Consolidado")),
             new(R(@"(\d+) - Consolidado"), (m, en) => m.Groups[1].Value + (en ? " - Consolidated" : " - Consolidado")),
             // consolidada: a data de entrega confirmada (dd/mm/aaaa; no inglês, mm/dd/yyyy não — a data fica como está)
             new(R(@"Data de entrega: ?(\d{2}/\d{2}/\d{4})"), (m, en) => (en ? "Delivery date:" : "Fecha de entrega:") + Parte + " " + m.Groups[1].Value),
