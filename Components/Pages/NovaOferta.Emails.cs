@@ -46,9 +46,9 @@ public partial class NovaOferta
         var reais = _items.Where(i => i != _itemDemais).ToList();
         // escopo: um item de lista por equipamento, com quantos itens são dele
         var escopo = reais.GroupBy(i => EquipamentoDoItem(i).Trim())
-            .Select(g => (g.Key.Length > 0 ? g.Key : "sem equipamento informado")
+            .Select(g => (g.Key.Length > 0 ? g.Key : Loc.Lang == "es" ? "sin equipo informado" : "sem equipamento informado")
                          + (g.Select(SerialDoItem).FirstOrDefault(sn => sn.Length > 0) is { } sn ? $" · SN {sn}" : "")
-                         + $" — {Plural(g.Count(), "item", "itens")}")
+                         + $" — {(Loc.Lang == "es" ? Plural(g.Count(), "ítem", "ítems") : Plural(g.Count(), "item", "itens"))}")
             .ToList();
 
         // preços sem impostos (os da tela estão no nível de impostos escolhido)
@@ -64,7 +64,8 @@ public partial class NovaOferta
         var total = Venda(Math.Round(_items.Sum(i => i.TotalPrice) * paraLiquido, 2));
 
         var prazos = reais.Select(PrazoDoItem).Where(d => d > 0).Distinct().OrderBy(d => d).ToList();
-        var prazo = prazos.Count switch { 0 => "a confirmar", 1 => prazos[0].ToString(), _ => $"{prazos[0]} a {prazos[^1]}" };
+        var es = Loc.Lang == "es";
+        var prazo = prazos.Count switch { 0 => es ? "por confirmar" : "a confirmar", 1 => prazos[0].ToString(), _ => $"{prazos[0]} a {prazos[^1]}" };
 
         // dólar: o da proposta, se o preço é em USD; senão o da tabela de conversão
         decimal? dolar = Cambio.MoedaDoPreco(_o) == Moeda.Usd && Cambio.MoedaDoCusto(_o) == Moeda.Brl && Cambio.Normalizada(_o) > 0m ? Cambio.Normalizada(_o)
@@ -74,31 +75,36 @@ public partial class NovaOferta
         string? cambio = null;
         if (Cambio.MoedaDoCusto(_o) != Moeda.Brl && Cambio.Converte(_o) && !Cambio.FaltaTaxa(_o))
             cambio = $"1 {Cambio.MoedaDoPreco(_o).Rotulo()} = {Cambio.Efetivo(_o).ToString("#,##0.####", PtBr)} {Cambio.MoedaDoCusto(_o).Rotulo()}" +
-                     (Cambio.Seguranca(_o) > 0m ? $" (com {Cambio.Seguranca(_o).ToString("0.##", PtBr)}% de segurança)" : "");
+                     (Cambio.Seguranca(_o) > 0m ? (es ? $" (con {Cambio.Seguranca(_o).ToString("0.##", PtBr)}% de seguridad)" : $" (com {Cambio.Seguranca(_o).ToString("0.##", PtBr)}% de segurança)") : "");
         return new ResumoDaAprovacao(cliente.Length > 0 ? cliente : "—", escopo, itens, total, prazo, dolar, Seguros(), _notaAprovacao, cambio);
     }
 
     /// <summary>"Seguros:" do e-mail: o seguro garantia / carta fiança e as outras garantias da proposta.</summary>
     private string Seguros()
     {
+        var es = Loc.Lang == "es";
+        var por = es ? "por" : "por";
+        var dias = es ? "días" : "dias";
         var partes = new List<string>();
         if (Textos.Igual(_o.FiancaSeguro, "Sim"))
         {
             var eventos = _o.EventosFianca.Where(e => e.Percentual > 0m)
-                .Select(e => $"{(e.Percentual * 100m).ToString("0.##", PtBr)}% por {e.PrazoDias} dias").ToList();
-            partes.Add($"{PropostaWord.Ou(_o.TipoGarantia, "Seguro garantia / carta fiança")}" + (eventos.Count > 0 ? $": {string.Join("; ", eventos)}" : ""));
+                .Select(e => $"{(e.Percentual * 100m).ToString("0.##", PtBr)}% {por} {e.PrazoDias} {dias}").ToList();
+            partes.Add($"{PropostaWord.Ou(_o.TipoGarantia, es ? "Seguro de garantía / carta fianza" : "Seguro garantia / carta fiança")}" + (eventos.Count > 0 ? $": {string.Join("; ", eventos)}" : ""));
         }
         var outras = _o.OutrasGarantias.Where(g => g.Percentual > 0m)
-            .Select(g => $"{g.Tipo} {(g.Percentual * 100m).ToString("0.##", PtBr)}% por {g.DiasCobertura} dias").ToList();
-        if (outras.Count > 0) partes.Add($"{PropostaWord.Ou(_o.TipoOutrasGarantias, "Outras garantias")}: {string.Join("; ", outras)}");
-        return partes.Count > 0 ? string.Join(". ", partes) + "." : "Sem seguro garantia ou carta fiança.";
+            .Select(g => $"{g.Tipo} {(g.Percentual * 100m).ToString("0.##", PtBr)}% {por} {g.DiasCobertura} {dias}").ToList();
+        if (outras.Count > 0) partes.Add($"{PropostaWord.Ou(_o.TipoOutrasGarantias, es ? "Otras garantías" : "Outras garantias")}: {string.Join("; ", outras)}");
+        return partes.Count > 0 ? string.Join(". ", partes) + "."
+            : es ? "Sin seguro de garantía ni carta fianza." : "Sem seguro garantia ou carta fiança.";
     }
 
     /// <param name="assinatura">"" quando o Outlook põe a assinatura de quem envia</param>
     private EmailDaProposta EmailDeAprovacao(string assinatura)
     {
         var r = PricingAtual(Custos);
-        return EmailsDaProposta.Aprovacao(_o, r, ResumoParaAprovacao(r), AprovPara, AprovCc, assinatura);
+        // no idioma de quem pede (o escolhido no topo do sistema): português ou espanhol
+        return EmailsDaProposta.Aprovacao(_o, r, ResumoParaAprovacao(r), AprovPara, AprovCc, assinatura, Loc.Lang == "es" ? "es" : "pt");
     }
 
     private EmailDaProposta EmailAoCliente(string assinatura)

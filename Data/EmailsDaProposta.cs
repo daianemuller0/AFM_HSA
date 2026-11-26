@@ -55,18 +55,19 @@ public static class EmailsDaProposta
     /// "Nº do CRM-revisão – PRICING – Cliente (planta) – Referência do cliente – APROVAÇÃO DE PRICING DE PROPOSTA"
     /// (o nº do CRM é o código da proposta, a "nossa referência").
     /// </summary>
-    public static string AssuntoDaAprovacao(CommercialOffer o, string clienteCompleto)
+    public static string AssuntoDaAprovacao(CommercialOffer o, string clienteCompleto, string idioma = "pt")
     {
+        var es = idioma == "es";
         // consolidada: "HSABOC.AFM.000145-1 – CONSOLIDADO – PRICING – Petroperu S.A. – Piura – PC 13104884 – AF2424"
         if (Consolidacao.Consolidada(o))
         {
             var num = $"{PropostaWord.Ou(o.OfferCode, o.NumeroCrm)}-{PropostaWord.Ou(o.Revisao, "0")}";
             var pedido = (o.NumeroPedido ?? "").Trim();
-            return string.Join(" – ", new[] { num, "CONSOLIDADO", "PRICING", clienteCompleto, pedido.Length > 0 ? $"PC {pedido}" : "", o.Pv ?? "" }
+            return string.Join(" – ", new[] { num, "CONSOLIDADO", "PRICING", clienteCompleto, pedido.Length > 0 ? $"{(es ? "OC" : "PC")} {pedido}" : "", o.Pv ?? "" }
                 .Select(p => (p ?? "").Trim()).Where(p => p.Length > 0));
         }
         var numero = $"{PropostaWord.Ou(o.OfferCode, o.NumeroCrm)}-{PropostaWord.Ou(o.Revisao, "0")}";
-        var partes = new[] { numero, "PRICING", clienteCompleto, o.SuaReferencia, "APROVAÇÃO DE PRICING DE PROPOSTA" }
+        var partes = new[] { numero, "PRICING", clienteCompleto, o.SuaReferencia, es ? "APROBACIÓN DE PRICING DE PROPUESTA" : "APROVAÇÃO DE PRICING DE PROPOSTA" }
             .Select(p => (p ?? "").Trim()).Where(p => p.Length > 0);
         return string.Join(" – ", partes);
     }
@@ -81,6 +82,29 @@ public static class EmailsDaProposta
         return nome.Length == 0 ? "" : char.ToUpper(nome[0], Br) + nome[1..].ToLower(Br);
     }
 
+    /// <summary>Os textos fixos da aprovação do pricing, em português ou espanhol (o idioma de quem pede).</summary>
+    private sealed record TextosDaAprovacao(string Prezado, string Prezados, string PedidoOferta, string PedidoConsolidacao,
+        string Cliente, string PedidoDeCompra, string Projeto, string Escopo, string EscopoTexto, string Nota,
+        string[] Cabecalho, string Total, string Negociacao, string Comissao, string Garantia, string Risco, string Prazo, string Dias,
+        string DataEntrega, string Cambio, string Dolar, string Condicoes, string GarantiaDoProjeto, string Padrao, string GarantiaTexto,
+        string Seguros, string Despedida);
+
+    private static TextosDaAprovacao TextosAprovacao(string idioma, string moeda) => idioma == "es"
+        ? new("Estimado {0},", "Estimados,", "Por favor, ¿podría revisar y liberar el envío de la oferta según los datos a continuación?",
+            "Por favor, ¿podría revisar y liberar la consolidación del proyecto {0} según los datos a continuación?",
+            "Cliente:", "Orden de compra:", "Proyecto:", "Alcance:", "Partes y piezas para compresor", "Nota:",
+            new[] { "ÍTEM", "PRODUCTO", "MODELO DEL COMPRESOR", "CANT.", $"PRECIO UNIT. S/IMP ({moeda})", $"PRECIO TOTAL ({moeda})" }, "TOTAL",
+            "Negociación:", "Comisión:", "Garantía:", "Riesgo:", "Plazo de entrega:", "Días", "Fecha de entrega:", "Tipo de cambio:", "Dólar:",
+            "Condiciones de Pago:", "Garantía del Proyecto", "Estándar:",
+            "12 meses después de la primera operación; o 18 meses a partir de la notificación de Howden sobre la disponibilidad de los Bienes.",
+            "Seguros:", "Saludos cordiales,")
+        : new("Prezado {0},", "Prezados,", "Por gentileza, poderia verificar e liberar o envio da oferta conforme dados abaixo:",
+            "Por gentileza, poderia verificar e liberar a consolidação para o projeto {0} conforme dados abaixo:",
+            "Cliente:", "Pedido de compra:", "Projeto:", "Escopo:", "Partes e peças para compressor", "Nota:",
+            new[] { "ITEM", "PRODUTO", "MODELO DO COMPRESSOR", "QUANT.", $"PREÇO UNIT S/IMP ({moeda})", $"PREÇO TOTAL ({moeda})" }, "TOTAL",
+            "Negociação:", "Comissão:", "Garantia:", "Risco:", "Prazo de entrega:", "Dias", "Data de entrega:", "Câmbio:", "Dólar:",
+            "Condições de Pagamento:", "Garantia do Projeto", "Padrão:", GarantiaPadrao, "Seguros:", "Atenciosamente,");
+
     /// <summary>
     /// A aprovação no formato da equipe: saudação, cliente, projeto, escopo,
     /// nota, a tabela dos itens (preço sem impostos), o quadro GM / negociação /
@@ -89,46 +113,45 @@ public static class EmailsDaProposta
     /// de quem envia; sem Outlook, <paramref name="assinatura"/> entra no lugar.
     /// </summary>
     public static EmailDaProposta Aprovacao(CommercialOffer o, CalculoPricing.Resultado r, ResumoDaAprovacao d,
-        string para, string cc, string assinatura)
+        string para, string cc, string assinatura, string idioma = "pt")
     {
         var moeda = Cambio.MoedaDoPreco(o).Rotulo();
+        var tx = TextosAprovacao(idioma, moeda);
         var nome = PrimeiroNome(para);
-        var saudacao = nome.Length > 0 ? $"Prezado {nome}," : "Prezados,";
+        var saudacao = nome.Length > 0 ? string.Format(tx.Prezado, nome) : tx.Prezados;
         var consolidada = Consolidacao.Consolidada(o);
-        var Pedido = consolidada
-            ? $"Por gentileza, poderia verificar e liberar a consolidação para o projeto {PropostaWord.Ou(o.Pv, "—")} conforme dados abaixo:"
-            : "Por gentileza, poderia verificar e liberar o envio da oferta conforme dados abaixo:";
+        var Pedido = consolidada ? string.Format(tx.PedidoConsolidacao, PropostaWord.Ou(o.Pv, "—")) : tx.PedidoOferta;
         var quadro = new List<(string Rotulo, string Valor, string Unidade)>
         {
             ("GM:", r.VendaLiquida > 0m ? Num(r.Margem * 100m) : "—", "%"),
-            ("Negociação:", Num(o.MargemNegociacao * 100m), "%"),
-            ("Comissão:", Num(r.Comissoes * 100m), "%"),
-            ("Garantia:", Num(CalculoPricing.GarantiaDoProjeto * 100m), "%"),
-            ("Risco:", Num(o.RiscoAdicional * 100m), "%"),
+            (tx.Negociacao, Num(o.MargemNegociacao * 100m), "%"),
+            (tx.Comissao, Num(r.Comissoes * 100m), "%"),
+            (tx.Garantia, Num(CalculoPricing.GarantiaDoProjeto * 100m), "%"),
+            (tx.Risco, Num(o.RiscoAdicional * 100m), "%"),
             ("Protected Margin:", Num((o.ProtectedMargin ?? 0m) * 100m), "%"),
             consolidada && Consolidacao.Data(o.DataEntrega) is DateOnly entrega
-                ? ("Data de entrega:", entrega.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture), "")
-                : ("Prazo de entrega:", PropostaWord.Ou(d.PrazoDias, "—"), "Dias"),
+                ? (tx.DataEntrega, entrega.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture), "")
+                : (tx.Prazo, PropostaWord.Ou(d.PrazoDias, "—"), tx.Dias),
             d.Cambio is { Length: > 0 } cambio
-                ? ("Câmbio:", cambio, "")
-                : ("Dólar:", d.Dolar is decimal usd && usd > 0m ? usd.ToString("N4", Br) : "—", "R$"),
+                ? (tx.Cambio, cambio, "")
+                : (tx.Dolar, d.Dolar is decimal usd && usd > 0m ? usd.ToString("N4", Br) : "—", "R$"),
         };
 
         const string Rot = "font-weight:bold";
         var sb = new StringBuilder("<div style=\"font-family:Calibri,Arial,Helvetica,sans-serif;font-size:14px;color:#1f2937;line-height:1.45\">");
         sb.Append($"<p>{H(saudacao)}</p><p>{H(Pedido)}</p>");
-        sb.Append($"<p style=\"margin:4px 0\"><span style=\"{Rot}\">Cliente:</span> {H(d.ClienteCompleto)}</p>");
-        if (consolidada) sb.Append($"<p style=\"margin:4px 0\"><span style=\"{Rot}\">Pedido de compra:</span> {H(PropostaWord.Ou(o.NumeroPedido, "—"))}</p>");
-        sb.Append($"<p style=\"margin:4px 0\"><span style=\"{Rot}\">Projeto:</span> {H(PropostaWord.Ou(o.Project, "—"))}</p>");
-        sb.Append($"<p style=\"margin:4px 0\"><span style=\"{Rot}\">Escopo:</span> Partes e peças para compressor</p>");
+        sb.Append($"<p style=\"margin:4px 0\"><span style=\"{Rot}\">{H(tx.Cliente)}</span> {H(d.ClienteCompleto)}</p>");
+        if (consolidada) sb.Append($"<p style=\"margin:4px 0\"><span style=\"{Rot}\">{H(tx.PedidoDeCompra)}</span> {H(PropostaWord.Ou(o.NumeroPedido, "—"))}</p>");
+        sb.Append($"<p style=\"margin:4px 0\"><span style=\"{Rot}\">{H(tx.Projeto)}</span> {H(PropostaWord.Ou(o.Project, "—"))}</p>");
+        sb.Append($"<p style=\"margin:4px 0\"><span style=\"{Rot}\">{H(tx.Escopo)}</span> {H(tx.EscopoTexto)}</p>");
         if (d.Escopo.Count > 0) sb.Append("<ul style=\"margin:2px 0 6px\">" + string.Concat(d.Escopo.Select(e => $"<li>{H(e)}</li>")) + "</ul>");
-        if (d.Nota.Trim().Length > 0) sb.Append($"<p style=\"margin:4px 0\">Nota: {H(d.Nota.Trim())}</p>");
+        if (d.Nota.Trim().Length > 0) sb.Append($"<p style=\"margin:4px 0\">{H(tx.Nota)} {H(d.Nota.Trim())}</p>");
 
         // ---- os itens ----
         const string Th = "background:#005B8F;color:#fff;padding:6px 8px;text-align:left;border:1px solid #7f9db9;font-weight:bold";
         const string Td = "padding:6px 8px;border:1px solid #c9c9c9;background:#ffffff;vertical-align:top";
         sb.Append("<table cellpadding=\"0\" cellspacing=\"0\" style=\"border-collapse:collapse;margin:12px 0;font-size:13px\"><tr>");
-        foreach (var c in new[] { "ITEM", "PRODUTO", "MODELO DO COMPRESSOR", "QUANT.", $"PREÇO UNIT S/IMP ({moeda})", $"PREÇO TOTAL ({moeda})" })
+        foreach (var c in tx.Cabecalho)
             sb.Append($"<th style=\"{Th}\">{H(c)}</th>");
         sb.Append("</tr>");
         foreach (var i in d.Itens)
@@ -138,7 +161,7 @@ public static class EmailsDaProposta
             sb.Append($"<td style=\"{Td};text-align:right\">{i.Qtd}</td><td style=\"{Td};text-align:right;white-space:nowrap\">{H(i.UnitSemImpostos)}</td><td style=\"{Td};text-align:right;white-space:nowrap\">{H(i.Total)}</td>");
             sb.Append("</tr>");
         }
-        sb.Append($"<tr><td colspan=\"4\" style=\"{Td}\"></td><td style=\"{Td};font-weight:bold;text-align:right\">TOTAL</td><td style=\"{Td};font-weight:bold;text-align:right;white-space:nowrap\">{H(d.TotalSemImpostos)}</td></tr>");
+        sb.Append($"<tr><td colspan=\"4\" style=\"{Td}\"></td><td style=\"{Td};font-weight:bold;text-align:right\">{H(tx.Total)}</td><td style=\"{Td};font-weight:bold;text-align:right;white-space:nowrap\">{H(d.TotalSemImpostos)}</td></tr>");
         sb.Append("</table>");
         // uma linha em branco entre as duas tabelas (o Outlook ignora a margem da tabela)
         sb.Append("<p style=\"margin:0\">&nbsp;</p>");
@@ -151,32 +174,32 @@ public static class EmailsDaProposta
                       $"<td style=\"padding:5px 8px;border:1px solid #000;min-width:36px\">{H(unidade)}</td></tr>");
         sb.Append("</table>");
 
-        sb.Append($"<p style=\"{Rot}\">Condições de Pagamento: {H(PropostaWord.Ou(o.PaymentTerms, "—"))}</p>");
-        sb.Append($"<p style=\"margin-bottom:2px;{Rot}\">Garantia do Projeto</p>");
-        sb.Append($"<p style=\"margin-top:0;{Rot}\"><u>Padrão:</u> {H(GarantiaPadrao)}</p>");
-        sb.Append($"<p style=\"margin-bottom:2px;{Rot}\">Seguros:</p><p style=\"margin-top:0\">{H(d.Seguros)}</p>");
-        sb.Append($"<p style=\"margin-top:18px\">Atenciosamente,");
+        sb.Append($"<p style=\"{Rot}\">{H(tx.Condicoes)} {H(PropostaWord.Ou(o.PaymentTerms, "—"))}</p>");
+        sb.Append($"<p style=\"margin-bottom:2px;{Rot}\">{H(tx.GarantiaDoProjeto)}</p>");
+        sb.Append($"<p style=\"margin-top:0;{Rot}\"><u>{H(tx.Padrao)}</u> {H(tx.GarantiaTexto)}</p>");
+        sb.Append($"<p style=\"margin-bottom:2px;{Rot}\">{H(tx.Seguros)}</p><p style=\"margin-top:0\">{H(d.Seguros)}</p>");
+        sb.Append($"<p style=\"margin-top:18px\">{H(tx.Despedida)}");
         if (assinatura.Trim().Length > 0) sb.Append($"<br>{H(assinatura)}");
         sb.Append("</p></div>");
 
         var texto = new StringBuilder();
         texto.AppendLine(saudacao).AppendLine().AppendLine(Pedido).AppendLine();
-        texto.AppendLine($"Cliente: {d.ClienteCompleto}");
-        if (consolidada) texto.AppendLine($"Pedido de compra: {PropostaWord.Ou(o.NumeroPedido, "—")}");
-        texto.AppendLine($"Projeto: {PropostaWord.Ou(o.Project, "—")}").AppendLine("Escopo: Partes e peças para compressor");
+        texto.AppendLine($"{tx.Cliente} {d.ClienteCompleto}");
+        if (consolidada) texto.AppendLine($"{tx.PedidoDeCompra} {PropostaWord.Ou(o.NumeroPedido, "—")}");
+        texto.AppendLine($"{tx.Projeto} {PropostaWord.Ou(o.Project, "—")}").AppendLine($"{tx.Escopo} {tx.EscopoTexto}");
         foreach (var e in d.Escopo) texto.AppendLine($"  • {e}");
-        if (d.Nota.Trim().Length > 0) texto.AppendLine($"Nota: {d.Nota.Trim()}");
+        if (d.Nota.Trim().Length > 0) texto.AppendLine($"{tx.Nota} {d.Nota.Trim()}");
         texto.AppendLine();
-        texto.AppendLine($"ITEM | PRODUTO | MODELO DO COMPRESSOR | QUANT. | PREÇO UNIT S/IMP ({moeda}) | PREÇO TOTAL ({moeda})");
+        texto.AppendLine(string.Join(" | ", tx.Cabecalho));
         foreach (var i in d.Itens) texto.AppendLine($"{i.Item} | {i.Produto} | {i.Modelo} | {i.Qtd} | {i.UnitSemImpostos} | {i.Total}");
-        texto.AppendLine($"TOTAL: {d.TotalSemImpostos}").AppendLine();
+        texto.AppendLine($"{tx.Total}: {d.TotalSemImpostos}").AppendLine();
         foreach (var (rot, valor, unidade) in quadro) texto.AppendLine($"{rot} {valor} {unidade}");
-        texto.AppendLine().AppendLine($"Condições de Pagamento: {PropostaWord.Ou(o.PaymentTerms, "—")}").AppendLine();
-        texto.AppendLine("Garantia do Projeto").AppendLine($"Padrão: {GarantiaPadrao}").AppendLine();
-        texto.AppendLine("Seguros:").AppendLine(d.Seguros).AppendLine().AppendLine("Atenciosamente,");
+        texto.AppendLine().AppendLine($"{tx.Condicoes} {PropostaWord.Ou(o.PaymentTerms, "—")}").AppendLine();
+        texto.AppendLine(tx.GarantiaDoProjeto).AppendLine($"{tx.Padrao} {tx.GarantiaTexto}").AppendLine();
+        texto.AppendLine(tx.Seguros).AppendLine(d.Seguros).AppendLine().AppendLine(tx.Despedida);
         if (assinatura.Trim().Length > 0) texto.AppendLine(assinatura);
 
-        return new EmailDaProposta(para, cc, AssuntoDaAprovacao(o, d.ClienteCompleto), sb.ToString(), texto.ToString());
+        return new EmailDaProposta(para, cc, AssuntoDaAprovacao(o, d.ClienteCompleto, idioma), sb.ToString(), texto.ToString());
     }
 
     private static string Num(decimal v) => v.ToString("0.##", Br);

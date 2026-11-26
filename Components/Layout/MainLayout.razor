@@ -3,6 +3,7 @@
 @inject LocState Loc
 @inject NavigationManager Nav
 @inject AppUserRepository Usuarios
+@inject IJSRuntime JS
 
 <div class="app-shell">
     <NavMenu />
@@ -80,7 +81,28 @@
         Loc.Changed += StateHasChanged;
     }
 
-    private void Aplicar() => Loc.Set(_lang);
+    /// <summary>Troca o idioma: o servidor (e-mails, menu) e as telas (tradução no navegador, guardada nele).</summary>
+    private async Task Aplicar()
+    {
+        Loc.Set(_lang);
+        try { await JS.InvokeVoidAsync("appI18n.definir", _lang); } catch (Exception) { /* sem o script: fica o menu */ }
+    }
+
+    /// <summary>O idioma guardado no navegador vale para esta sessão também (o menu e os e-mails seguem ele).</summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            var guardado = await JS.InvokeAsync<string>("appI18n.atual");
+            if (guardado is "pt" or "en" or "es" && guardado != Loc.Lang)
+            {
+                _lang = guardado;
+                Loc.Set(guardado);
+            }
+        }
+        catch (Exception) { /* pré-renderização ou sem o script */ }
+    }
 
     public void Dispose() => Loc.Changed -= StateHasChanged;
 
