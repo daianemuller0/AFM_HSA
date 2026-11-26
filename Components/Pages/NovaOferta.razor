@@ -1942,8 +1942,8 @@ else
                         <tr><td>Net Cost Basis (Salesforce)</td><td class="cel-ref">Q28</td><td class="right nowrap">@Cu(pr.NetCostBasis)</td><td class="right">—</td></tr>
                         @if (Consolidacao.VendaLiquidaNaMoedaDaBu(_o, vl) is decimal vlBu && Consolidacao.MoedaDaBu(_o) is Moeda mBu)
                         {
-                            <tr class="memoria-bu"><td><strong>Valor consolidado em @mBu.Codigo()</strong> <span class="sub-cel">sem impostos</span></td><td class="cel-ref">Q30</td><td class="right nowrap"><strong>@Moedas.Dinheiro(mBu, vlBu)</strong></td><td class="right">—</td></tr>
-                            <tr class="memoria-bu"><td>Taxa usada na consolidação</td><td class="cel-ref">Q31</td><td class="right nowrap">@Consolidacao.TextoDaTaxa(_o)</td><td class="right">—</td></tr>
+                            <tr class="memoria-bu"><td><strong>Valor consolidado em @mBu.Codigo()</strong> <span class="sub-cel">sem impostos</span></td><td class="cel-ref">K16 · Q16</td><td class="right nowrap"><strong>@Moedas.Dinheiro(mBu, vlBu)</strong></td><td class="right">—</td></tr>
+                            <tr class="memoria-bu"><td>Taxa usada na consolidação</td><td class="cel-ref">P16</td><td class="right nowrap">@Consolidacao.TextoDaTaxa(_o)</td><td class="right">—</td></tr>
                         }
                         <tr><td>PIS</td><td class="cel-ref">D61 · E61</td><td class="right nowrap">@Cu(pr.ValorPis)</td><td class="right">@Pct(pr.AliqPis)</td></tr>
                         <tr><td>COFINS</td><td class="cel-ref">D62 · E62</td><td class="right nowrap">@Cu(pr.ValorCofins)</td><td class="right">@Pct(pr.AliqCofins)</td></tr>

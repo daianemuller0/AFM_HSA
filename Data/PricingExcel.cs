@@ -45,7 +45,7 @@ public static class PricingExcel
         ("D47", "Margem de negociação"), ("D64", "IPI (pela NCM dos itens)"),
         ("R46, N49:O58", "Seguro garantia / carta fiança"), ("R61, N64:R67", "Outras garantias"),
         ("I36:I39", "Moedas (R$ por USD e cruzadas)"),
-        ("K30:Q31", "Consolidada HCHL/HPU: valor em CLP/PEN e a taxa"),
+        ("K16:S16", "Consolidada HCHL/HPU: valor em CLP/PEN (Q16) e a taxa (P16)"),
     };
 
     /// <summary>Gera o arquivo, em memória, pronto para download.</summary>
@@ -101,15 +101,6 @@ public static class PricingExcel
         ws.Numero("D47", e.MargemNegociacao);
         ws.Numero("E41", r.Markup);
 
-        // ---------- consolidada da HCHL / HPU: o valor na moeda da BU (CLP / PEN) e a taxa usada ----------
-        if (Consolidacao.VendaLiquidaNaMoedaDaBu(o, r.VendaLiquida) is decimal naBu && Consolidacao.MoedaDaBu(o) is Moeda moedaBu)
-        {
-            ws.Texto("K30", $"Valor consolidado em {moedaBu.Codigo()} (sem impostos)");
-            ws.Numero("Q30", naBu);
-            ws.FormatoDeMoeda(moedaBu == Moeda.Clp ? "#,##0" : "#,##0.00", "Q30");
-            ws.Texto("K31", "Taxa usada na consolidação");
-            ws.Texto("Q31", Consolidacao.TextoDaTaxa(o));
-        }
 
         // ---------- IPI pela NCM dos itens (compressor 8414.90.39 = 0%) ----------
         if (e.AliquotaIpi is decimal ipi && ipi != CalculoPricing.Ipi)
@@ -177,6 +168,18 @@ public static class PricingExcel
             ws.Formula("D50", portal.Replace("VLOOKUP(P4,listas!B3:C13,2)", "VLOOKUP(P4,listas!B3:C13,2,FALSE)", StringComparison.Ordinal));
 
         PrecoAoCliente(pacote, ws, o, r, taxas);
+
+        // (por último: o quadro de preço acima formata Q16 na moeda da proposta)
+        // ---------- consolidada da HCHL / HPU: o valor na moeda da BU (CLP / PEN) e a taxa usada ----------
+        if (Consolidacao.VendaLiquidaNaMoedaDaBu(o, r.VendaLiquida) is decimal naBu && Consolidacao.MoedaDaBu(o) is Moeda moedaBu)
+        {
+            // linha 16 (a do preço com IPI, que no Chile e no Peru fica "-"): rótulo em K, taxa em P, valor em Q:S
+            ws.Texto("K16", $"Valor consolidado em {moedaBu.Codigo()} (sem impostos)");
+            ws.Texto("P16", Consolidacao.TextoDaTaxa(o));
+            ws.Numero("Q16", naBu);
+            ws.FormatoDeMoeda($"\"{moedaBu.Codigo()}\" " + (moedaBu == Moeda.Clp ? "#,##0" : "#,##0.00"), "Q16");
+            ws.Texto("T16", "-");
+        }
 
         return pacote.Concluir();
     }
