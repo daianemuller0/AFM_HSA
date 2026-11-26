@@ -1914,3 +1914,10 @@ a.btn-mini.btn-consolidar:hover, .btn-consolidar:hover { background: #1f6f43; co
 .cs-resumo td { padding: 6px 0; border-bottom: 1px solid #eef1f5; }
 .cs-ok-mini { margin-left: 8px; color: #166534; font-weight: 700; }
 .cs-erro-mini { margin-left: 8px; color: #b91c1c; font-weight: 700; }
+
+/* ---- relatório semanal (Tempo das propostas) ---- */
+.rs-grade { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+.rs-campo { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: var(--muted); flex: 1 1 260px; }
+.rs-campo small { font-weight: 400; }
+.rs-campo.rs-hora { flex: 0 0 150px; }
+.rs-check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding-bottom: 8px; }

@@ -3,6 +3,13 @@
 @rendermode InteractiveServer
 @using System.Globalization
 @inject TempoRepository Tempos
+@inject RelatorioSemanalRepository RelatorioRepo
+@inject RelatorioSemanalService RelatorioServico
+@inject OutlookLocal Outlook
+@inject ParquetStore Store
+@inject IWebHostEnvironment Ambiente
+@inject AuthenticationStateProvider Auth
+@inject IJSRuntime JS
 
 <PageTitle>Tempo das propostas · AFM HSA</PageTitle>
 
@@ -14,7 +21,16 @@
             de cada número e revisão — pausas de mais de 3 minutos não contam. A meta é metade do tempo de antes.
         </p>
     </div>
+    <div class="page-actions">
+        <button class="btn-ghost" disabled="@_gerando" @onclick="BaixarRelatorio">@(_gerando ? "Gerando…" : "📄 Gerar relatório")</button>
+        @if (_podeConfigurar)
+        {
+            <button class="btn-primary" disabled="@_gerando" title="Abre o e-mail do relatório desta semana no Outlook, pronto para enviar" @onclick="AbrirEmail">✉ E-mail do relatório</button>
+        }
+    </div>
 </div>
+
+@if (_msg is not null) { <div class="@(_msgOk ? "alert-ok" : "alert-error")" style="margin-bottom:12px">@_msg</div> }
 
 @{
     var medidas = _primeiras.Where(t => _origem == "" || t.Origem == _origem).ToList();
@@ -77,6 +93,42 @@
     </div>
 </div>
 
+@if (_podeConfigurar)
+{
+    <div class="panel rs-painel" style="margin-bottom:16px">
+        <div class="dash-title">Relatório semanal por e-mail <span class="dash-sub">sai toda sexta-feira, a partir da hora escolhida, pelo Outlook do computador em que o sistema estiver aberto</span></div>
+        <div class="rs-grade">
+            <label class="rs-campo">Para <small>separe com ;</small>
+                <input class="cell" value="@_cfg.Para" placeholder="e-mail da Thais; e-mail do Rafael" @onchange='e => _cfg.Para = e.Value?.ToString() ?? ""' />
+            </label>
+            <label class="rs-campo">Cópia
+                <input class="cell" value="@_cfg.Cc" @onchange='e => _cfg.Cc = e.Value?.ToString() ?? ""' />
+            </label>
+            <label class="rs-campo rs-hora">Sexta, a partir das
+                <select class="cell" value="@_cfg.Hora" @onchange="e => _cfg.Hora = int.TryParse(e.Value?.ToString(), out var h) ? h : 16">
+                    @for (var h = 6; h <= 20; h++) { <option value="@h">@h:00</option> }
+                </select>
+            </label>
+            <label class="rs-check"><input type="checkbox" checked="@_cfg.Ativo" @onchange="e => _cfg.Ativo = e.Value is true" /> envio automático ligado</label>
+            <button class="btn-primary" @onclick="SalvarConfig">Salvar</button>
+        </div>
+        <p class="nota" style="margin:8px 0 0">
+            @if (_envios.FirstOrDefault() is { } ult)
+            {
+                <span>Último envio: semana da sexta @Fmt.Date(ult.Semana) · @ult.EnviadoEm @(ult.Por.Length > 0 ? $"({ult.Por})" : "") · @(ult.Ok ? "✓ enviado para " + ult.Para : "✕ " + ult.Resultado)</span>
+            }
+            else
+            {
+                <span>Nenhum envio ainda.</span>
+            }
+            @if (!Outlook.Disponivel)
+            {
+                <span> · Este computador não envia (o sistema não está rodando nele com o Outlook): o envio sai de um computador onde o sistema esteja aberto na sexta.</span>
+            }
+        </p>
+    </div>
+}
+
 <div class="panel" style="margin-bottom:16px">
     <div class="dash-title">Tempo de antes <span class="dash-sub">a tela antiga não era medida: informe quanto uma proposta nova levava</span></div>
     <div class="toolbar" style="gap:10px; margin:0">
@@ -115,14 +167,38 @@
 </div>
 
 <div class="panel">
-    <div class="dash-title">Últimas medições</div>
-    <div class="tabela-rolante">
+    <div class="dash-title">Medições <span class="dash-sub">@medidas.Count proposta(s)@(_adm ? " · marque as de teste para excluir" : "")</span></div>
+    @if (_adm && _marcadas.Count > 0)
+    {
+        <div class="excluir-barra" style="margin-bottom:10px">
+            @if (!_confirmar)
+            {
+                <span><strong>@_marcadas.Count</strong> medição(ões) selecionada(s)</span>
+                <button class="btn-ghost perigo" @onclick="() => _confirmar = true">🗑 Excluir selecionadas</button>
+                <button class="btn-link" @onclick="() => _marcadas.Clear()">desmarcar</button>
+            }
+            else
+            {
+                <span class="custo-indisp">Excluir as medições de @string.Join(", ", _marcadas.Take(5).Select(k => $"{k.Numero} rev {k.Revisao}"))@(_marcadas.Count > 5 ? "…" : "")?
+                    Todas as gerações do Word desses números e revisões saem das contas. A proposta em si não é apagada.</span>
+                <button class="btn-primary perigo" @onclick="ExcluirMarcadas">Sim, excluir</button>
+                <button class="btn-link" @onclick="() => _confirmar = false">cancelar</button>
+            }
+        </div>
+    }
+    <div class="tabela-rolante" style="max-height:520px">
         <table class="grid">
-            <thead><tr><th>Quando</th><th>Proposta</th><th>Quem</th><th>Origem</th><th class="right">Itens</th><th class="right">Tempo</th><th class="right">Interações</th><th>Por etapa</th></tr></thead>
+            <thead><tr>
+                @if (_adm) { <th style="width:28px"><input type="checkbox" title="Selecionar todas" checked="@(medidas.Count > 0 && medidas.All(t => _marcadas.Contains(Chave(t))))" @onchange="e => MarcarTodas(medidas, e)" /></th> }
+                <th>Quando</th><th>Proposta</th><th>Quem</th><th>Origem</th><th class="right">Itens</th><th class="right">Tempo</th><th class="right">Interações</th><th>Por etapa</th>
+                @if (_adm) { <th></th> }
+            </tr></thead>
             <tbody>
-                @foreach (var t in medidas.Take(40))
+                @foreach (var t in medidas)
                 {
-                    <tr>
+                    var chave = Chave(t);
+                    <tr class="@(_marcadas.Contains(chave) ? "linha-marcada" : "")">
+                        @if (_adm) { <td><input type="checkbox" checked="@_marcadas.Contains(chave)" @onchange="e => Marcar(chave, e)" /></td> }
                         <td class="nowrap">@(t.FimComoData?.ToString("dd/MM/yyyy HH:mm") ?? t.Fim)</td>
                         <td class="nowrap">@t.Numero rev @t.Revisao</td>
                         <td>@t.Usuario</td>
@@ -131,11 +207,12 @@
                         <td class="right nowrap"><strong>@Minutos(t.SegundosAtivos)</strong></td>
                         <td class="right">@t.Interacoes</td>
                         <td class="nota">@string.Join(" · ", t.PorEtapaComoMapa.OrderBy(p => p.Key).Select(p => $"{p.Key}: {Segundos(p.Value)}"))</td>
+                        @if (_adm) { <td><button class="btn-link perigo" title="Excluir esta medição (teste)" @onclick="() => ExcluirUma(chave)">excluir</button></td> }
                     </tr>
                 }
                 @if (medidas.Count == 0)
                 {
-                    <tr><td colspan="8" class="empty">Nenhuma medição.</td></tr>
+                    <tr><td colspan="@(_adm ? 10 : 8)" class="empty">Nenhuma medição.</td></tr>
                 }
             </tbody>
         </table>
@@ -155,8 +232,99 @@
     private string _origem = "nova";
     private bool _salvo;
 
-    protected override void OnInitialized()
+    private bool _adm, _podeConfigurar, _confirmar, _gerando, _msgOk;
+    private string? _msg;
+    private readonly HashSet<(string Numero, string Revisao)> _marcadas = new();
+    private ConfigDoRelatorioSemanal _cfg = new();
+    private List<EnvioDoRelatorio> _envios = new();
+
+    private static (string Numero, string Revisao) Chave(TempoProposta t) => (t.Numero, t.Revisao.Trim());
+
+    private void Marcar((string, string) chave, ChangeEventArgs e)
     {
+        if (e.Value is true) _marcadas.Add(chave); else _marcadas.Remove(chave);
+        _confirmar = false;
+    }
+
+    private void MarcarTodas(List<TempoProposta> medidas, ChangeEventArgs e)
+    {
+        _marcadas.Clear();
+        if (e.Value is true) foreach (var t in medidas) _marcadas.Add(Chave(t));
+        _confirmar = false;
+    }
+
+    private void ExcluirMarcadas()
+    {
+        var n = Tempos.Excluir(_marcadas);
+        _msgOk = true;
+        _msg = $"{_marcadas.Count} medição(ões) excluída(s) ({n} registro(s) de Word gerado).";
+        _marcadas.Clear();
+        _confirmar = false;
+        _primeiras = TempoRepository.PrimeiraDeCada(Tempos.Todos());
+    }
+
+    private void ExcluirUma((string Numero, string Revisao) chave)
+    {
+        _marcadas.Clear();
+        _marcadas.Add(chave);
+        _confirmar = true;
+    }
+
+    private void SalvarConfig()
+    {
+        RelatorioRepo.GravarConfig(_cfg);
+        _msgOk = true;
+        _msg = _cfg.Ativo && _cfg.Para.Trim().Length > 0
+            ? $"Relatório semanal: sai toda sexta a partir das {_cfg.Hora}:00 para {_cfg.Para}."
+            : "Configuração salva. O envio automático está desligado (ou sem destinatário).";
+    }
+
+    private string Modelo => Path.Combine(Ambiente.ContentRootPath, PropostaWord.CaminhoDoModelo);
+
+    private async Task BaixarRelatorio()
+    {
+        _gerando = true; _msg = null;
+        StateHasChanged();
+        try
+        {
+            var (_, _, anexo) = await Task.Run(() => RelatorioSemanal.Gerar(Store, Modelo, DateTime.Now));
+            await JS.InvokeVoidAsync("appDownload", anexo.Nome, anexo.TipoMime, Convert.ToBase64String(anexo.Conteudo));
+            if (!anexo.Nome.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+            { _msgOk = true; _msg = "Relatório gerado em Word: para o PDF, o computador precisa do Microsoft Word ou do LibreOffice."; }
+        }
+        catch (Exception ex) { _msgOk = false; _msg = "Não deu para gerar o relatório: " + ex.Message; }
+        finally { _gerando = false; }
+    }
+
+    /// <summary>O e-mail desta semana aberto no Outlook (com o PDF anexo), para enviar na hora.</summary>
+    private async Task AbrirEmail()
+    {
+        _gerando = true; _msg = null;
+        StateHasChanged();
+        try
+        {
+            var (_, email, anexo) = await Task.Run(() => RelatorioSemanal.Gerar(Store, Modelo, DateTime.Now));
+            if (email.Para.Trim().Length == 0) { _msgOk = false; _msg = "Informe os destinatários do relatório (Para) e salve."; return; }
+            var erro = Outlook.Abrir(email, new[] { anexo });
+            if (erro is null) { _msgOk = true; _msg = "E-mail do relatório aberto no Outlook."; }
+            else
+            {
+                await JS.InvokeVoidAsync("appDownload", "relatorio-semanal.eml", "message/rfc822", Convert.ToBase64String(EmailsDaProposta.Eml(email, new[] { anexo })));
+                _msgOk = true; _msg = "O Outlook não abriu daqui: baixei o e-mail (.eml) com o relatório anexo.";
+            }
+        }
+        catch (Exception ex) { _msgOk = false; _msg = "Não deu para gerar o relatório: " + ex.Message; }
+        finally { _gerando = false; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var u = (await Auth.GetAuthenticationStateAsync()).User;
+        _adm = Acessos.EhAdm(u);
+        var perfil = Acessos.NormalizarPerfil(u.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value);
+        _podeConfigurar = perfil is Acessos.Adm or Acessos.Gestao;
+        _cfg = RelatorioRepo.Config();
+        _envios = RelatorioRepo.Envios();
         _primeiras = TempoRepository.PrimeiraDeCada(Tempos.Todos());
         _referencia = Tempos.MinutosDeReferencia();
         _referenciaDigitada = _referencia > 0 ? _referencia : null;

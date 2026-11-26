@@ -67,6 +67,59 @@ public sealed class OutlookLocal
         }
     }
 
+    /// <summary>
+    /// Envia direto, sem abrir a janela (o relatório semanal automático), pela
+    /// conta do Outlook deste computador, com a assinatura de quem usa.
+    /// null = enviado; senão o motivo.
+    /// </summary>
+    public string? Enviar(EmailDaProposta email, IReadOnlyList<AnexoDoEmail> anexos)
+    {
+        if (!Disponivel) return "O sistema não está rodando neste computador (Windows) para enviar pelo Outlook.";
+        var pasta = Path.Combine(Path.GetTempPath(), "AFM_HSA", "emails", Guid.NewGuid().ToString("N")[..10]);
+        Directory.CreateDirectory(pasta);
+        var caminhos = new List<string>();
+        foreach (var a in anexos)
+        {
+            var caminho = Path.Combine(pasta, PricingExcel.Limpo(a.Nome));
+            File.WriteAllBytes(caminho, a.Conteudo);
+            caminhos.Add(caminho);
+        }
+        string? erro = null;
+        var t = new Thread(() =>
+        {
+            try
+            {
+                if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("o Outlook só envia no Windows");
+                EnviarPeloOutlook(email, caminhos);
+            }
+            catch (Exception ex) { erro = ex.Message; }
+        });
+        if (OperatingSystem.IsWindows()) t.SetApartmentState(ApartmentState.STA);
+        t.Start();
+        if (!t.Join(TimeSpan.FromSeconds(90))) erro = "o Outlook demorou a responder";
+        return erro is null ? null : $"Não deu para enviar pelo Outlook: {erro}";
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static void EnviarPeloOutlook(EmailDaProposta email, IReadOnlyList<string> anexos)
+    {
+        var tipo = Type.GetTypeFromProgID("Outlook.Application") ?? throw new InvalidOperationException("o Outlook não está instalado");
+        dynamic outlook = Activator.CreateInstance(tipo) ?? throw new InvalidOperationException("o Outlook não abriu");
+        dynamic msg = outlook.CreateItem(0);   // 0 = olMailItem
+        msg.To = email.Para ?? "";
+        msg.CC = email.Cc ?? "";
+        msg.Subject = email.Assunto ?? "";
+        foreach (var a in anexos) msg.Attachments.Add(a);
+        // pedir o Inspector faz o Outlook pôr a assinatura no corpo, sem mostrar a janela
+        try { _ = msg.GetInspector; } catch { }
+        string assinatura = msg.HTMLBody ?? "";
+        msg.HTMLBody = assinatura.IndexOf("<body", StringComparison.OrdinalIgnoreCase) is var b and >= 0
+                       && assinatura.IndexOf('>', b) is var fim and > 0
+            ? assinatura[..(fim + 1)] + email.Html + "<br>" + assinatura[(fim + 1)..]
+            : email.Html;
+        msg.Send();
+    }
+
     [SupportedOSPlatform("windows")]
     private static void AbrirPeloOutlook(EmailDaProposta email, IReadOnlyList<string> anexos)
     {

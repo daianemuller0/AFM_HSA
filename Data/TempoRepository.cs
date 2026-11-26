@@ -96,6 +96,19 @@ public sealed class TempoRepository
     }
 
     /// <summary>
+    /// Apaga as medições de teste: todas as gerações do Word de cada número e
+    /// revisão escolhidos (senão a geração seguinte viraria "a primeira").
+    /// </summary>
+    public int Excluir(IEnumerable<(string Numero, string Revisao)> propostas)
+    {
+        var chaves = propostas.Select(p => (p.Numero, p.Revisao.Trim())).ToHashSet();
+        var ids = Todos().Where(t => chaves.Contains((t.Numero, t.Revisao.Trim()))).Select(t => t.Id).ToList();
+        if (ids.Count == 0) return 0;
+        _store.WriteBatch(Entidade, ids.Select(id => (IReadOnlyList<KeyValuePair<string, object?>>)new KeyValuePair<string, object?>[] { new("id", id) }).ToList(), deleted: true);
+        return ids.Count;
+    }
+
+    /// <summary>
     /// O tempo de cada proposta: a PRIMEIRA geração do Word de cada número e
     /// revisão. Gerar de novo depois (para corrigir uma vírgula) não conta
     /// como outra proposta montada.

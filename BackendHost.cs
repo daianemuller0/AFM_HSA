@@ -119,6 +119,10 @@ public static class BackendHost
             var local = enderecos.Split(';').All(u => u.Contains("localhost", StringComparison.OrdinalIgnoreCase) || u.Contains("127.0.0.1"));
             builder.Services.AddSingleton(new OutlookLocal(local));
         }
+        // o relatório semanal das propostas: sai toda sexta pelo Outlook do computador com o sistema aberto
+        builder.Services.AddScoped<RelatorioSemanalRepository>();
+        builder.Services.AddSingleton<RelatorioSemanalService>();
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<RelatorioSemanalService>());
         // Parâmetros da planilha de custos de importação (padrão: versão 02/03/2022);
         // a seção "Importacao" do appsettings substitui só os valores que trouxer.
         builder.Services.AddSingleton(sp =>
