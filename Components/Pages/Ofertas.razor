@@ -102,11 +102,15 @@ else
                         <td><input type="checkbox" checked="@_marcadas.Contains(o.Id)" @onchange="e => Marcar(o.Id, e)" /></td>
                     }
                     <td class="nowrap">@o.OfferCode @SeloDeNota(o)</td>
-                    <td>@PropostaWord.Ou(o.Revisao, "0")</td>
+                    <td class="nowrap">@Consolidacao.Revisao(o)</td>
                     <td>@o.ClientName</td>
                     <td class="nowrap">@Fmt.Date(o.OfferDate)</td>
                     <td class="nowrap">
-                        @if (o.Status == "Enviada")
+                        @if (Consolidacao.Consolidada(o))
+                        {
+                            <span class="badge score-badge consolidada" title="@TituloDaConsolidacao(o)">✔ Consolidada</span>
+                        }
+                        else if (o.Status == "Enviada")
                         {
                             <span class="badge score-badge enviada">✈ Enviada</span>
                             <button class="btn-link" title="Voltar para em elaboração" @onclick="() => DesfazerEnviada(o)">desfazer</button>
@@ -115,6 +119,10 @@ else
                         {
                             <span class="badge score-badge">@o.Status</span>
                             <button class="btn-link" title="Registrar que a proposta saiu para o cliente (agenda o follow-up no fim da validade)" @onclick="() => MarcarEnviada(o)">✈ marcar enviada</button>
+                        }
+                        @if (!Consolidacao.Consolidada(o))
+                        {
+                            <a class="btn-mini btn-consolidar" title="A proposta foi vendida: consolidar para passar ao próximo setor (projeto, pedido, margem, valor, entrega e pagamento)" href="@($"/gerar-proposta/{o.Id}?consolidar=1")">✔ Consolidar</a>
                         }
                     </td>
                     <td class="right nowrap" title="@(o.TotalLiquido > 0m ? "Sem impostos" : "Gravada antes do total líquido: o valor no nível de impostos da proposta (salve de novo para atualizar)")">@Cambio.Dinheiro(o, o.TotalLiquido > 0m ? o.TotalLiquido : o.TotalAmount)</td>
@@ -227,7 +235,10 @@ else
 
     private IEnumerable<CommercialOffer> Selecionadas => _all.Where(o => _marcadas.Contains(o.Id));
 
-    private static string Rotulo(CommercialOffer o) => $"{o.OfferCode} rev. {PropostaWord.Ou(o.Revisao, "0")}";
+    private static string TituloDaConsolidacao(CommercialOffer o) =>
+        $"Projeto {o.Pv} · pedido {o.NumeroPedido} · consolidada em {o.ConsolidadaEm}" + (o.ConsolidadaPor.Length > 0 ? $" por {o.ConsolidadaPor}" : "");
+
+    private static string Rotulo(CommercialOffer o) => $"{o.OfferCode} rev. {Consolidacao.Revisao(o)}";
 
     private void Marcar(string id, ChangeEventArgs e)
     {

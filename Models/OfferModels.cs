@@ -168,6 +168,20 @@ public class CommercialOffer
     public decimal BaseCustosAdicionais { get; set; }
     /// <summary>"compressores" (vazio) ou "ventiladores" (centrífugos): muda a etapa dos itens.</summary>
     public string TipoEquipamento { get; set; } = "";
+
+    // ---- consolidação: a proposta foi vendida e passa para o próximo setor ----
+    /// <summary>Quando foi consolidada ("yyyy-MM-dd HH:mm"); vazio = não consolidada.</summary>
+    public string ConsolidadaEm { get; set; } = "";
+    public string ConsolidadaPor { get; set; } = "";
+    /// <summary>O número do pedido do cliente (vira também a "Sua referência").</summary>
+    public string NumeroPedido { get; set; } = "";
+    /// <summary>O valor total do pedido, na <see cref="MoedaPedido"/>, no nível de impostos da proposta.</summary>
+    public decimal ValorPedido { get; set; }
+    public string MoedaPedido { get; set; } = "";
+    /// <summary>A data de entrega confirmada ("yyyy-MM-dd") dos itens que não têm a sua.</summary>
+    public string DataEntrega { get; set; } = "";
+    /// <summary>A proposta como estava antes de consolidar (JSON com a proposta e os itens): para desfazer.</summary>
+    public string ConsolidacaoAntes { get; set; } = "";
     // Resultado do pricing no momento em que a proposta foi salva (para consulta).
     public decimal PricingCusto { get; set; }
     public decimal PricingMarkup { get; set; }
@@ -353,6 +367,8 @@ public class CommercialOfferItem
     public string OrigemImportacao { get; set; } = "";
     /// <summary>A ficha de custo do ventilador centrífugo (JSON de <c>FichaVentilador</c>); vazio = item comum.</summary>
     public string FichaVentilador { get; set; } = "";
+    /// <summary>Data de entrega confirmada na consolidação ("yyyy-MM-dd"); vazio = a da proposta ou o prazo.</summary>
+    public string DataEntrega { get; set; } = "";
     /// <summary>Custo unitário em R$ da importação (por item, ou rateio do total); null = não calculado.</summary>
     public decimal? CustoImportacao { get; set; }
 }

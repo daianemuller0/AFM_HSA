@@ -33,7 +33,8 @@ public class OfferRepository
         "pricing_custo, pricing_markup, pricing_venda_liquida, pricing_margem, pricing_preco_impostos, " +
         "tipo_outras_garantias, outras_garantias, pricing_custos, moeda_venda, cambio_taxa, cambio_direcao, " +
         "cambio_seguranca, total_reais, contato_email, contato_telefone, sua_referencia, incoterm, incoterm_local, " +
-        "plantas, equipamentos_proposta, impostos_no_preco, vendedor, idioma, frete_custo, numero_crm, moeda_custo, vendedor2, cambio_conferido, total_liquido, protected_margin, preco_meta_nivel, importacoes, notas, custos_adicionais, base_custos_adicionais, tipo_equipamento";
+        "plantas, equipamentos_proposta, impostos_no_preco, vendedor, idioma, frete_custo, numero_crm, moeda_custo, vendedor2, cambio_conferido, total_liquido, protected_margin, preco_meta_nivel, importacoes, notas, custos_adicionais, base_custos_adicionais, tipo_equipamento, " +
+        "consolidada_em, consolidada_por, numero_pedido, valor_pedido, moeda_pedido, data_entrega, consolidacao_antes";
 
     private static CommercialOffer LerOferta(IDataReader r) => new CommercialOffer
         {
@@ -80,6 +81,9 @@ public class OfferRepository
             CustosAdicionais = Json(Fmt.S(r, 86), new List<CustoAdicional>()),
             BaseCustosAdicionais = Fmt.Dec(Fmt.S(r, 87)),
             TipoEquipamento = Fmt.S(r, 88),
+            ConsolidadaEm = Fmt.S(r, 89), ConsolidadaPor = Fmt.S(r, 90), NumeroPedido = Fmt.S(r, 91),
+            ValorPedido = Fmt.Dec(Fmt.S(r, 92)), MoedaPedido = Fmt.S(r, 93), DataEntrega = Fmt.S(r, 94),
+            ConsolidacaoAntes = Fmt.S(r, 95),
         };
 
     public List<CommercialOffer> All() => _s.ReadLatest("commercialOffers", ColunasDaOferta, LerOferta, orderBy: "created_at DESC");
@@ -120,6 +124,9 @@ public class OfferRepository
         new("importacoes", JsonSerializer.Serialize(o.Importacoes)), new("notas", JsonSerializer.Serialize(o.Notas)),
         new("custos_adicionais", JsonSerializer.Serialize(o.CustosAdicionais)), new("base_custos_adicionais", D(o.BaseCustosAdicionais)),
         new("tipo_equipamento", o.TipoEquipamento),
+        new("consolidada_em", o.ConsolidadaEm), new("consolidada_por", o.ConsolidadaPor), new("numero_pedido", o.NumeroPedido),
+        new("valor_pedido", D(o.ValorPedido)), new("moeda_pedido", o.MoedaPedido), new("data_entrega", o.DataEntrega),
+        new("consolidacao_antes", o.ConsolidacaoAntes),
         new("risco_adicional", D(o.RiscoAdicional)), new("margem_negociacao", D(o.MargemNegociacao)),
         new("pricing_modo", o.PricingModo), new("margem_alvo", D(o.MargemAlvo)), new("preco_meta", D(o.PrecoMeta)),
         new("pricing_custo", D(o.PricingCusto)), new("pricing_markup", D(o.PricingMarkup)),
@@ -296,7 +303,7 @@ public class OfferRepository
         "id, offer_id, description, quantity, unit_price, total_price, " +
         "equipment_id, part_number, nacionalizado, custo_referencia, custo_data, ultima_venda, ultima_venda_data, " +
         "importado, valor_moeda, custo_importacao, ordem, ncm, custo_manual, custo_unitario, prazo_entrega_dias, " +
-        "modelo, serial_number, tag, preco_meta, custo_ta, peso_kg, base_custo, ta_manual, origem_importacao, ficha_ventilador";
+        "modelo, serial_number, tag, preco_meta, custo_ta, peso_kg, base_custo, ta_manual, origem_importacao, ficha_ventilador, data_entrega";
 
     private static CommercialOfferItem LerItem(IDataReader r) => new CommercialOfferItem
         {
@@ -310,6 +317,7 @@ public class OfferRepository
             CustoManual = DecOuNull(Fmt.S(r, 18)), CustoUnitario = DecOuNull(Fmt.S(r, 19)), PrazoEntregaDias = Fmt.Int(Fmt.S(r, 20)),
             Modelo = Fmt.S(r, 21), SerialNumber = Fmt.S(r, 22), Tag = Fmt.S(r, 23),
             PrecoMeta = Fmt.Dec(Fmt.S(r, 24)), CustoTa = Fmt.Dec(Fmt.S(r, 25)), PesoKg = Fmt.Dec(Fmt.S(r, 26)), BaseCusto = Fmt.S(r, 27), TaManual = Fmt.S(r, 28) == "1", OrigemImportacao = Fmt.S(r, 29), FichaVentilador = Fmt.S(r, 30),
+            DataEntrega = Fmt.S(r, 31),
         };
 
     public List<CommercialOfferItem> AllItems() => _s.ReadLatest("commercialOfferItems", ColunasDoItem, LerItem);
@@ -361,6 +369,6 @@ public class OfferRepository
             new("custo_manual", DOuVazio(it.CustoManual)), new("custo_unitario", DOuVazio(it.CustoUnitario)),
             new("prazo_entrega_dias", it.PrazoEntregaDias.ToString()),
             new("modelo", it.Modelo), new("serial_number", it.SerialNumber), new("tag", it.Tag),
-            new("preco_meta", D(it.PrecoMeta)), new("custo_ta", D(it.CustoTa)), new("peso_kg", D(it.PesoKg)), new("base_custo", it.BaseCusto), new("ta_manual", it.TaManual ? "1" : "0"), new("origem_importacao", it.OrigemImportacao), new("ficha_ventilador", it.FichaVentilador),
+            new("preco_meta", D(it.PrecoMeta)), new("custo_ta", D(it.CustoTa)), new("peso_kg", D(it.PesoKg)), new("base_custo", it.BaseCusto), new("ta_manual", it.TaManual ? "1" : "0"), new("origem_importacao", it.OrigemImportacao), new("ficha_ventilador", it.FichaVentilador), new("data_entrega", it.DataEntrega),
         };
 }

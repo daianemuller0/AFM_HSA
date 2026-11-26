@@ -87,7 +87,7 @@ else
                 <div style="font-size:12px;color:var(--muted)">Aftermarket Intelligence · Chart Industries</div>
             </div>
             <div style="text-align:right;font-size:12.5px">
-                <div><strong>Proposta:</strong> @_o.OfferCode@(string.IsNullOrWhiteSpace(_o.Revisao) ? "" : $" · Rev. {_o.Revisao}")</div>
+                <div><strong>Proposta:</strong> @_o.OfferCode@(string.IsNullOrWhiteSpace(_o.Revisao) ? "" : $" · Rev. {Consolidacao.Revisao(_o)}")</div>
                 <div><strong>Data:</strong> @Fmt.Date(_o.OfferDate)</div>
                 <div><strong>Ref.:</strong> @_o.OurReference</div>
             </div>
@@ -152,7 +152,7 @@ else
     {
         // na ordem do cabeçalho da planilha de pricing (colunas D, I e O)
         ("Nome do Cliente", _o.ClientName), ("PV", _o.Pv), ("Ano", _o.Ano), ("Número da Proposta", _o.OfferCode),
-        ("Revisão", _o.Revisao), ("BU", _o.Bu), ("Elaborado por", _o.PreparedBy),
+        ("Revisão", Consolidacao.Revisao(_o)), ("BU", _o.Bu), ("Elaborado por", _o.PreparedBy),
         ("NCM c/redução base ICMS", _o.NcmReducaoIcms),
         ("Segmento (margem)", _o.SegmentoMargem), ("Venda para", _o.VendaPara), ("Destino", _o.Destino),
         ("Estado", _o.Estado), ("Reforma", _o.Reforma),

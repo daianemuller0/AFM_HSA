@@ -1863,3 +1863,54 @@ input.cell.vc-num { width: 82px; text-align: right; }
 .cv-cobertura { color: var(--muted); font-size: 11.5px; }
 .cv-opcao { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; margin-top: 10px; }
 .cv-opcao span { color: var(--muted); font-size: 12px; }
+
+/* ---- consolidação (proposta vendida → próximo setor) ---- */
+.chip-consolidada { background: #1f6f43; color: #fff; border-color: #1f6f43; }
+.badge.score-badge.consolidada { background: #1f6f43; color: #fff; }
+a.btn-mini.btn-consolidar, .btn-consolidar {
+    display: inline-flex; align-items: center; gap: 4px; margin-left: 6px;
+    border: 1px solid #1f6f43; color: #1f6f43; background: #f0faf4; border-radius: 999px;
+    font-weight: 600; text-decoration: none; cursor: pointer;
+}
+a.btn-mini.btn-consolidar:hover, .btn-consolidar:hover { background: #1f6f43; color: #fff; }
+.cs-desfazer { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text); background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px; padding: 6px 10px; }
+.modal.cs-modal { width: 760px; max-width: 96vw; max-height: 92vh; display: flex; flex-direction: column; padding: 22px 24px; }
+.cs-cab { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.cs-cab h2 { margin: 0 0 2px; }
+.cs-sub { margin: 0; font-size: 13px; color: var(--muted); }
+.cs-passos { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; padding: 0; margin: 14px 0 12px; }
+.cs-passos li { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); padding: 4px 10px 4px 4px; border-radius: 999px; background: #f3f5f8; }
+.cs-passos li span { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: #dde3eb; color: var(--text); font-weight: 700; font-size: 11px; }
+.cs-passos li.ativo { background: #e6f0fb; color: var(--primary); font-weight: 600; }
+.cs-passos li.ativo span { background: var(--primary); color: #fff; }
+.cs-passos li.feito span { background: #1f6f43; color: #fff; }
+.cs-passos li.pulado { opacity: .45; text-decoration: line-through; }
+.cs-corpo { overflow-y: auto; flex: 1; min-height: 140px; padding: 4px 2px; display: flex; flex-direction: column; gap: 12px; }
+.cs-campo { display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.cs-campo input.cell, .cs-campo select.cell, .cs-campo textarea.cell { font-size: 14px; padding: 9px 11px; font-weight: 400; color: var(--text); }
+.cs-linha { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+.cs-linha .cs-campo { flex: 1; min-width: 200px; }
+.cs-linha .cs-moeda { flex: 0 0 110px; min-width: 110px; }
+.cs-check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding-bottom: 9px; }
+.cs-texto { margin: 0; font-size: 14px; }
+.cs-nota { margin: 0; font-size: 12.5px; color: var(--muted); }
+.cs-pergunta { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: #fafbfd; }
+.cs-pergunta strong { flex: 1; min-width: 220px; font-size: 14.5px; }
+.cs-ok { padding: 10px 12px; border-radius: 10px; background: #ecfdf3; color: #166534; border: 1px solid #bbf7d0; font-weight: 600; font-size: 13.5px; }
+.cs-alerta { padding: 12px 14px; border-radius: 10px; background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; font-size: 13.5px; }
+.cs-alerta-acoes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.cs-erro { margin-top: 10px; padding: 9px 12px; border-radius: 10px; background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; font-size: 13px; }
+.cs-tabela-rolante { overflow: auto; max-height: 300px; border: 1px solid var(--border); border-radius: 10px; }
+.cs-itens { margin: 0; font-size: 12.5px; }
+.cs-itens .cs-desc { max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cs-itens input.cs-preco { width: 120px; text-align: right; }
+.cs-itens tfoot th { font-size: 13px; }
+.cs-itens .cs-bate th { color: #166534; }
+.cs-itens .cs-nao-bate th { color: #b91c1c; }
+.cs-itens .cs-mudou { color: #b45309; font-weight: 600; }
+.cs-pagamento { white-space: pre-wrap; padding: 10px 12px; border-radius: 10px; background: #f3f5f8; font-size: 13.5px; }
+.cs-resumo { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.cs-resumo th { text-align: left; color: var(--muted); font-weight: 600; padding: 6px 10px 6px 0; width: 210px; vertical-align: top; }
+.cs-resumo td { padding: 6px 0; border-bottom: 1px solid #eef1f5; }
+.cs-ok-mini { margin-left: 8px; color: #166534; font-weight: 700; }
+.cs-erro-mini { margin-left: 8px; color: #b91c1c; font-weight: 700; }

@@ -41,6 +41,13 @@ public partial class NovaOferta
             (_o.Status, _o.OfferDate, _o.Ano, _o.CreatedAt, _o.PreparedBy) = (de.Status, de.OfferDate, de.Ano, de.CreatedAt, de.PreparedBy);
             (_o.OurReference, _o.RiscoAdicional, _o.ProtectedMargin, _o.CustosAdicionais, _autoAno) =
                 (de.OurReference, de.RiscoAdicional, de.ProtectedMargin, de.CustosAdicionais, de.AutoAno);
+            // a consolidação da gravada volta junto (a revisão nova tinha saído sem ela)
+            if (OffersRepo.Get(de.Id) is { } gravadaDe)
+            {
+                Consolidacao.CopiarMarcas(gravadaDe, _o);
+                var datas = OffersRepo.ItemsFor(de.Id).ToDictionary(i => i.Id, i => i.DataEntrega);
+                foreach (var it in _items) it.DataEntrega = datas.GetValueOrDefault(it.Id, "");
+            }
             _revisaoDe = null;
             _msg = $"De volta à revisão {nova}: ao salvar, grava nela mesma.";
             return;

@@ -118,8 +118,9 @@ public static class FollowUps
         EtapaDoFollowUp? Proxima, string Contato, string Email, string EmailDeOnde);
 
     /// <summary>
-    /// As propostas em follow-up: enviadas, fora de portal e só a última
-    /// revisão enviada de cada número (a anterior foi substituída por ela).
+    /// As propostas em follow-up: enviadas, fora de portal, ainda não
+    /// consolidadas (vendidas) e só a última revisão enviada de cada número
+    /// (a anterior foi substituída por ela).
     /// As enviadas antes do follow-up existir entram com o follow-up do fim
     /// da validade contado da data da proposta (gravado no primeiro uso).
     /// </summary>
@@ -128,6 +129,8 @@ public static class FollowUps
         var enviadas = ofertas.Where(Enviada).ToList();
         var ultimas = enviadas
             .GroupBy(o => Chave(o.OfferCode, o.Id))
+            // consolidada = vendida: o número sai do follow-up
+            .Where(g => !g.Any(Consolidacao.Consolidada))
             .Select(g => g.OrderByDescending(o => int.TryParse(OfferRepository.RevisaoNormal(o.Revisao), out var n) ? n : 0)
                           .ThenByDescending(o => o.CreatedAt, StringComparer.Ordinal).First())
             .Where(o => !PorPortal(o))

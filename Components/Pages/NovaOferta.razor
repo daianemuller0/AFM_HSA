@@ -40,9 +40,16 @@
             <h1>@(_o.Id.Length > 0 ? _o.OfferCode : "Proposta nova")</h1>
             @if (_o.Id.Length > 0)
             {
-                <span class="prop-chip">rev @PropostaWord.Revisao2(_o.Revisao)</span>
+                <span class="prop-chip">rev @Consolidacao.Revisao2(_o)</span>
                 @if (EhVentilador) { <span class="prop-chip">ventiladores centrífugos</span> }
-                <span class="prop-chip @(_o.Status == "Enviada" ? "chip-enviada" : "chip-elaboracao")">@(_o.Status == "Enviada" ? "Enviada" : "Em elaboração")</span>
+                @if (Consolidacao.Consolidada(_o))
+                {
+                    <span class="prop-chip chip-consolidada" title="Consolidada em @ConsolidadaEmTexto · projeto @_o.Pv · pedido @_o.NumeroPedido">✔ Consolidada</span>
+                }
+                else
+                {
+                    <span class="prop-chip @(_o.Status == "Enviada" ? "chip-enviada" : "chip-elaboracao")">@(_o.Status == "Enviada" ? "Enviada" : "Em elaboração")</span>
+                }
             }
             else
             {
@@ -61,6 +68,24 @@
         @if (_o.Id.Length > 0)
         {
             <button class="btn-ghost" title="Uma proposta nova com o cliente, as condições, os itens e os preços desta" @onclick="() => CopiarGravada(_o.Id)">⧉ Copiar</button>
+            @if (Consolidacao.Consolidada(_o))
+            {
+                @if (_cConfirmarDesfazer)
+                {
+                    <span class="cs-desfazer">Desfazer a consolidação? A proposta volta como estava antes (preço, margem, TA, PV, referência, entrega e pagamento).
+                        <button class="btn-primary perigo" @onclick="DesfazerConsolidacao">Sim, desfazer</button>
+                        <button class="btn-link" @onclick="() => _cConfirmarDesfazer = false">cancelar</button>
+                    </span>
+                }
+                else
+                {
+                    <button class="btn-ghost" title="Voltar a proposta como estava antes de consolidar" @onclick="() => _cConfirmarDesfazer = true">↶ Desfazer consolidação</button>
+                }
+            }
+            else
+            {
+                <button class="btn-ghost btn-consolidar" title="A proposta foi vendida: consolidar para passar ao próximo setor" @onclick="AbrirConsolidacao">✔ Consolidar</button>
+            }
             <button class="btn-ghost" title="A próxima revisão desta proposta; a atual fica como o cliente recebeu" @onclick="NovaRevisao">Nova revisão (rev @PropostaWord.Revisao2(ProximaRevisao(_o.OfferCode)))</button>
         }
     </div>
@@ -141,6 +166,255 @@
         <button class="btn-primary" @onclick="GuardaSalvar">Salvar</button>
         <button class="btn-ghost" @onclick="GuardaDescartar">Descartar</button>
         <button class="btn-link" @onclick="() => _depoisDeConfirmar = null">Cancelar</button>
+    </div>
+}
+
+@if (_consolidando)
+{
+    var itensC = ItensDoPedido();
+    var prC = PricingAtual(Custos);
+    <div class="modal-backdrop">
+        <div class="modal cs-modal" role="dialog" aria-label="Consolidar a proposta">
+            <div class="cs-cab">
+                <div>
+                    <h2>Consolidar @_o.OfferCode rev @PropostaWord.Revisao2(_o.Revisao)</h2>
+                    <p class="cs-sub">A proposta foi vendida: consolidamos internamente para passar ao próximo setor.</p>
+                </div>
+                <button class="btn-link" title="Fechar sem consolidar" @onclick="CancelarConsolidacao">✕</button>
+            </div>
+            <ol class="cs-passos">
+                @for (var p = 1; p <= PassosC; p++)
+                {
+                    var pulado = p == 2 && _o.MargemNegociacao <= 0m && _cResultado is null && (_cRetrato.Length == 0 || (Consolidacao.Ler(_cRetrato)?.Oferta.MargemNegociacao ?? 0m) <= 0m);
+                    <li class="@(p == _passoC ? "ativo" : p < _passoC ? "feito" : "") @(pulado ? "pulado" : "")"><span>@p</span>@NomesDosPassosC[p - 1]</li>
+                }
+            </ol>
+
+            <div class="cs-corpo">
+            @switch (_passoC)
+            {
+                case 1:
+                    <label class="cs-campo">Número do projeto
+                        <input class="cell" value="@_cProjeto" @onchange='e => _cProjeto = e.Value?.ToString() ?? ""' placeholder="vai para o PV, em Cliente e condições" />
+                    </label>
+                    <label class="cs-campo">Número do pedido
+                        <input class="cell" value="@_cPedido" @onchange='e => _cPedido = e.Value?.ToString() ?? ""' placeholder="vira a nova referência do cliente (Sua referência)" />
+                    </label>
+                    @if ((_o.SuaReferencia ?? "").Trim().Length > 0)
+                    {
+                        <p class="cs-nota">Referência do cliente hoje: <strong>@_o.SuaReferencia</strong> — passa a ser o número do pedido.</p>
+                    }
+                    break;
+
+                case 2:
+                    <p class="cs-texto">Margem de negociação hoje: <strong>@Pct(_o.MargemNegociacao)</strong> (@Cambio.DinheiroDoCusto(_o, ValorDaMn(prC)) da venda líquida).</p>
+                    <div class="cs-pergunta">
+                        <strong>Zerar margem de negociação?</strong>
+                        <div class="seg">
+                            <button class="@(_cZerarMn == true ? "on" : "")" @onclick="() => { _cZerarMn = true; _cErro = null; }">Sim</button>
+                            <button class="@(_cZerarMn == false ? "on" : "")" @onclick="() => { _cZerarMn = false; _cMnNoTa = null; _cErro = null; }">Não</button>
+                        </div>
+                    </div>
+                    @if (_cZerarMn == true)
+                    {
+                        <div class="cs-pergunta">
+                            <strong>Adicionar margem de negociação no TA?</strong>
+                            <div class="seg">
+                                <button class="@(_cMnNoTa == true ? "on" : "")" @onclick="() => { _cMnNoTa = true; _cErro = null; }">Sim</button>
+                                <button class="@(_cMnNoTa == false ? "on" : "")" @onclick="() => { _cMnNoTa = false; _cErro = null; }">Não</button>
+                            </div>
+                        </div>
+                        <p class="cs-nota">
+                            @if (_cMnNoTa == true)
+                            {
+                                <span>O valor da margem de negociação vira custo (TA) nos itens, na proporção do custo de cada um. O preço de venda não muda e a margem total do projeto fica a mesma.</span>
+                            }
+                            else if (_cMnNoTa == false)
+                            {
+                                <span>A margem de negociação vai a zero e o preço de venda não muda: a margem total do projeto sobe @Pct(_o.MargemNegociacao).</span>
+                            }
+                        </p>
+                    }
+                    else if (_cZerarMn == false)
+                    {
+                        <p class="cs-nota">A margem de negociação fica como está.</p>
+                    }
+                    break;
+
+                case 3:
+                    <p class="cs-texto">Total da proposta: <strong>@DinheiroC(Total)</strong> <span class="cs-nota">(@NivelDoPedidoRotulo)</span></p>
+                    <div class="cs-linha">
+                        <label class="cs-campo">Preço total do pedido
+                            <input class="cell num" type="number" min="0" step="0.01" value="@(_cValor?.ToString(CultureInfo.InvariantCulture))" @onchange="MudarValorDoPedido" />
+                        </label>
+                        <label class="cs-campo cs-moeda">Moeda
+                            <select class="cell" value="@_cMoeda" @onchange="MudarMoedaDoPedido">
+                                @foreach (var m in Moedas.DePreco) { <option value="@m.Codigo()">@m.Codigo()</option> }
+                            </select>
+                        </label>
+                        @if (!_cConferido && !_cNaoBate) { <button class="btn-ghost" @onclick="ConferirValor">Conferir</button> }
+                    </div>
+                    @if (_cConferido && !_cAjustarItens)
+                    {
+                        <div class="cs-ok">✓ O valor do pedido bate com a proposta (@DinheiroC(_cValor ?? 0m)).</div>
+                    }
+                    @if (_cNaoBate && !_cAjustarItens)
+                    {
+                        var dif = (_cValor ?? 0m) - Total;
+                        <div class="cs-alerta" role="alert">
+                            <strong>O valor não está batendo.</strong>
+                            Pedido @DinheiroC(_cValor ?? 0m) · proposta @DinheiroC(Total) · diferença @(dif > 0 ? "+" : "−")@DinheiroC(Math.Abs(dif)).
+                            <div class="cs-alerta-acoes">
+                                <button class="btn-ghost" @onclick="RevisarValor">Revisar o valor</button>
+                                <button class="btn-primary" @onclick="AjustarItens">Colocar o novo preço meta dos itens</button>
+                            </div>
+                        </div>
+                    }
+                    @if (_cAjustarItens)
+                    {
+                        var soma = SomaDosPrecosNovos();
+                        <p class="cs-nota">Digite o preço unitário de cada item como está no pedido. A soma tem de fechar com o pedido; o TA de cada item é ajustado para o preço cair nele.</p>
+                        <div class="cs-tabela-rolante">
+                        <table class="grid cs-itens">
+                            <thead><tr><th>Item</th><th class="right">Qtd</th><th class="right">Preço hoje</th><th class="right">Preço do pedido</th><th class="right">Total</th></tr></thead>
+                            <tbody>
+                                @foreach (var (i, it) in itensC)
+                                {
+                                    var idx = i;
+                                    var novo = _cPrecos.GetValueOrDefault(i);
+                                    <tr>
+                                        <td class="cs-desc">@(it.PartNumber.Length > 0 ? $"{it.PartNumber} — " : "")@it.Description</td>
+                                        <td class="right">@it.Quantity</td>
+                                        <td class="right nowrap">@DinheiroC(it.UnitPrice)</td>
+                                        <td class="right"><input class="cell num cs-preco" type="number" min="0" step="0.01" value="@(novo?.ToString(CultureInfo.InvariantCulture))" @onchange="e => MudarPrecoNovo(idx, e)" /></td>
+                                        <td class="right nowrap">@DinheiroC((novo ?? 0m) * it.Quantity)</td>
+                                    </tr>
+                                }
+                                @if (_itemDemais is not null && _items.Contains(_itemDemais))
+                                {
+                                    <tr><td class="cs-desc">@_itemDemais.Description</td><td class="right">1</td><td class="right nowrap">@DinheiroC(_itemDemais.UnitPrice)</td><td class="right cs-nota">fica</td><td class="right nowrap">@DinheiroC(_itemDemais.TotalPrice)</td></tr>
+                                }
+                            </tbody>
+                            <tfoot>
+                                <tr class="@(Bate(soma) ? "cs-bate" : "cs-nao-bate")">
+                                    <th colspan="4" class="right">Soma @(Bate(soma) ? "= pedido ✓" : $"≠ pedido ({DinheiroC(_cValor ?? 0m)})")</th>
+                                    <th class="right nowrap">@DinheiroC(soma)</th>
+                                </tr>
+                            </tfoot>
+                        </table>
+                        </div>
+                        <button class="btn-link" @onclick="RevisarValor">revisar o valor do pedido</button>
+                    }
+                    break;
+
+                case 4:
+                    <p class="cs-texto">Confirme a data de entrega: ela aparece na proposta no lugar do prazo de entrega.</p>
+                    <div class="cs-linha">
+                        <label class="cs-campo">Data de entrega@(_cDatasPorItem ? " (dos itens sem data própria)" : "")
+                            <input class="cell" type="date" value="@Consolidacao.Texto(_cDataTodos)" @onchange="e => { _cDataTodos = Consolidacao.Data(e.Value?.ToString()); _cErro = null; }" />
+                        </label>
+                        <label class="cs-check"><input type="checkbox" checked="@_cDatasPorItem" @onchange="e => _cDatasPorItem = e.Value is true" /> datas diferentes por item</label>
+                    </div>
+                    @if (_cDatasPorItem)
+                    {
+                        <div class="cs-tabela-rolante">
+                        <table class="grid cs-itens">
+                            <thead><tr><th>Item</th><th class="right">Prazo</th><th>Data de entrega</th></tr></thead>
+                            <tbody>
+                                @foreach (var (i, it) in itensC)
+                                {
+                                    var idx = i;
+                                    var dias = it.PrazoEntregaDias > 0 ? it.PrazoEntregaDias : PricingDaProposta.PrazoEmDias(_o.PrazoEntrega);
+                                    <tr>
+                                        <td class="cs-desc">@(it.PartNumber.Length > 0 ? $"{it.PartNumber} — " : "")@it.Description</td>
+                                        <td class="right nowrap">@(dias > 0 ? $"{dias} dias" : "—")</td>
+                                        <td><input class="cell" type="date" value="@Consolidacao.Texto(_cDatas.GetValueOrDefault(idx))" @onchange="e => { _cDatas[idx] = Consolidacao.Data(e.Value?.ToString()); _cErro = null; }" /></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                        </div>
+                    }
+                    <p class="cs-nota">A data sugerida é hoje + o prazo de entrega da proposta (ou do item).</p>
+                    break;
+
+                case 5:
+                    <p class="cs-texto">Confirme o pagamento do pedido.</p>
+                    <div class="cs-pagamento">@(string.IsNullOrWhiteSpace(_o.PaymentTerms) ? "(sem condição de pagamento na proposta)" : _o.PaymentTerms)</div>
+                    <div class="cs-pergunta">
+                        <strong>O pagamento está igual ao do pedido?</strong>
+                        <div class="seg">
+                            <button class="@(_cPagamentoIgual == true ? "on" : "")" @onclick="() => { _cPagamentoIgual = true; _cErro = null; }">Sim, confirmar</button>
+                            <button class="@(_cPagamentoIgual == false ? "on" : "")" @onclick="() => { _cPagamentoIgual = false; _cErro = null; }">Não, alterar</button>
+                        </div>
+                    </div>
+                    @if (_cPagamentoIgual == false)
+                    {
+                        <label class="cs-campo">Pagamento do pedido
+                            <textarea class="cell" rows="3" @onchange='e => _cPagamento = e.Value?.ToString() ?? ""'>@_cPagamento</textarea>
+                        </label>
+                    }
+                    break;
+
+                case 6:
+                    if (_cResultado is { } res)
+                    {
+                        <table class="cs-resumo">
+                            <tbody>
+                                <tr><th>Revisão</th><td><strong>@Consolidacao.Revisao2(_o)</strong></td></tr>
+                                <tr><th>Projeto (PV)</th><td>@_o.Pv</td></tr>
+                                <tr><th>Pedido (Sua referência)</th><td>@_o.NumeroPedido</td></tr>
+                                <tr><th>Valor</th><td>pedido @DinheiroC(_o.ValorPedido) · proposta @DinheiroC(res.TotalDepois)
+                                    @if (Bate(res.TotalDepois)) { <span class="cs-ok-mini">✓ bate</span> } else { <span class="cs-erro-mini">diferença @DinheiroC(res.TotalDepois - _o.ValorPedido)</span> }</td></tr>
+                                <tr><th>Margem de negociação</th><td>@Pct(res.MnAntes) → @Pct(_o.MargemNegociacao)@(res.TaDaMn > 0.005m ? $" · {Cambio.DinheiroDoCusto(_o, res.TaDaMn)} levados ao TA dos itens" : res.MnAntes > _o.MargemNegociacao ? " · a margem total sobe" : "")</td></tr>
+                                @if (res.TaDoAjuste > 0.005m)
+                                {
+                                    <tr><th>Preços do pedido</th><td>@Cambio.DinheiroDoCusto(_o, res.TaDoAjuste) de TA nos itens para cada um cair no preço do pedido</td></tr>
+                                }
+                                <tr><th>Margem total</th><td>@Pct(res.MargemAntes) → <strong>@Pct(res.MargemDepois)</strong></td></tr>
+                                <tr><th>Entrega</th><td>@(_cDatasPorItem ? "por item (abaixo)" : Consolidacao.Data(_o.DataEntrega)?.ToString("dd/MM/yyyy") ?? "—")</td></tr>
+                                <tr><th>Pagamento</th><td>@(string.IsNullOrWhiteSpace(_o.PaymentTerms) ? "—" : _o.PaymentTerms)</td></tr>
+                            </tbody>
+                        </table>
+                        <div class="cs-tabela-rolante">
+                        <table class="grid cs-itens">
+                            <thead><tr><th>Item</th><th class="right">Preço antes</th><th class="right">Preço consolidado</th><th class="right">TA (@Rc/un.)</th>@if (_cDatasPorItem) { <th>Entrega</th> }</tr></thead>
+                            <tbody>
+                                @foreach (var (i, antes, depois, alvo) in res.Itens)
+                                {
+                                    var it = _items[i];
+                                    var difItem = alvo is decimal a ? Math.Abs(a - depois) > 0.01m : Math.Abs(antes - depois) > 0.01m;
+                                    <tr>
+                                        <td class="cs-desc">@(it.PartNumber.Length > 0 ? $"{it.PartNumber} — " : "")@it.Description</td>
+                                        <td class="right nowrap">@DinheiroC(antes)</td>
+                                        <td class="right nowrap @(difItem ? "cs-mudou" : "")">@DinheiroC(depois)</td>
+                                        <td class="right nowrap">@(it.CustoTa > 0m ? Math.Round(it.CustoTa, 2).ToString("N2", PtBr) : "—")</td>
+                                        @if (_cDatasPorItem) { <td class="nowrap">@(Consolidacao.Data(it.DataEntrega)?.ToString("dd/MM/yyyy") ?? "—")</td> }
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                        </div>
+                    }
+                    break;
+            }
+            </div>
+
+            @if (_cErro is not null) { <div class="cs-erro" role="alert">@_cErro</div> }
+
+            <div class="modal-actions">
+                <button class="btn-link" @onclick="CancelarConsolidacao">Cancelar</button>
+                @if (_passoC > 1) { <button class="btn-ghost" @onclick="PassoAnteriorC">← Voltar</button> }
+                @if (_passoC < PassosC)
+                {
+                    <button class="btn-primary" @onclick="ProximoPassoC">@(_passoC == 5 ? "Ver o resumo →" : "Continuar →")</button>
+                }
+                else
+                {
+                    <button class="btn-primary" @onclick="ConfirmarConsolidacao">✔ Consolidar e salvar</button>
+                }
+            </div>
+        </div>
     </div>
 }
 
@@ -2430,7 +2704,7 @@ else
         // /gerar-proposta/{id}: abre a gravada na etapa 2; senão, nova com os padrões, na etapa 1
         NovaComPadroes();
         _idDoParametro = Id ?? "";
-        if (_idDoParametro.Length > 0) Abrir(_idDoParametro);
+        if (_idDoParametro.Length > 0) { Abrir(_idDoParametro); ConsolidarPeloEndereco(); }
     }
 
     private string _idDoParametro = "";

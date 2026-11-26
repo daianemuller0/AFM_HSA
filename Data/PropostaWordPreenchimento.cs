@@ -470,7 +470,7 @@ internal sealed class PreenchimentoDaProposta
 
         var celulas = linhas[1].Elements<TableCell>().ToList();
         if (celulas.Count < 4) return;
-        var revisao = PropostaWord.Ou(_o.Revisao, "0");
+        var revisao = Consolidacao.Revisao(_o);
         EscreverNaCelula(celulas[0], new[] { revisao });
         EscreverNaCelula(celulas[1], new[] { _o.PreparedBy ?? "" });
         EscreverNaCelula(celulas[2], new[] { "RRT" });
@@ -819,10 +819,13 @@ internal sealed class PreenchimentoDaProposta
         }
         if (servico) Tirar(P("mbalagem apropriada para transporte"));
 
-        // prazo de entrega: a tabelinha "Prazo de entrega: XXXX Dias"
+        // prazo de entrega: a tabelinha "Prazo de entrega: XXXX Dias"; consolidada, a data de entrega confirmada
         var dias = item.PrazoEntregaDias > 0 ? item.PrazoEntregaDias : PricingDaProposta.PrazoEmDias(_o.PrazoEntrega);
         var tabPrazo = celula.Descendants<Table>().FirstOrDefault(tb => tb.Descendants<Text>().Any(t => t.Text.Trim() == "XXXX"));
-        if (tabPrazo is not null && dias > 0)
+        var dataEntrega = Consolidacao.DataDeEntrega(_o, item);
+        if (tabPrazo is not null && dataEntrega is DateOnly de)
+            LinhaDeEntrega(tabPrazo, "Data de entrega:", " " + de.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture));
+        else if (tabPrazo is not null && dias > 0)
         {
             foreach (var t in tabPrazo.Descendants<Text>().Where(t => t.Text.Trim() == "XXXX").ToList())
                 t.Text = dias.ToString();
@@ -831,25 +834,7 @@ internal sealed class PreenchimentoDaProposta
         {
             // sem prazo, "a confirmar" não cabe na coluna do número (quebrava
             // em "a / confir / mar"): a tabelinha vira uma linha só
-            var rotulo = tabPrazo.Descendants<Paragraph>().FirstOrDefault(p => Texto(p).Contains("Prazo de entrega"));
-            if (rotulo is not null)
-            {
-                var linha = (Paragraph)rotulo.CloneNode(true);
-                var runs = linha.Elements<Run>().ToList();
-                var molde = runs.LastOrDefault();
-                var novo = new Run();
-                if (molde?.RunProperties is { } rp)
-                {
-                    var rpNovo = (RunProperties)rp.CloneNode(true);
-                    rpNovo.RemoveAllChildren<Bold>();
-                    rpNovo.RemoveAllChildren<BoldComplexScript>();
-                    novo.RunProperties = rpNovo;
-                }
-                novo.Append(new Text(" a confirmar") { Space = SpaceProcessingModeValues.Preserve });
-                linha.Append(novo);
-                tabPrazo.InsertBeforeSelf(linha);
-                tabPrazo.Remove();
-            }
+            LinhaDeEntrega(tabPrazo, null, " a confirmar");
         }
 
         // NCM (a lista do modelo)
@@ -866,6 +851,37 @@ internal sealed class PreenchimentoDaProposta
         // acabaria na tabelinha do prazo, e a linha se desmonta ao abrir
         if (celula.LastChild is Table)
             celula.Append(new Paragraph(new ParagraphProperties(new SpacingBetweenLines { Before = "0", After = "0" })));
+    }
+
+    /// <summary>
+    /// Troca a tabelinha "Prazo de entrega: XXXX Dias" por uma linha só, com o
+    /// mesmo rótulo (ou <paramref name="rotulo"/> no lugar dele) e o texto em
+    /// seguida, sem negrito ("Data de entrega: 15/03/2027", "Prazo de entrega: a confirmar").
+    /// </summary>
+    private static void LinhaDeEntrega(Table tabPrazo, string? rotulo, string texto)
+    {
+        var original = tabPrazo.Descendants<Paragraph>().FirstOrDefault(p => Texto(p).Contains("Prazo de entrega"));
+        if (original is null) return;
+        var linha = (Paragraph)original.CloneNode(true);
+        if (rotulo is not null)
+        {
+            var textos = linha.Descendants<Text>().ToList();
+            var primeiro = textos.FirstOrDefault(t => t.Text.Contains("Prazo"));
+            foreach (var t in textos) t.Text = t == primeiro ? rotulo : "";
+        }
+        var molde = linha.Elements<Run>().LastOrDefault();
+        var novo = new Run();
+        if (molde?.RunProperties is { } rp)
+        {
+            var rpNovo = (RunProperties)rp.CloneNode(true);
+            rpNovo.RemoveAllChildren<Bold>();
+            rpNovo.RemoveAllChildren<BoldComplexScript>();
+            novo.RunProperties = rpNovo;
+        }
+        novo.Append(new Text(texto) { Space = SpaceProcessingModeValues.Preserve });
+        linha.Append(novo);
+        tabPrazo.InsertBeforeSelf(linha);
+        tabPrazo.Remove();
     }
 
     private static string PrimeiroCom(params string?[] valores) =>

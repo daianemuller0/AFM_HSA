@@ -475,6 +475,8 @@ public partial class NovaOferta : IDisposable
         // e com os custos adicionais (embalagens, engenharia, exportação, outros) padrão
         if (_o.CustosAdicionais.Count == 0) CustosAdicionaisPadrao();
         _o.Status = "Rascunho";
+        // a revisão nova / a cópia ainda não foi vendida
+        Consolidacao.Limpar(_o, _items);
         _o.SuaReferencia = "";
         _o.OurReference = "";
         _o.PreparedBy = _usuario.Length > 0 ? _usuario : _o.PreparedBy;
