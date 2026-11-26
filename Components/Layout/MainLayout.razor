@@ -3,7 +3,6 @@
 @inject LocState Loc
 @inject NavigationManager Nav
 @inject AppUserRepository Usuarios
-@inject IJSRuntime JS
 
 <div class="app-shell">
     <NavMenu />
@@ -16,7 +15,8 @@
             <div class="topbar-right">
                 <div class="lang">
                     <svg class="lang-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-                    <select @bind="_lang" @bind:after="Aplicar"
+                    @* o cabeçalho é estático: a troca de idioma acontece no navegador (js/i18n.js), que guarda a escolha *@
+                    <select id="seletor-idioma" onchange="appI18n.definir(this.value)"
                             style="border:none;background:transparent;font-family:inherit;font-size:13px;color:var(--muted);cursor:pointer">
                         <option value="pt">Português</option>
                         <option value="en">English</option>
@@ -79,29 +79,6 @@
     {
         _lang = Loc.Lang;
         Loc.Changed += StateHasChanged;
-    }
-
-    /// <summary>Troca o idioma: o servidor (e-mails, menu) e as telas (tradução no navegador, guardada nele).</summary>
-    private async Task Aplicar()
-    {
-        Loc.Set(_lang);
-        try { await JS.InvokeVoidAsync("appI18n.definir", _lang); } catch (Exception) { /* sem o script: fica o menu */ }
-    }
-
-    /// <summary>O idioma guardado no navegador vale para esta sessão também (o menu e os e-mails seguem ele).</summary>
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (!firstRender) return;
-        try
-        {
-            var guardado = await JS.InvokeAsync<string>("appI18n.atual");
-            if (guardado is "pt" or "en" or "es" && guardado != Loc.Lang)
-            {
-                _lang = guardado;
-                Loc.Set(guardado);
-            }
-        }
-        catch (Exception) { /* pré-renderização ou sem o script */ }
     }
 
     public void Dispose() => Loc.Changed -= StateHasChanged;

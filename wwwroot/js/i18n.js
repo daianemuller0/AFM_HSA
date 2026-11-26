@@ -8,6 +8,7 @@
 // A escolha fica guardada neste navegador.
 window.appI18n = (() => {
     const CHAVE = 'afm-idioma';
+    const VERSAO = (document.currentScript && document.currentScript.dataset.dicionario) || '';
     const ATRIBUTOS = ['placeholder', 'title', 'aria-label'];
     let idioma = 'pt';
     let exatos = null;          // Map texto → tradução
@@ -40,7 +41,7 @@ window.appI18n = (() => {
 
     async function carregar(l) {
         if (l === 'pt') { exatos = null; modelos = []; return; }
-        const r = await fetch(`i18n/${l}.json?v=${window.appI18nVersao || ''}`, { cache: 'no-cache' });
+        const r = await fetch(`i18n/${l}.json?v=${VERSAO}`, { cache: 'no-cache' });
         if (!r.ok) throw new Error('dicionário ' + l + ' não encontrado');
         const d = await r.json();
         exatos = new Map(Object.entries(d.exatos || {}));
@@ -65,6 +66,14 @@ window.appI18n = (() => {
                 out = out.split('{' + n + '}').join(exatos.get(norm(valor)) ?? valor);
             });
             return out;
+        }
+        // texto montado com separadores ("Peça · ação", "Cliente — cidade"): traduz cada pedaço que estiver no dicionário
+        for (const sep of [' · ', ' — ', ' – ', ' | ']) {
+            if (!k.includes(sep)) continue;
+            const pedacos = k.split(sep);
+            let mudou = false;
+            const trad = pedacos.map(p => { const t = exatos.get(p.trim()); if (t !== undefined) { mudou = true; return t; } return p; });
+            if (mudou) return trad.join(sep);
         }
         return null;
     }
@@ -109,9 +118,16 @@ window.appI18n = (() => {
         }
     }
 
+    /** O seletor do topo mostra o idioma guardado (o cabeçalho é redesenhado pela navegação). */
+    function sincronizarSeletor() {
+        const sel = document.getElementById('seletor-idioma');
+        if (sel && sel.value !== idioma) sel.value = idioma;
+    }
+
     function observar() {
         if (observador || !document.body) return;
         observador = new MutationObserver(muts => {
+            sincronizarSeletor();
             if (!exatos) return;
             for (const m of muts) {
                 if (m.type === 'characterData') texto(m.target);
@@ -125,11 +141,12 @@ window.appI18n = (() => {
     async function aplicar(l) {
         idioma = l;
         document.documentElement.lang = l === 'es' ? 'es' : l === 'en' ? 'en' : 'pt-BR';
+        sincronizarSeletor();
+        observar();
         if (l === 'pt') return;
         try {
             await carregar(l);
             arvore(document.body);
-            observar();
         } catch (e) { console.warn('tradução:', e); }
     }
 

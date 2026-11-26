@@ -1936,3 +1936,8 @@ tr.tp-sem td { color: var(--muted); }
 .cs-soma { font-size: 16px; font-weight: 700; padding: 6px 12px; border-radius: 999px; }
 .cs-soma.ok { background: #ecfdf3; color: #166534; }
 .cs-soma.erro { background: #fef2f2; color: #b91c1c; }
+
+/* topo da proposta: com muitos botões (ou em espanhol, com textos mais longos) eles quebram linha em vez de cobrir o título */
+.prop-head { flex-wrap: wrap; }
+.prop-head .prop-titulo { flex: 1 1 280px; min-width: 0; }
+.prop-head .page-actions { flex: 0 1 auto; flex-wrap: wrap; justify-content: flex-end; }

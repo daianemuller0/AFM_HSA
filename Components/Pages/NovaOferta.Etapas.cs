@@ -803,6 +803,12 @@ public partial class NovaOferta : IDisposable
         {
             try
             {
+                var idiomaDaTela = await JS.InvokeAsync<string>("appI18n.atual");
+                if (idiomaDaTela is "pt" or "en" or "es") Loc.Set(idiomaDaTela);
+            }
+            catch (Exception) { /* sem o script de tradução: português */ }
+            try
+            {
                 _ref ??= DotNetObjectReference.Create(this);
                 await JS.InvokeVoidAsync("appAtalhos.ligar", _ref);
             }
