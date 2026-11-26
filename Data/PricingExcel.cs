@@ -45,6 +45,7 @@ public static class PricingExcel
         ("D47", "Margem de negociação"), ("D64", "IPI (pela NCM dos itens)"),
         ("R46, N49:O58", "Seguro garantia / carta fiança"), ("R61, N64:R67", "Outras garantias"),
         ("I36:I39", "Moedas (R$ por USD e cruzadas)"),
+        ("K30:Q31", "Consolidada HCHL/HPU: valor em CLP/PEN e a taxa"),
     };
 
     /// <summary>Gera o arquivo, em memória, pronto para download.</summary>
@@ -99,6 +100,16 @@ public static class PricingExcel
         ws.Numero("D37", e.RiscoAdicional);
         ws.Numero("D47", e.MargemNegociacao);
         ws.Numero("E41", r.Markup);
+
+        // ---------- consolidada da HCHL / HPU: o valor na moeda da BU (CLP / PEN) e a taxa usada ----------
+        if (Consolidacao.VendaLiquidaNaMoedaDaBu(o, r.VendaLiquida) is decimal naBu && Consolidacao.MoedaDaBu(o) is Moeda moedaBu)
+        {
+            ws.Texto("K30", $"Valor consolidado em {moedaBu.Codigo()} (sem impostos)");
+            ws.Numero("Q30", naBu);
+            ws.FormatoDeMoeda(moedaBu == Moeda.Clp ? "#,##0" : "#,##0.00", "Q30");
+            ws.Texto("K31", "Taxa usada na consolidação");
+            ws.Texto("Q31", Consolidacao.TextoDaTaxa(o));
+        }
 
         // ---------- IPI pela NCM dos itens (compressor 8414.90.39 = 0%) ----------
         if (e.AliquotaIpi is decimal ipi && ipi != CalculoPricing.Ipi)

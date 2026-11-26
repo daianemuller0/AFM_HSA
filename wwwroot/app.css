@@ -1947,3 +1947,4 @@ tr.tp-sem td { color: var(--muted); }
 .cs-moeda-bu { font-weight: 700; padding-bottom: 10px; }
 .cs-valor-bu { padding-bottom: 10px; font-size: 13.5px; }
 .side-item.side-bu span small { display: block; font-size: 11px; color: var(--muted); }
+tr.memoria-bu td { background: #fff7d6; }

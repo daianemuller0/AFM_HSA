@@ -65,6 +65,10 @@ public static class Consolidacao
     public static string? NaMoedaDaBu(CommercialOffer o, decimal valor) =>
         PedeConversao(o) && o.TaxaMoedaBu > 0m ? Moedas.Dinheiro(MoedaDaBu(o)!.Value, Math.Round(valor * o.TaxaMoedaBu, 2)) : null;
 
+    /// <summary>A venda líquida do pricing (moeda do custo) na moeda da BU: passa à moeda da proposta e aplica a taxa; null = sem conversão.</summary>
+    public static decimal? VendaLiquidaNaMoedaDaBu(CommercialOffer o, decimal vendaLiquidaNoCusto) =>
+        Consolidada(o) && PedeConversao(o) && o.TaxaMoedaBu > 0m ? Math.Round(Cambio.ParaVenda(o, vendaLiquidaNoCusto) * o.TaxaMoedaBu, 2) : null;
+
     // ---- desfazer ----
 
     public sealed record Retrato(CommercialOffer Oferta, List<CommercialOfferItem> Itens);
